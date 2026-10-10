@@ -76,7 +76,8 @@ def main():
             expect(page.locator('#eog-communication-status')).to_contain_text('Look center / Retry')
             expect(page.locator('#center-text')).to_have_text('Choose a reply',timeout=10000)
             assert all(not app.ring.slots()[i]['enabled'] for i in (1,3,5,7))
-            page.click('#audio-toggle')
+            # Starting communication is the audio gesture; speech must already be on.
+            expect(page.locator('#audio-toggle')).to_have_attribute('aria-pressed','true')
             with app.lock:
                 d=app.wheel_detector
                 app.ring.action('focus','eog-communication',0)
@@ -108,7 +109,7 @@ def main():
             browser.close()
         report=dict(ok=True,mode='HTTP/browser UI state simulation; not sensor accuracy',checks=[
             'opt-in','center progress','ready','retry reason','prominent status','readiness-aware cues','recenter','stale signal',
-            'homepage speed check','opt-in communication','four reachable positions','fixed detected-choice preview','explicit confirmation readiness','confirmed browser speech once','diagnostic speech disabled','gaze highlighting absent','HUD rendering','diagnostic mode cannot confirm','no JS errors'])
+            'homepage speed check','opt-in communication','four reachable positions','fixed detected-choice preview','explicit confirmation readiness','speech auto-enabled with communication','confirmed browser speech once','diagnostic speech disabled','gaze highlighting absent','HUD rendering','diagnostic mode cannot confirm','no JS errors'])
         (output/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report))
     finally:
         stop.set();feeder.join(timeout=2);server.shutdown();server.server_close();worker.join(timeout=2)

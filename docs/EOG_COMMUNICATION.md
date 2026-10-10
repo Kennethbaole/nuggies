@@ -10,7 +10,9 @@ stopped and preserved; no accuracy score is claimed for that unlabeled session.
 A wearer chooses a reachable item with a cardinal eye movement, returns to
 center, and deliberately double blinks to activate it. Confirmed phrases appear
 on the companion and can speak through its existing speech pipeline. The browser
-requires the operator to click Enable speech. Single natural blinks do nothing.
+enables speech on that companion when the operator clicks Start gaze + double-blink
+communication. Single natural blinks do nothing. A refresh resets speech to off;
+Enable speech turns it back on without restarting communication.
 
 Start **gaze + double-blink communication** on the homepage. This is a separate,
 explicit opt-in from the diagnostic eye-wheel test. The default app remains
@@ -214,3 +216,13 @@ with speech off, then natural blinks/no-choice checks.
 ### 2026-10-10: double-blink ambiguity instrumentation
 
 The latest explicit right → center → double-blink attempt reached an armed gate but failed the single-versus-double template margin (1.218 versus 1.5). Waveform events now include completed vertical-pulse count, widths, separation, ratio and valley diagnostics. These are observational only; selection thresholds remain unchanged pending exact-window replay. Some reused single-blink/direction windows also contain two lobes, so pulse count alone must not authorize selection. Confirmation armed indices now use the same logging coordinate as onset/emitted indices. See `CLAUDE_HANDOFF.md` for the exact event, replay alignment blocker and next experiment.
+
+### Speech on communication start
+
+Starting communication now enables speech on the companion through the same user click.
+The local `.env` configures ElevenLabs: confirmed replies use cloud TTS with a local
+cache and browser speech fallback. No credentials are stored in these docs. Browser
+audio policy can still require interaction; this is not an audible hardware test.
+The speech toggle can pause output; refresh starts with speech off. Diagnostic mode
+continues to disable speech. Automated browser checks use mocked browser speech and
+disable the cloud API key, so they never call paid TTS.
