@@ -4,9 +4,18 @@ import secrets
 
 
 def protocol(mode="horizontal"):
-    if mode not in ("horizontal", "vertical"):
+    if mode not in ("horizontal", "vertical", "double_blink"):
         raise ValueError("Unknown guided protocol")
     steps = [(5, 'unlabeled', 'prepare', 'prepare', 'Get ready. Keep your head still and cables resting.')]
+    if mode == 'double_blink':
+        steps.append((10, 'neutral', 'baseline', 'baseline', 'Look straight ahead. Blink naturally.'))
+        for repeat in range(1, 6):
+            trial = f'double-blink-{repeat}'
+            steps.extend([(3, 'neutral', trial, 'prepare', 'Look at the center. Get ready.'),
+                          (3, 'double_blink', trial, 'movement', 'BLINK TWICE naturally, about half a second apart.'),
+                          (4, 'neutral', trial, 'rest', 'Look at the center and rest.')])
+        steps.append((10, 'neutral', 'final-baseline', 'baseline', 'Look straight ahead. Blink naturally.'))
+        return steps
     steps.append((20, 'neutral', 'baseline', 'baseline', 'Look straight ahead. Blink naturally.'))
     for repeat in range(1, 6):
         for direction in (('left', 'right') if mode == 'horizontal' else ('up', 'down')):

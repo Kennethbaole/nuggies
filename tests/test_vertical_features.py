@@ -39,3 +39,9 @@ class VerticalFeatureTests(unittest.TestCase):
         trial=GuidedTrial();trial.start(10,'vertical')
         self.assertEqual(trial.snapshot(10)['protocol'],'vertical')
         with self.assertRaises(ValueError): protocol('unknown')
+
+    def test_double_blink_only_protocol_does_not_repeat_gaze_trials(self):
+        steps=protocol('double_blink')
+        self.assertEqual(sum(s[0] for s in steps),75)
+        self.assertEqual(sum(s[1]=='double_blink' for s in steps),5)
+        self.assertFalse(any(s[1] in ('up','down','left','right') for s in steps))

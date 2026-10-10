@@ -151,3 +151,10 @@ No universal amplitude-ratio cutoff or double-blink classifier is implemented.
 Research measures blink amplitude, duration, and shape rather than relying only
 on amplitude: [BLINKER](https://pmc.ncbi.nlm.nih.gov/articles/PMC5289990/) and
 [blink-type comparison](https://pubmed.ncbi.nlm.nih.gov/10407913/).
+
+For a separate double-blink capture, choose **Double blinks only · 1m 15s**.
+This protocol has a 5-second preparation, 10-second baseline, five double-blink
+trials (3-second preparation, 3-second blink cue, 4-second rest), and a final
+10-second baseline. Follow each cue once; baseline single blinks are allowed.
+If a section was skipped, exclude its labeled windows rather than treating the
+cue label as proof the movement happened. This remains recording-only.
