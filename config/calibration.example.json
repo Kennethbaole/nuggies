@@ -1,0 +1,10 @@
+{
+  "horizontal_baseline": 8192,
+  "vertical_baseline": 8192,
+  "horizontal_scale": 1200,
+  "vertical_scale": 1200,
+  "horizontal_polarity": 1,
+  "vertical_polarity": 1,
+  "threshold": 0.5,
+  "sample_rate_hz": 100
+}

@@ -20,3 +20,9 @@ firmware are implemented. See [Acquisition](docs/ACQUISITION.md).
 ```sh
 python3 -m unittest discover -s tests -v
 ```
+
+## Capture and signal tools
+
+The terminal CLI supports raw USB capture, replay and keyboard simulation.
+Calibration, seeded scenarios and temporal gates are implemented and tested
+with software fixtures. See [Signals and capture](docs/SIGNALS.md).
