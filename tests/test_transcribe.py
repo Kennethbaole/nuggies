@@ -73,7 +73,7 @@ class AppTests(unittest.TestCase):
     def make_app(self, transcript=None, error=None):
         app = Application()
         self.suggest_calls = []
-        app.suggester = OllamaSuggestions(transport=lambda *args: (
+        app.suggester = OllamaSuggestions(mode="single", transport=lambda *args: (
             self.suggest_calls.append(args), {"message": {"content": json.dumps(GOOD)}})[1])
         app.suggester.model = "qwen3:1.7b"
         app.transcriber, self.asr_calls = transcriber(transcript, error)

@@ -7,7 +7,8 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from backend.app import Application, make_handler
-from backend.suggestions import OllamaSuggestions, SuggestionBusy, SuggestionUnavailable, clean_suggestions
+from backend.suggestions import (REPLY_KINDS, OllamaSuggestions, SuggestionBusy, SuggestionUnavailable,
+                                 clean_line, clean_suggestions, format_timing)
 
 
 def reply(payload):
@@ -29,7 +30,7 @@ SECOND = {"heard": "", "suggestions": [
 ]}
 
 
-def provider(response=None, error=None, model="qwen3:1.7b"):
+def provider(response=None, error=None, model="qwen3:1.7b", mode="single"):
     calls = []
 
     def transport(url, headers, body, timeout):
@@ -38,7 +39,7 @@ def provider(response=None, error=None, model="qwen3:1.7b"):
             raise error
         return response
 
-    suggester = OllamaSuggestions(transport=transport)
+    suggester = OllamaSuggestions(transport=transport, mode=mode)
     suggester.model = model
     return suggester, calls
 
@@ -106,6 +107,69 @@ class ProviderTests(unittest.TestCase):
                         provider(reply({"suggestions": []}))[0]):
             with self.assertRaises(SuggestionUnavailable):
                 failure.suggest(heard_text="hi")
+
+
+class ParallelTests(unittest.TestCase):
+    LINES = {"direct answer": "Yes, tea would be lovely.", "polite no": "1. No thank you, I am fine.",
+             "question back": '"What kind of tea is it?"', "warm": "That is so kind of you.\nExtra line.",
+             "request": "Could I have some water too?"}
+
+    def parallel(self, fail=()):
+        calls = []
+
+        def transport(url, headers, body, timeout):
+            calls.append(body)
+            ask = body["messages"][1]["content"].rsplit("\n", 1)[-1]
+            key = next(key for key in self.LINES if key in ask)
+            if key in fail:
+                raise URLError("down")
+            return {"message": {"content": self.LINES[key]}, "eval_count": 12, "eval_duration": 400_000_000,
+                    "prompt_eval_count": 90, "prompt_eval_duration": 50_000_000, "load_duration": 1_000_000}
+
+        suggester = OllamaSuggestions(transport=transport, mode="parallel")
+        suggester.model = "qwen3:1.7b"
+        return suggester, calls
+
+    def test_one_short_plain_request_per_reply_kind(self):
+        suggester, calls = self.parallel()
+        result = suggester.suggest(contact=dict(name="Alex", relationship="Family"), heard_text="Tea?")
+        self.assertEqual(len(calls), len(REPLY_KINDS))
+        for body in calls:
+            self.assertNotIn("format", body)
+            self.assertEqual((body["stream"], body["think"], body["options"]["stop"]), (False, False, ["\n"]))
+            self.assertLessEqual(body["options"]["num_predict"], 80)
+            self.assertIn('"Tea?"', body["messages"][1]["content"])
+        prefixes = {body["messages"][1]["content"].rsplit("\n", 1)[0] for body in calls}
+        self.assertEqual(len(prefixes), 1)  # Shared prefix; only the reply kind differs.
+        self.assertEqual([item["text"] for item in result.suggestions],
+                         ["Yes, tea would be lovely.", "No thank you, I am fine.", "What kind of tea is it?",
+                          "That is so kind of you.", "Could I have some water too?"])
+        self.assertEqual((result.timing["mode"], result.timing["requests"], result.timing["gen_tokens"],
+                          result.timing["gen_ms"]), ("parallel", 5, 60, 400))
+        self.assertIn("parallel x5", format_timing(result.timing))
+
+    def test_partial_failure_keeps_the_rest_and_total_failure_raises(self):
+        suggester, _ = self.parallel(fail=("polite no", "warm"))
+        self.assertEqual(len(suggester.suggest(heard_text="Tea?").suggestions), 3)
+        suggester, _ = self.parallel(fail=tuple(self.LINES))
+        with self.assertRaises(SuggestionUnavailable):
+            suggester.suggest(heard_text="Tea?")
+
+    def test_clean_line_and_mode_validation(self):
+        self.assertEqual(clean_line("\n- “Sure thing.”\nmore"), "Sure thing.")
+        self.assertEqual(clean_line("2) Okay."), "Okay.")
+        self.assertEqual(clean_line("   "), "")
+        with self.assertRaises(ValueError):
+            OllamaSuggestions(mode="fastest")
+
+    def test_single_mode_reports_timing_and_warm_is_best_effort(self):
+        body = dict(reply(GOOD), eval_count=150, eval_duration=5_000_000_000, load_duration=0)
+        suggester, calls = provider(body)
+        self.assertEqual(suggester.suggest(heard_text="Tea?").timing["gen_tokens"], 150)
+        self.assertTrue(suggester.warm())
+        self.assertEqual(calls[-1][2]["options"], dict(num_predict=1))
+        self.assertFalse(provider(error=URLError("down"))[0].warm())
+        self.assertFalse(provider(model="")[0].warm())
 
 
 class AppIntegrationTests(unittest.TestCase):

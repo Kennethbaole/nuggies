@@ -29,7 +29,7 @@ from .persona import (
 from .ring import RingState
 from .speech import ElevenLabsSpeech, SpeechUnavailable
 from .state_machine import DoubleBlinkGate, GestureGate
-from .suggestions import OllamaSuggestions, SuggestionBusy, SuggestionUnavailable
+from .suggestions import OllamaSuggestions, SuggestionBusy, SuggestionUnavailable, format_timing
 from .transcribe import RemoteTranscriber, TranscriptionUnavailable
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -72,6 +72,7 @@ class Application:
             if contact["id"] not in {known["id"] for known in self.ring.config["contacts"]}]
         self.suggest_lock = threading.Lock()
         self.last_suggest = 0.0
+        self.log_timing = False  # main() turns this on: one line per suggestion request.
         self.samples = deque(maxlen=300)
         self.event_ids = deque(maxlen=256)
         self.audio_claims = deque(maxlen=128)
@@ -361,6 +362,8 @@ class Application:
                 persona = self.personas.context(self.ring.contact, heard_text)
             result = self.suggester.suggest(contact=contact, recent=recent, avoid=avoid,
                                             heard_text=heard_text, style_examples=examples, persona=persona)
+            if self.log_timing:
+                print(f"Suggestions ({result.model}) {format_timing(result.timing)}", flush=True)
             with self.lock:
                 if self.ring.revision != context_revision:
                     raise SuggestionUnavailable("Conversation changed while replies were generated; request fresh suggestions")
@@ -683,6 +686,9 @@ def main():
     target, worker_args = (app.run_serial, (args.serial_port, args.record)) if args.serial_port else (app.run_replay, (args.replay,)) if args.replay else (app.run_demo, ())
     worker = threading.Thread(target=target, args=worker_args, daemon=True)
     worker.start()
+    app.log_timing = True
+    if app.suggester.available:  # Load the reply model now so the first suggestion skips the cold start.
+        threading.Thread(target=app.suggester.warm, daemon=True).start()
     print(f"Ring companion: http://{args.host}:{args.port}\nHUD: http://{args.host}:{args.port}/hud", flush=True)
     try:
         server.serve_forever()
