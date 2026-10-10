@@ -21,9 +21,21 @@ class GuidedConfig:
     recovery_s: float = 4
     reject_blinks: bool = True
     blink_horizontal_min: float = .25
+    # Acceptance cutoffs; the defaults are the reviewed-replay settings.
+    direction_distance: float = .08
+    blink_margin: float = 1.5
+
+    @classmethod
+    def demo(cls, **overrides):
+        """Looser demonstration tolerance: more accepted glances, more false directions.
+
+        A wrong direction only changes the pending choice; selection still needs a double blink.
+        The blink-overlap margin stays strict: loosening it read blinks as Up in replay.
+        """
+        return cls(**{**dict(direction_distance=.15,retry_s=1.5),**overrides})
 
     def __post_init__(self):
-        if any(not math.isfinite(x) or x <= 0 for x in (self.center_s,self.retry_s,self.direction_margin,self.recovery_s)) or not math.isfinite(self.haar_weight) or self.haar_weight<0:
+        if any(not math.isfinite(x) or x <= 0 for x in (self.center_s,self.retry_s,self.direction_margin,self.recovery_s,self.direction_distance,self.blink_margin)) or not math.isfinite(self.haar_weight) or self.haar_weight<0:
             raise ValueError('Invalid guided EOG settings')
         if type(self.excursion_guard) is not bool or type(self.pulse_confirmation) is not bool or type(self.reject_blinks) is not bool or not math.isfinite(self.blink_horizontal_min) or not 0<=self.blink_horizontal_min<=1:
             raise ValueError('Invalid blink rejection settings')
@@ -212,8 +224,8 @@ class GuidedEOGTest:
             self.totals['returns']+=1
             self._event('return','recovering',segment,result)
             return None
-        reason=('distant_match' if result['distance']>.08 else
-                'blink_overlap' if result['blink_margin']<1.5 else
+        reason=('distant_match' if result['distance']>self.config.direction_distance else
+                'blink_overlap' if result['blink_margin']<self.config.blink_margin else
                 'direction_overlap' if result['direction_margin']<self.config.direction_margin else None)
         if reason:
             self._retry(reason,segment,result)

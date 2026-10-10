@@ -265,3 +265,14 @@ class GuidedEOGTests(unittest.TestCase):
         self.assertEqual(d.last_result['label'],'return')
         self.assertEqual(d.last_result['reason'],'remembered_excursion')
         self.assertEqual(d.totals['accepted'],0)
+
+
+class DemoToleranceTest(unittest.TestCase):
+    def test_demo_preset_loosens_only_distance_and_retry(self):
+        from backend.guided_eog import GuidedConfig
+        default,demo=GuidedConfig(),GuidedConfig.demo(pulse_confirmation=True)
+        self.assertEqual((default.direction_distance,default.blink_margin,default.retry_s),(.08,1.5,5))
+        self.assertEqual((demo.direction_distance,demo.blink_margin,demo.retry_s),(.15,1.5,1.5))
+        self.assertTrue(demo.pulse_confirmation)
+        with self.assertRaises(ValueError):GuidedConfig(direction_distance=0)
+

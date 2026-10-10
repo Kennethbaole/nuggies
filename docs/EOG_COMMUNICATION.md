@@ -295,3 +295,25 @@ failed prototype, selected replay results and remaining outward-match failures.
 The wearer reports more consistent double-blink selection; directional usability
 is still a blocker. Continue offline from the saved recordings, not another generic
 calibration protocol.
+
+### Demonstration tolerance (opt-in, 2026-10-10)
+
+`--eog-demo-tolerance` (with `--eog-profile`) accepts a direction when its template
+distance is <= .15 instead of .08 and shortens the clean-rest retry wait from 5 s to
+1.5 s. The blink-overlap margin stays 1.5. Defaults are unchanged without the flag.
+
+Why: in the evening live sessions the classifier usually named a plausible direction
+with good margins, then rejected it as `distant_match` at distances of about .09–.17.
+The frozen profile was fitted to early-morning recordings; the mismatch is consistent
+with electrode/amplitude drift, which was not measured directly.
+
+Continuous raw replay of the three evening live recordings (unlabelled, always-on,
+pulse confirmation and return guard enabled): accepted directions 10 -> 24, with
+up 3 -> 5. Also lowering the blink margin to 1.2 raised up to 16, consistent with
+blinks read as Up, so that was not adopted. Cued recordings: sessions 4/5 keep
+10/11 and 10/10 hits with zero wrong; accepted directions outside cued movement rise
+from 2 to 5 in session 4 and 0 to 1 in an afternoon speed check (2/3 hits unchanged).
+Sessions 4/5 are the profile's own training data, and evening intent is unlabelled:
+this is a demonstration trade (fewer rejections, more false directions), not an
+accuracy result. A false direction only changes the pending choice; speaking still
+requires the armed double blink.
