@@ -10,7 +10,7 @@ from backend.app import Application
 from backend.persona import (
     ContactBook, PersonaStore, chat_text, build_persona, parse_chat, persona_context, save_persona, similar_pairs, style_note, training_rows,
 )
-from backend.suggestions import GeminiSuggestions, OllamaSuggestions, context_text
+from backend.suggestions import OllamaSuggestions, context_text
 
 PLAIN = """Bella: are you coming to dinner tonight?
 Isa: yesss wouldnt miss it
@@ -135,14 +135,6 @@ class PromptTests(unittest.TestCase):
         local.model = "qwen3:4b"
         local.suggest(contact=self.CONTACT, heard_text="dinner tonight?", persona=self.context())
         self.assertIn("wouldnt miss it", calls[0][2]["messages"][1]["content"])
-
-    def test_cloud_model_never_gets_private_exchanges(self):
-        calls = []
-        cloud = GeminiSuggestions(transport=lambda *args: calls.append(args) or {"candidates": [{"content": {"parts": [
-            {"text": json.dumps({"heard": "", "suggestions": [{"label": "Yes", "text": "Yes, I would love to."}]})}]}}]})
-        cloud.api_key = "key"
-        cloud.suggest(contact=self.CONTACT, heard_text="dinner tonight?", style_examples=["Hi."], persona=self.context())
-        self.assertNotIn("wouldnt miss it", json.dumps(calls[0][2]))
 
 
 class AppTests(unittest.TestCase):

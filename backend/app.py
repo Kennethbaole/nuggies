@@ -20,15 +20,12 @@ from .classifier import ThresholdClassifier
 from .live_wheel import LiveWheelTest
 from .guided import GuidedTrial
 from .persona import (
-    DEFAULT_ID, ContactBook, PersonaStore, build_persona, chat_text, persona_context, save_persona, speaker_counts,
+    DEFAULT_ID, ContactBook, PersonaStore, build_persona, chat_text, save_persona, speaker_counts,
 )
 from .ring import RingState
 from .speech import ElevenLabsSpeech, SpeechUnavailable
 from .state_machine import DoubleBlinkGate, GestureGate
-from .suggestions import (
-    DEFAULT_DEADLINE_S, FallbackSuggestions, GeminiSuggestions, OllamaSuggestions, SuggestionBusy,
-    SuggestionUnavailable,
-)
+from .suggestions import OllamaSuggestions, SuggestionBusy, SuggestionUnavailable
 from .transcribe import RemoteTranscriber, TranscriptionUnavailable
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -60,12 +57,9 @@ class Application:
         self.token = os.environ.get("APP_TOKEN", "")
         self.session_id = secrets.token_hex(12)
         self.speech = ElevenLabsSpeech(ROOT / ".cache" / "tts")
-        # Gemini first; the local Ollama model answers when Gemini fails or is slow.
-        self.suggester = FallbackSuggestions(
-            GeminiSuggestions(), OllamaSuggestions(),
-            deadline_s=float(os.environ.get("SUGGEST_DEADLINE_S", DEFAULT_DEADLINE_S)))
+        self.suggester = OllamaSuggestions()  # Local Qwen model; works offline.
         # Qwen speech-to-text on the Jetson (ASR_URL) is the only way audio becomes text;
-        # Gemini and Ollama only ever receive the transcript.
+        # the reply model only ever receives the transcript.
         self.transcriber = RemoteTranscriber()
         self.personas = PersonaStore()  # Private per-contact profiles; see backend/persona.py.
         self.contact_book = ContactBook()
@@ -262,7 +256,7 @@ class Application:
         return self.people()
 
     def suggest(self, payload):
-        """Hear audio with Qwen, then ask Gemini (or the local model) for reply previews.
+        """Hear audio with Qwen, then ask the local model for reply previews.
 
         Listening needs only ASR_URL: without a reply model the transcript is shown
         and the phrases stay. The ring keeps its fallback on failure."""
@@ -275,7 +269,7 @@ class Application:
         if audio is not None and not self.transcriber.available:
             raise TranscriptionUnavailable("Speech-to-text is not configured (ASR_URL); type what they said instead")
         if audio is None and not self.suggester.available:
-            raise SuggestionUnavailable("Reply suggestions are not configured (GEMINI_API_KEY or OLLAMA_MODEL); curated phrases remain")
+            raise SuggestionUnavailable("Reply suggestions are not configured (OLLAMA_MODEL); curated phrases remain")
         if not self.suggest_lock.acquire(blocking=False):
             raise SuggestionBusy("A suggestion request is already running")
         try:

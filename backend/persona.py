@@ -8,7 +8,7 @@ the user talking to that particular person. Contacts without a profile use the
 "default" profile when one exists, otherwise the curated phrases.
 
 Profiles are private: config/persona.<contact>.local.json is Git-ignored, and
-only the local model receives them (see GeminiSuggestions). Nothing is trained
+the only model that receives them runs on this device. Nothing is trained
 here; training_rows() exports the same exchanges for fine-tuning later.
 Standard library only.
 """

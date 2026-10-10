@@ -44,16 +44,16 @@ Why Ollama and Piper: both let the Jetson work without the internet or a
 cloud account.
 
 - **Ollama** runs a small Qwen model (default `qwen3:1.7b`) on the Jetson. It
-  writes reply suggestions offline when Gemini fails or is slow. The curated
-  phrase bank stays as the fallback.
+  writes every reply suggestion, so they work offline. The curated phrase bank
+  stays as the fallback when the model is not running.
 - **Piper** is local text-to-speech. It is meant as an offline voice when
   ElevenLabs is unconfigured or unreachable, and to avoid relying on whatever
   browser voices the Jetson happens to have.
 - **Qwen3-ASR** turns the other person's speech into text on the Jetson
   (`backend.asr_server`). Ollama's models only read text, so this is what lets
   offline suggestions respond to what was said. It is the only speech-to-text:
-  Gemini and Ollama receive the transcript, never audio, and listening works
-  without either key (the transcript is shown and the phrases stay). Default `Qwen/Qwen3-ASR-0.6B`;
+  the reply model receives the transcript, never audio, and listening works
+  without a reply model (the transcript is shown and the phrases stay). Default `Qwen/Qwen3-ASR-0.6B`;
   `Qwen/Qwen3-ASR-1.7B` is more accurate but tight beside Ollama in 8 GB of
   shared memory. It replaces the earlier whisper.cpp plan.
 

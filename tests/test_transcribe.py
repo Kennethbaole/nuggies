@@ -9,7 +9,7 @@ from urllib.request import Request, urlopen
 
 from backend import asr_server
 from backend.app import Application, make_handler
-from backend.suggestions import GeminiSuggestions, OllamaSuggestions, SuggestionUnavailable
+from backend.suggestions import OllamaSuggestions, SuggestionUnavailable
 from backend.transcribe import RemoteTranscriber, TranscriptionUnavailable
 
 patch("backend.app.load_env").start()
@@ -73,9 +73,9 @@ class AppTests(unittest.TestCase):
     def make_app(self, transcript=None, error=None):
         app = Application()
         self.suggest_calls = []
-        app.suggester = GeminiSuggestions(transport=lambda *args: (
-            self.suggest_calls.append(args), {"candidates": [{"content": {"parts": [{"text": json.dumps(GOOD)}]}}]})[1])
-        app.suggester.api_key = "key"
+        app.suggester = OllamaSuggestions(transport=lambda *args: (
+            self.suggest_calls.append(args), {"message": {"content": json.dumps(GOOD)}})[1])
+        app.suggester.model = "qwen3:1.7b"
         app.transcriber, self.asr_calls = transcriber(transcript, error)
         return app
 
@@ -86,20 +86,20 @@ class AppTests(unittest.TestCase):
         app = self.make_app(dict(text="Do you want some tea?", language="English"))
         state = app.suggest(self.audio_payload(app))
         self.assertEqual(len(self.asr_calls), 1)
-        parts = self.suggest_calls[0][2]["contents"][0]["parts"]
-        self.assertEqual(len(parts), 1)  # No inline audio: Gemini only receives the transcript.
-        self.assertIn("Do you want some tea?", parts[0]["text"])
+        body = self.suggest_calls[0][2]
+        self.assertNotIn(base64.b64encode(b"speech").decode(), json.dumps(body))  # The reply model never receives audio.
+        self.assertIn("Do you want some tea?", body["messages"][1]["content"])
         self.assertTrue(state["transcribe_available"])
         self.assertEqual(state["slots"][0]["text"], "Yes, tea would be lovely.")
 
-    def test_asr_failure_never_sends_audio_to_gemini(self):
+    def test_asr_failure_never_reaches_the_reply_model(self):
         app = self.make_app(error=URLError("tunnel down"))
         with self.assertRaisesRegex(TranscriptionUnavailable, "tunnel up"):
             app.suggest(self.audio_payload(app))
         self.assertEqual(self.suggest_calls, [])
         self.assertEqual(app.state()["suggestions_provider"], "curated-demo")
 
-    def test_listening_needs_asr_url_not_gemini(self):
+    def test_listening_needs_asr_url_not_a_reply_model(self):
         app = self.make_app(dict(text="unused"))
         app.transcriber.url = ""
         with self.assertRaisesRegex(TranscriptionUnavailable, "ASR_URL"):
@@ -109,7 +109,7 @@ class AppTests(unittest.TestCase):
 
     def test_transcript_shown_without_any_reply_model(self):
         app = self.make_app(dict(text="Can you hear me?"))
-        app.suggester.api_key = ""
+        app.suggester.model = ""
         self.assertFalse(app.state()["suggest_available"])
         before = app.state()["slots"][0]["text"]
         state = app.suggest(self.audio_payload(app))
@@ -120,16 +120,12 @@ class AppTests(unittest.TestCase):
         with self.assertRaisesRegex(SuggestionUnavailable, "not configured"):
             app.suggest(dict(session_id=app.session_id, heard_text="typed"))
 
-    def test_offline_model_answers_from_qwen_transcript(self):
+    def test_reply_model_answers_from_qwen_transcript(self):
         app = self.make_app(dict(text="Are you cold?"))
-        bodies = []
-        local = OllamaSuggestions(transport=lambda url, headers, body, timeout: (
-            bodies.append(body), {"message": {"content": json.dumps(GOOD)}})[1])
-        local.model = "llama3.2:3b"
-        app.suggester = local
         state = app.suggest(self.audio_payload(app))
-        self.assertIn("Are you cold?", bodies[0]["messages"][1]["content"])
+        self.assertIn("Are you cold?", self.suggest_calls[0][2]["messages"][1]["content"])
         self.assertEqual(state["heard"], "Are you cold?")
+        self.assertEqual(state["suggestions_provider"], "ollama")
 
     def test_silence_and_typed_text(self):
         app = self.make_app(dict(text=""))
