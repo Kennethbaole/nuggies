@@ -2,7 +2,7 @@
 
 ## Software checks
 
-The latest full suite of 141 tests passed on macOS with Python 3.14, including raw CSV handling,
+The latest full suite of 144 tests passed on macOS with Python 3.14, including raw CSV handling,
 calibration fixtures, gesture gates, ring behavior, labeled capture, API access
 boundaries and mocked speech. Both browser JavaScript modules pass syntax checks.
 
@@ -39,11 +39,11 @@ its directions do not reliably match actual movements. Do not interpret passing
 software tests as validated EOG control.
 
 Isolated browser checks additionally fed synthetic ADC samples through app ingest
-for all eight directions, verified underline-only feedback, return/stop clearing,
+for all eight directions, previously verified underline-only feedback, return/stop clearing,
 and no gaze activation. These ad hoc checks do not measure biological accuracy.
 
-Next: labeled center and four-direction calibration, polarity/gain/noise review,
-then measured threshold and timing changes evaluated on fresh trials. Add diagonal
+Next: use existing labeled recordings to improve continuous temporal detection
+and recovery, then verify a measured improvement with a targeted fresh trial. Add diagonal
 classification and blink rejection after cardinal directions work. Biological
 confirmation remains offline; physical OLED/optics, target-device behavior and
 real service audio require separate validation. See [Current status and next
@@ -62,3 +62,12 @@ docker run --rm -p 8765:8765 --env APP_TOKEN nuggies
 ```
 
 The server uses in-memory state and requires one process for a shared session.
+
+## Offline sequence experiment
+
+The optional experiment evaluates supervised temporal models on reviewed local
+recordings. Tests cover allowlisted runs/classes, exclusion of skipped classes,
+metadata alignment, duplicate trials, repetition assignment and confusion
+accounting. [Experiment documentation](EOG_SEQUENCE_EXPERIMENT.md) defines the
+split, reproducible commands, measured outcomes and limits. UI gaze highlighting
+is removed; status/readouts remain.

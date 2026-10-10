@@ -67,7 +67,8 @@ resolution, power and optics must be identified and tested separately.
 
 ## Experimental gaze feedback and current issue
 
-The eye wheel test underlines the detected directional slot without activating it.
+Gaze highlighting is removed. The eye wheel test still exposes detector state
+and raw channel readings without automatically activating items.
 It requires live serial input and excludes guided tests/calibrated navigation.
 Speech is disabled during the test. Detection remains inaccurate in live use;
 see [Current status and next session](PROJECT_STATUS.md) for the exact logic,

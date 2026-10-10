@@ -5,7 +5,7 @@ Updated 2026-10-10.
 Latest pulled baseline: b1ceaa0. Reply generation now uses Qwen through Ollama
 only; Gemini was removed. A Contacts page supports local contact profiles and
 chat imports that supply style/examples to reply generation (no fine-tuning).
-The pulled changes did not alter the EOG detector. Latest suite: 141 passing tests.
+The pulled changes did not alter the EOG detector. Latest suite: 144 passing tests.
 See [EOG detector review](EOG_DETECTION_PLAN.md) for the paper assessment and
 recovery defect reproduced against existing recordings.
 
@@ -18,14 +18,14 @@ and shares phrase-wheel state with the phone and silent HUD views.
 
 The experimental eye wheel test reads live serial data and focuses an eight-slot
 radial wheel. Up targets the top slot (initial Hello), down targets bottom Back,
-with left/right and diagonals mapped spatially. Gaze only underlines the detected
-label: glowing sectors and filled gaze highlights were removed. Gaze does not
+with left/right and diagonals mapped spatially. Gaze visual highlighting has been fully removed: no underline, glowing sector,
+or filled gaze highlight. Detector state remains visible in the status/readouts. Gaze does not
 activate phrases/utilities or speech. Keyboard/mouse confirmation remains
 available; speech is disabled while the experimental test is active.
 
 ## Observed issue
 
-In live use the underline changes, but does not reliably correspond to intended
+Before visual feedback was removed, the underline changed but did not reliably correspond to intended
 movements. Repeating the center/left trial did not resolve it. Usable directional
 control has **not** been established. The cause is not yet isolated; this does
 not by itself prove poor electrode signals or reversed wiring.
@@ -45,13 +45,15 @@ can affect the result. The trigger counts threshold activity without requiring
 a consistent direction throughout that interval. AC-coupled movement pulses
 cannot establish continuous absolute gaze position.
 
-## Resume with calibration, not more UI changes
+## Resume with offline algorithm development
 
-1. Recheck the setup and acquire a quiet center baseline. Keep wheel control off
-   while recording labeled measurements.
-2. Record separate left, right, up, and down trials, with explicit center returns
-   and several repetitions. Record blinks separately; distinguish intended gaze
-   from its return in the review.
+1. Use the existing reviewed recordings for offline model development. The new
+   [sequence experiment](EOG_SEQUENCE_EXPERIMENT.md) compares learned temporal
+   templates and an LSTM with fixed-threshold logic. No new acquisition is
+   required for this stage.
+2. Extend the promising template baseline to continuous-stream event detection,
+   using existing recordings to score return pulses, rest periods and blink
+   interference without cue-based detection boundaries.
 3. Verify polarity and compare channel noise, clipping, excursion amplitude,
    cross-axis leakage, and pulse timing. Fit separate per-axis thresholds/scales
    from measurements rather than guessing.
@@ -65,7 +67,7 @@ cannot establish continuous absolute gaze position.
 
 ## Evidence and limits
 
-The latest pulled code passed 141 tests. Isolated browser checks exercised all eight
+The latest code passed 144 tests. Isolated browser checks exercised all eight
 synthetic EOG directions through app ingest, hover release, no gaze activation,
 and stop behavior. Underline styling was checked in the browser. These checks
 verify software behavior, not biological direction accuracy. Earlier labeled
@@ -87,3 +89,14 @@ python3 -m backend.app --serial-port PORT --port 8877
 Close other serial readers first. The test defaults off after restart. Preserve
 private recordings locally and create new filenames for new sessions. Follow the
 power and electrode precautions in [Acquisition](ACQUISITION.md) before resuming.
+
+## Latest offline result
+
+Forty-five reviewed windows were evaluated using all five leave-one-repetition-out
+folds. For navigation (cardinal direction versus no direction during neutral/
+blinks), current logic got 20/45, learned templates 41/45, and the initial LSTM
+34/45. Templates recognized 18/20 cardinal trials and suppressed direction on
+23/25 neutral/blink windows. These cue-aligned, same-session development results
+are not continuous navigation validation or proof of cross-session accuracy.
+Do not send the user back through the full acquisition protocol before exhausting
+these existing-data experiments.

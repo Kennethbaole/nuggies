@@ -12,7 +12,7 @@ are excluded from Git. Never commit real API keys or participant recordings.
 
 Implementation and usage documentation will grow with each working component.
 See [Current status and next session](docs/PROJECT_STATUS.md) for the live EOG
-movement mismatch, current underline feedback, and calibration deliverable.
+movement mismatch, removed gaze highlighting, and calibration deliverable.
 
 ## Raw acquisition
 
@@ -67,7 +67,14 @@ service/device validation is separate. The terminal tools require macOS/Linux.
 
 ## Validation and next milestones
 
-The latest full suite passed 141 tests on macOS. Browser checks cover companion
+The latest full suite passed 144 tests on macOS. Browser checks cover companion
 interactions and synthetic eight-direction gaze feedback.
 See [Validation](docs/VALIDATION.md) for commands, evidence limits and the
 next hardware milestones. Optional container packaging is supplied but untested.
+
+## Offline EOG algorithm development
+
+Existing reviewed recordings can train and evaluate temporal waveform templates
+and a paper-inspired LSTM without more acquisition. See [Sequence experiment](docs/EOG_SEQUENCE_EXPERIMENT.md).
+Optional experiment dependencies are separate from the app. Reports and models
+remain private under recordings/. Gaze visual highlighting is currently removed.

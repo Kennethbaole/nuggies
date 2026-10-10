@@ -1,6 +1,9 @@
 # EOG detector review and next implementation
 
 Reviewed 2026-10-10. The live detector has not been changed by this review.
+An offline trained-template/LSTM comparison now exists: see
+[Sequence experiment](EOG_SEQUENCE_EXPERIMENT.md). Use existing recordings for
+continuous replay development before asking for further acquisition.
 
 ## Research reference
 
@@ -68,11 +71,12 @@ not an explanation proven for every live misclassification.
 Preserve spatial up/down/left/right navigation as the intended interaction. No
 long-blink command is currently wired into this hover mode, so removing one does
 not fix the present issue. Keep confirmation separate and speech off during
-navigation validation. Double-blink confirmation remains offline and unvalidated.
+navigation validation. Gaze highlighting has been removed. Double-blink confirmation remains offline and unvalidated.
 
 ## Next sensor session
 
-Check port and channel transport, confirm electrode labels/placement, then record
+After the existing-data replay work demonstrates an improvement, check port and
+channel transport, confirm electrode labels/placement, then record
 neutral, left/right/up/down with returns, and separate single/double blinks. Use
 fixed screen targets and several repetitions with explicit cues; review existing
 recordings first to determine which additional trials are actually needed. A
