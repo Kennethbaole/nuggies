@@ -68,3 +68,17 @@ class GuidedTrialTests(unittest.TestCase):
             self.assertEqual(trials[0]['timestamp_ms'], labels[0]['timestamp_ms'])
             self.assertFalse(app.recording)
             self.assertEqual(app.guided.status, 'stopped')
+
+    def test_short_diagnostic_check_has_all_movements_and_pauses_between_attempts(self):
+        steps=protocol('diagnostic')
+        for label in ('left','right','up','down','blink','double_blink'):
+            self.assertEqual(sum(s[1]==label for s in steps),2)
+        self.assertEqual(sum(s[0] for s in steps),157)
+        trial=GuidedTrial();trial.start(100,'diagnostic')
+        self.assertEqual(trial.snapshot(115)['phase'],'prepare')
+        trial.pause(115,True)
+        self.assertTrue(trial.snapshot(130)['paused'])
+        self.assertEqual(trial.snapshot(130)['phase'],'prepare')
+        trial.pause(130,False)
+        self.assertEqual(trial.snapshot(133)['label'],'left')
+        trial.stop();self.assertFalse(trial.snapshot(134)['paused'])

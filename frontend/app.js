@@ -109,14 +109,15 @@ function render(next) {
     button.textContent = slot.label; button.disabled = !slot.enabled;
     button.classList.toggle('selected', !state.wheel_test && state.selected === index);
     button.classList.toggle('utility', ['more', 'spell', 'back', 'space', 'delete', 'speak'].includes(slot.action));
-    button.setAttribute('aria-pressed', String(state.selected === index));
-    button.setAttribute('aria-label', `${slot.label}${slot.text ? ': ' + slot.text : ''}${state.selected === index ? ', highlighted' : ''}`);
+    button.setAttribute('aria-pressed', String(!state.wheel_test && state.selected === index));
+    button.setAttribute('aria-label', `${slot.label}${slot.text ? ': ' + slot.text : ''}${!state.wheel_test && state.selected === index ? ', highlighted' : ''}`);
   });
   const center = state.screen === 'spell' ? state.draft || 'Choose your letters.' : state.confirmed || 'Your words, at your pace.';
   $('center-text').textContent = center; $('phone-text').textContent = state.confirmed || 'Your words, at your pace.';
   $('center-label').textContent = state.screen === 'spell' ? 'YOUR DRAFT' : state.confirmed ? 'YOUR LAST SELECTION' : 'READY WHEN YOU ARE';
-  $('preview-text').textContent = state.preview || `${state.slots[state.selected].label} — ${state.wheel_test ? 'hover only · click or Space to choose' : 'double blink to choose'}`;
-  $('center-footer').textContent = state.wheel_test ? 'Gaze highlights · click or Space to choose' : state.screen === 'spell' ? 'Choose Speak when ready' : 'Double blink to choose';
+  $('preview-label').textContent = state.wheel_test ? 'EYE TEST' : 'HIGHLIGHTED';
+  $('preview-text').textContent = state.preview || `${state.slots[state.selected].label} — ${state.wheel_test ? 'direction test · speech off' : 'double blink to choose'}`;
+  $('center-footer').textContent = state.wheel_test ? 'Read direction in test status' : state.screen === 'spell' ? 'Choose Speak when ready' : 'Double blink to choose';
   const synthetic = state.input_mode === 'demo';
   $('source-name').textContent = synthetic ? (state.demo_running ? 'Synthetic signal scenario' : 'Keyboard demonstration') : state.input_mode === 'serial' ? 'Nano USB · raw ADC' : 'Recorded ADC replay';
   $('input-detail').textContent = state.wheel_test ? 'Experimental eye wheel control active. Speech disabled.' : synthetic ? 'No glasses or electrodes needed.' : state.sensor_actions ? 'Calibrated navigation enabled. Blink detection pending.' : 'Monitoring only. Sensor navigation is disabled.';
@@ -129,13 +130,33 @@ function render(next) {
   $('input-error').textContent = state.input_error;
   $('wheel-test-toggle').textContent = state.wheel_test ? 'Stop eye wheel test' : 'Start experimental eye wheel test';
   $('wheel-test-toggle').setAttribute('aria-pressed', String(Boolean(state.wheel_test)));
-  $('wheel-test-toggle').disabled = !state.wheel_test && (state.input_mode !== 'serial' || !state.connected || state.sensor_actions || state.guided?.status === 'running');
+  $('wheel-test-toggle').disabled = !state.wheel_test && ((state.input_mode !== 'serial' && !(state.input_mode === 'replay' && state.eog_engine === 'waveform')) || !state.connected || state.sensor_actions || state.guided?.status === 'running');
   $('wheel-test-stop').disabled = !state.wheel_test;
   const gaze = state.gaze_hover;
   $('wheel-test-status').textContent = state.wheel_test
     ? `${state.wheel_message}${gaze?.slot != null ? ' → ' + state.slots[gaze.slot].label : ''}` : 'Eye wheel control off';
   $('gaze-readings').textContent = state.wheel_test && gaze
     ? `EOG deviation · Horizontal ${gaze.horizontal} · Vertical ${gaze.vertical} ADC counts · ${gaze.phase}` : '';
+  const guidedEOG = state.eog_engine === 'waveform';
+  $('eog-guidance').hidden = !guidedEOG;
+  if (state.wheel_test && guidedEOG) {
+    const cueActive = state.guided?.protocol === 'diagnostic' && state.guided?.status === 'running';
+    const title = gaze?.phase === 'retry' ? 'Look center / Retry' : gaze?.phase === 'centering' ? 'Look straight ahead'
+      : gaze?.phase === 'signal_lost' ? 'Signal interrupted' : gaze?.direction ? `${gaze.direction.toUpperCase()} detected` : 'Ready';
+    $('center-label').textContent = cueActive ? 'LIVE EYE SIGNAL CHECK' : 'EYE SIGNAL TEST';
+    $('center-text').textContent = cueActive ? state.guided.cue : title;
+    $('center-footer').textContent = gaze?.phase === 'ready' ? 'One direction, then center · speech off'
+      : gaze?.phase === 'recovery' ? 'Return to center · wait for Ready' : `${Math.round((gaze?.progress || 0) * 100)}% clean rest`;
+    $('preview-text').textContent = gaze?.direction ? `${gaze.direction.toUpperCase()} → ${state.slots[gaze.slot].label}`
+      : gaze?.last_event ? `Last reading: ${gaze.last_event.label} · ${gaze.last_event.reason.replaceAll('_', ' ')}` : title;
+  }
+  $('eog-recenter').disabled = !state.wheel_test || !state.connected;
+  $('eog-progress').value = state.wheel_test ? (gaze?.progress || 0) : 0;
+  const lastEOG = gaze?.last_event;
+  $('eog-event').textContent = state.wheel_test && lastEOG
+    ? `Last reading: ${lastEOG.label} · ${lastEOG.reason.replaceAll('_', ' ')}` : '';
+  $('eog-quality').textContent = state.wheel_test && gaze?.totals
+    ? `Directions ${gaze.totals.accepted} · Retries ${gaze.totals.rejected} · Blink events ${gaze.totals.blinks} · Signal interruptions ${gaze.totals.faults}${gaze.waiting_too_long ? ' · Check electrode contact or recenter' : ''}` : '';
   if (state.wheel_test && audioEnabled) {
     audioEnabled = false; audio?.pause();
     if ('speechSynthesis' in window) speechSynthesis.cancel();
@@ -151,7 +172,11 @@ function render(next) {
   $('trial-label').disabled = guidedRunning;
   $('guided-protocol').disabled = guidedRunning;
   if (guidedRunning) $('guided-protocol').value = guided.protocol;
-  $('guided-start').disabled = guidedRunning || !state.recording || !state.connected || state.sensor_actions;
+  $('guided-protocol').querySelector('option[value="diagnostic"]').disabled = !guidedEOG;
+  if (!guidedEOG && $('guided-protocol').value === 'diagnostic') $('guided-protocol').value = 'horizontal';
+  const diagnosticCheck = $('guided-protocol').value === 'diagnostic';
+  $('guided-start').disabled = guidedRunning || !state.recording || !state.connected || (diagnosticCheck
+    ? !guidedEOG || !state.wheel_test || gaze?.phase !== 'ready' : state.sensor_actions);
   $('guided-stop').disabled = !guidedRunning;
   $('guided-cue').textContent = guided.cue || 'Live recording required to start a guided test.';
   $('guided-progress').textContent = guidedRunning ? `${guided.remaining_s}s · Step ${guided.step}/${guided.total_steps} · ${guided.trial_id}` : guided.status;
@@ -319,4 +344,5 @@ $('guided-stop').onclick = () => command('guided_stop');
 $('record-stop').onclick = () => command('record_stop');
 
 $('wheel-test-toggle').onclick = () => command('wheel_test', !state?.wheel_test);
+$('eog-recenter').onclick = () => command('eog_recenter');
 $('wheel-test-stop').onclick = () => command('wheel_test', false);
