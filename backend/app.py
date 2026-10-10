@@ -9,6 +9,7 @@ import mimetypes
 import os
 from pathlib import Path
 import secrets
+import statistics
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -93,6 +94,8 @@ class Application:
         self.wheel_test = False
         self.eog_log = None
         self.received_samples = 0
+        self.pending_eog_check = None
+        self.speed_attempts = {}
         if eog_profile and (source not in ("serial","replay") or sensor_actions):
             raise ValueError("Guided EOG requires serial/replay input with calibrated actions disabled")
         self.wheel_detector = GuidedEOGTest(eog_profile) if eog_profile else LiveWheelTest()
@@ -105,7 +108,8 @@ class Application:
             if self.wheel_test and isinstance(self.wheel_detector,GuidedEOGTest) and age is not None and age>=1000:
                 self.wheel_detector.fault("no_samples")
                 if self.eog_log:self.eog_log.record(self.wheel_detector)
-            data.update(eog_engine="waveform" if isinstance(self.wheel_detector,GuidedEOGTest) else "legacy", session_id=self.session_id, input_mode=self.source,
+            timing=[x["cue_to_detection_ms"] for x in self.speed_attempts.values() if x.get("correct") and not x.get("early_candidate")]
+            data.update(pending_eog_check=self.pending_eog_check,speed_results=list(self.speed_attempts.values()),speed_median_ms=statistics.median(timing) if timing else None,eog_engine="waveform" if isinstance(self.wheel_detector,GuidedEOGTest) else "legacy", session_id=self.session_id, input_mode=self.source,
                         connected=self.connected and (self.source == "demo" or age is not None and age < 2000),
                         last_sample_age_ms=age, input_error=self.error,
                         calibrated=self.calibration is not None,
@@ -148,6 +152,11 @@ class Application:
                     self.ring.revision += 1
             elif action == "suggestions_clear":
                 self.ring.clear_suggestions()
+            elif action == "speed_test":
+                if not isinstance(self.wheel_detector,GuidedEOGTest) or self.source!="serial" or not self.state()["connected"] or not self.recording or self.sensor_actions or self.guided.status=="running":
+                    raise ValueError("Speed check requires connected recorded waveform input and stopped cues")
+                self.speed_attempts={};self.pending_eog_check="speed"
+                self.wheel_test=True;self.wheel_detector.reset()
             elif action == "wheel_test":
                 if type(payload.get("value")) is not bool:
                     raise ValueError("wheel_test value must be boolean")
@@ -155,26 +164,29 @@ class Application:
                     if ((self.source != "serial" and not (self.source == "replay" and isinstance(self.wheel_detector,GuidedEOGTest))) or not self.state()["connected"] or self.sensor_actions
                             or self.guided.status == "running"):
                         raise ValueError("Wheel test requires connected serial, stopped guided cues, and disabled calibrated control")
-                if not payload["value"] and self.guided.mode=="diagnostic":self.guided.stop()
+                if not payload["value"] and self.guided.mode in ("diagnostic","speed"):self.guided.stop()
+                self.pending_eog_check=None
                 self.wheel_test = payload["value"]
                 self.wheel_detector.reset()
                 if self.eog_log:self.eog_log.record(self.wheel_detector,enabled=self.wheel_test)
             elif action == "eog_recenter":
                 if not self.wheel_test or not isinstance(self.wheel_detector,GuidedEOGTest):
                     raise ValueError("Recenter requires an active guided EOG test")
-                if self.guided.mode=="diagnostic":self.guided.stop()
+                if self.guided.mode in ("diagnostic","speed"):self.guided.stop()
+                self.pending_eog_check=None
                 self.wheel_detector.reset()
                 if self.eog_log:self.eog_log.record(self.wheel_detector)
             elif action == "record_stop":
                 if not self.recording:
                     raise ValueError("No recording is active")
+                self.pending_eog_check=None
                 self.record_stop.set()
                 self.recording = False
                 self.guided.stop()
                 self.trial_label = "unlabeled"
             elif action == "guided_start":
                 mode=payload.get("value") or "horizontal"
-                diagnostic=mode=="diagnostic"
+                diagnostic=mode in ("diagnostic","speed")
                 if self.source != "serial" or not self.recording or not self.connected or self.sensor_actions:
                     raise ValueError("Guided testing requires live recording with calibrated navigation disabled")
                 if diagnostic:
@@ -182,9 +194,11 @@ class Application:
                         raise ValueError("Diagnostic check requires the guided EOG test to be Ready")
                 elif self.wheel_test:
                     raise ValueError("Stop the eye wheel test before acquisition-only protocols")
+                if mode=="speed":self.speed_attempts={}
                 self.guided.start(time.monotonic(), mode)
             elif action == "guided_stop":
                 self.guided.stop()
+                self.pending_eog_check=None
                 self.trial_label = "unlabeled"
             elif action == "label":
                 if self.guided.status == "running":
@@ -340,9 +354,23 @@ class Application:
                 slot = (self.wheel_detector.process(sample.horizontal, sample.vertical,sample.timestamp_ms)
                         if isinstance(self.wheel_detector,GuidedEOGTest) else
                         self.wheel_detector.process(sample.horizontal, sample.vertical))
+                if self.pending_eog_check and self.wheel_detector.phase=="ready":
+                    self.guided.start(time.monotonic(),self.pending_eog_check);self.pending_eog_check=None
+                if self.guided.mode=="speed" and self.guided.status=="running":
+                    cue=self.guided.snapshot(time.monotonic())
+                    for trial,result in self.speed_attempts.items():
+                        if trial!=cue["trial_id"] or cue["phase"]!="movement":result["complete"]=True
+                    if cue["phase"]=="movement":
+                        result=self.speed_attempts.setdefault(cue["trial_id"],dict(trial=cue["trial_id"],intended=cue["label"],detected=None,correct=False,complete=False))
+                        if slot is not None and result["detected"] is None:
+                            event=self.wheel_detector.last_result
+                            elapsed=round(cue["phase_elapsed_s"]*1000)
+                            window=(event["emitted_sample"]-event["onset_sample"])*4
+                            result.update(detected=event["label"],correct=event["label"]==cue["label"],cue_to_detection_ms=elapsed,candidate_to_detection_ms=window,early_candidate=elapsed<window)
+                            event.update(speed_trial=cue["trial_id"],cue_to_detection_ms=elapsed,candidate_to_detection_ms=window,early_candidate=elapsed<window)
                 if slot is not None:
                     self.ring.action("focus", "eye-wheel-test", slot)
-                if self.guided.mode=="diagnostic" and self.guided.status=="running":
+                if self.guided.mode in ("diagnostic","speed") and self.guided.status=="running":
                     now=time.monotonic();cue=self.guided.snapshot(now)
                     self.guided.pause(now,cue["phase"]=="prepare" and self.wheel_detector.phase!="ready")
                 if self.eog_log:self.eog_log.record(self.wheel_detector,self.received_samples-1,sample.timestamp_ms)
@@ -432,6 +460,7 @@ class Application:
                 self.connected = False
                 self.error = f"{type(error).__name__}: {error}"
                 self.wheel_test = False
+                self.pending_eog_check=None
                 self.wheel_detector.reset()
 
         finally:
@@ -462,6 +491,7 @@ class Application:
                 self.connected = False
                 self.error = f"{type(error).__name__}: {error}"
                 self.wheel_test = False
+                self.pending_eog_check=None
                 self.wheel_detector.reset()
 
 

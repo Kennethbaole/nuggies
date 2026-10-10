@@ -630,3 +630,14 @@ one blink-related up); median cue-to-emission1.51s. Existing main behavior
 without the profile flag is unchanged. Physical OLED status adapter is untested.
 See [live-check guide](docs/EOG_LIVE_CHECK.md) for evidence, launch instructions and remaining
 limitations. Earlier statements that no integration exists are historical.
+
+
+### Homepage speed-check follow-up
+
+First live manual check: operator confirms intended cardinal responses and
+retry for an untrained diagonal; no cue labels, so no numeric accuracy claim.
+A new homepage button starts a recorded12-direction speed check after center.
+Cue-to-response (includes reaction/UI delay) and candidate-window timing are
+reported separately; early candidates are flagged. Detector settings remain
+fixed.169tests run:168pass,1optional skip; homepage flow browser-checked.
+See EOG_LIVE_CHECK.md for definitions and the live recording limitations.

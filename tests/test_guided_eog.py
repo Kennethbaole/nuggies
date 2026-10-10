@@ -206,3 +206,27 @@ class GuidedEOGTests(unittest.TestCase):
         self.assertEqual(choose_port([esp,nano]),'/dev/nano')
         for ports in ([esp],[nano,port('/dev/other','Nano')],[]):
             with self.assertRaises(ValueError):choose_port(ports)
+
+    def test_speed_check_waits_for_center_and_separates_reaction_from_window(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'profile.json';path.write_text(json.dumps(fixture_profile()))
+            with patch('backend.app.load_env'),patch('backend.speech.load_env'),patch('backend.suggestions.load_env'):
+                app=Application(source='serial',eog_profile=path)
+            app.ingest(ADCSample(8192,8192,1000));app.recording=True
+            app.command(dict(action='speed_test',event_id='speed'))
+            self.assertEqual(app.pending_eog_check,'speed')
+            for i in range(1100):app.ingest(ADCSample(8192,8192,1004+i*4))
+            self.assertIsNone(app.pending_eog_check)
+            self.assertEqual(app.guided.mode,'speed')
+            start=app.guided.started
+            app.wheel_detector.last_result=dict(label='up',emitted_sample=100,onset_sample=-130)
+            with patch('backend.app.time.monotonic',return_value=start+13.2),patch.object(app.wheel_detector,'process',return_value=0):
+                app.ingest(ADCSample(8192,8192,5404))
+            result=app.speed_attempts['up-1']
+            self.assertTrue(result['correct'])
+            self.assertEqual(result['cue_to_detection_ms'],1200)
+            self.assertEqual(result['candidate_to_detection_ms'],920)
+            self.assertFalse(result['early_candidate'])
+            self.assertEqual(app.ring.selection_id,0)
+            app.command(dict(action='wheel_test',value=False,event_id='stop-speed'))
+            self.assertEqual(app.guided.status,'stopped')

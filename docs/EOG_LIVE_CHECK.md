@@ -186,3 +186,41 @@ retry, manual recenter, stale input, HUD rendering, readiness-aware cues, absent
 gaze highlighting, speech inhibition and no automatic confirmation. Raw-only
 replay and seven exact-runtime comparisons completed. No live wearer, Jetson or
 physical OLED test has been performed.
+
+
+## First live manual check and homepage speed test
+
+The first live recording (2026-10-10,193.178s,48,295samples) had no guided cue
+labels. The wearer/operator subsequently confirmed that intended cardinal
+movements triggered and an upper-left diagonal produced retry. This is useful
+qualitative confirmation, not a measured accuracy percentage or validated
+diagonal classifier. Logs show5accepted directions,3rejections,8blink-family
+labels and6suppressed recovery events. A clear left/right/up/down sequence
+appears near129–149s. Active monitoring also recorded6clipping resets in two
+brief periods; these were not six USB disconnects. No >500ms receipt gaps were
+found, and nominal sampling was approximately250Hz. Preserve this recording
+without adding it to training before separate assessment.
+
+For the next session use **Start recorded wheel speed check** on the homepage.
+This single button enables eye monitoring, centers first and then starts12
+cardinal cues (three each, varied order) on the wheel. It requires live recording;
+it does not need the hidden Signal workspace controls. Nominal cue duration is
+130s plus centering/recovery waits. Return to center when prompted.
+
+The wheel preview displays the detected direction/target and response time;
+the homepage also shows completed attempts, matches and median response time.
+These values are separate:
+
+- Cue-to-detection uses the server's instructed cue start. It includes reaction
+  time and browser cue-delivery delay; it is not pure algorithm latency.
+- Candidate-to-decision uses the fixed nominal250Hz sample indices. The current
+  one-second capture typically gives about920ms from candidate onset; it does
+  not establish physiological eye-onset timing.
+- Candidates beginning before the cue are marked early and excluded from the
+  response median. Matched counts alone do not establish valid latency.
+
+All decisions and available timing fields are saved with the raw/cue records.
+Missed/wrong attempts remain in speed_results rather than being silently
+dropped. No classifier thresholds, model weights, speech or confirmation were
+changed for this speed experiment. Unit/HTTP suite169run:168passed,1optional
+skip; the homepage single-button flow passed headless browser checks.

@@ -61,6 +61,11 @@ def main():
             page.screenshot(path=str(output/'retry.png'),full_page=True)
             page.click('#eog-recenter')
             expect(page.locator('#wheel-test-status')).to_contain_text('Look straight ahead')
+            expect(page.locator('#center-text')).to_have_text('Ready',timeout=10000)
+            page.click('#speed-test-start')
+            expect(page.locator('#center-text')).to_have_text('Look straight ahead')
+            expect(page.locator('#center-label')).to_have_text('LIVE EYE SIGNAL CHECK',timeout=10000)
+            assert app.guided.mode=='speed'
             stop.set();feeder.join(timeout=2)
             expect(page.locator('#wheel-test-status')).to_contain_text('Signal interrupted',timeout=5000)
             expect(page.locator('#eog-recenter')).to_be_disabled()
@@ -73,7 +78,7 @@ def main():
             browser.close()
         report=dict(ok=True,mode='HTTP/browser UI state simulation; not sensor accuracy',checks=[
             'opt-in','center progress','ready','retry reason','prominent status','readiness-aware cues','recenter','stale signal',
-            'speech disabled','gaze highlighting absent','HUD rendering','no automatic confirmation','no JS errors'])
+            'homepage speed check','speech disabled','gaze highlighting absent','HUD rendering','no automatic confirmation','no JS errors'])
         (output/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report))
     finally:
         stop.set();feeder.join(timeout=2);server.shutdown();server.server_close();worker.join(timeout=2)

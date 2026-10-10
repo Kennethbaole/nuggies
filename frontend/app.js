@@ -139,16 +139,26 @@ function render(next) {
     ? `EOG deviation · Horizontal ${gaze.horizontal} · Vertical ${gaze.vertical} ADC counts · ${gaze.phase}` : '';
   const guidedEOG = state.eog_engine === 'waveform';
   $('eog-guidance').hidden = !guidedEOG;
+  $('speed-test-start').hidden = !guidedEOG;
+  $('speed-test-start').disabled = !state.connected || !state.recording || Boolean(state.pending_eog_check) || state.guided?.status === 'running';
+  const speedAttempts = state.speed_results || [];
+  const lastSpeed = [...speedAttempts].reverse().find(x => x.detected);
+  $('speed-test-results').textContent = state.pending_eog_check ? 'Centering before the speed check…'
+    : speedAttempts.length ? `${speedAttempts.filter(x => x.complete).length}/12 attempts complete · ${speedAttempts.filter(x => x.correct).length} matched${lastSpeed ? ` · Last: ${lastSpeed.cue_to_detection_ms} ms cue-to-response${lastSpeed.early_candidate ? ' (started before cue)' : ''}` : ''}${state.speed_median_ms != null ? ` · Median ${state.speed_median_ms} ms (includes reaction time)` : ''}` : '';
+
   if (state.wheel_test && guidedEOG) {
-    const cueActive = state.guided?.protocol === 'diagnostic' && state.guided?.status === 'running';
+    const cueActive = ['diagnostic', 'speed'].includes(state.guided?.protocol) && state.guided?.status === 'running';
     const title = gaze?.phase === 'retry' ? 'Look center / Retry' : gaze?.phase === 'centering' ? 'Look straight ahead'
       : gaze?.phase === 'signal_lost' ? 'Signal interrupted' : gaze?.direction ? `${gaze.direction.toUpperCase()} detected` : 'Ready';
     $('center-label').textContent = cueActive ? 'LIVE EYE SIGNAL CHECK' : 'EYE SIGNAL TEST';
-    $('center-text').textContent = cueActive ? state.guided.cue : title;
+    $('center-text').textContent = gaze?.needs_retry ? title : cueActive ? state.guided.cue : title;
     $('center-footer').textContent = gaze?.phase === 'ready' ? 'One direction, then center · speech off'
       : gaze?.phase === 'recovery' ? 'Return to center · wait for Ready' : `${Math.round((gaze?.progress || 0) * 100)}% clean rest`;
     $('preview-text').textContent = gaze?.direction ? `${gaze.direction.toUpperCase()} → ${state.slots[gaze.slot].label}`
       : gaze?.last_event ? `Last reading: ${gaze.last_event.label} · ${gaze.last_event.reason.replaceAll('_', ' ')}` : title;
+  }
+  if (state.wheel_test && state.guided?.protocol === 'speed' && gaze?.direction && lastSpeed) {
+    $('preview-text').textContent += ` · ${(lastSpeed.cue_to_detection_ms / 1000).toFixed(2)}s response`;
   }
   $('eog-recenter').disabled = !state.wheel_test || !state.connected;
   $('eog-progress').value = state.wheel_test ? (gaze?.progress || 0) : 0;
@@ -173,8 +183,9 @@ function render(next) {
   $('guided-protocol').disabled = guidedRunning;
   if (guidedRunning) $('guided-protocol').value = guided.protocol;
   $('guided-protocol').querySelector('option[value="diagnostic"]').disabled = !guidedEOG;
-  if (!guidedEOG && $('guided-protocol').value === 'diagnostic') $('guided-protocol').value = 'horizontal';
-  const diagnosticCheck = $('guided-protocol').value === 'diagnostic';
+  if (!guidedEOG && ['diagnostic', 'speed'].includes($('guided-protocol').value)) $('guided-protocol').value = 'horizontal';
+  $('guided-protocol').querySelector('option[value="speed"]').disabled = !guidedEOG;
+  const diagnosticCheck = ['diagnostic', 'speed'].includes($('guided-protocol').value);
   $('guided-start').disabled = guidedRunning || !state.recording || !state.connected || (diagnosticCheck
     ? !guidedEOG || !state.wheel_test || gaze?.phase !== 'ready' : state.sensor_actions);
   $('guided-stop').disabled = !guidedRunning;
@@ -343,6 +354,7 @@ $('guided-stop').onclick = () => command('guided_stop');
 
 $('record-stop').onclick = () => command('record_stop');
 
+$('speed-test-start').onclick = () => command('speed_test');
 $('wheel-test-toggle').onclick = () => command('wheel_test', !state?.wheel_test);
 $('eog-recenter').onclick = () => command('eog_recenter');
 $('wheel-test-stop').onclick = () => command('wheel_test', false);

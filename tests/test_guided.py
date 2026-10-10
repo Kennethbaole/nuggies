@@ -82,3 +82,12 @@ class GuidedTrialTests(unittest.TestCase):
         trial.pause(130,False)
         self.assertEqual(trial.snapshot(133)['label'],'left')
         trial.stop();self.assertFalse(trial.snapshot(134)['paused'])
+
+    def test_speed_protocol_is_balanced_with_separate_returns(self):
+        steps=protocol('speed')
+        for label in ('left','right','up','down'):
+            self.assertEqual(sum(s[1]==label for s in steps),3)
+        self.assertEqual(sum(s[3]=='return' for s in steps),12)
+        trial=GuidedTrial();trial.start(100,'speed')
+        self.assertEqual(trial.snapshot(112)['label'],'up')
+        self.assertAlmostEqual(trial.snapshot(113.2)['phase_elapsed_s'],1.2)

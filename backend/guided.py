@@ -4,9 +4,18 @@ import secrets
 
 
 def protocol(mode="horizontal"):
-    if mode not in ("horizontal", "vertical", "double_blink", "diagnostic"):
+    if mode not in ("horizontal", "vertical", "double_blink", "diagnostic", "speed"):
         raise ValueError("Unknown guided protocol")
     steps = [(5, 'unlabeled', 'prepare', 'prepare', 'Get ready. Keep your head still and cables resting.')]
+    if mode == 'speed':
+        steps.append((5,'neutral','baseline','baseline','Look at CENTER. Wait for the direction cue.'))
+        counts={label:0 for label in ('left','right','up','down')}
+        for label in ('up','left','down','right','left','up','right','down','right','down','left','up'):
+            counts[label]+=1;trial=f'{label}-{counts[label]}'
+            steps.extend([(2,'neutral',trial,'prepare','Look at CENTER. Wait for the next cue.'),
+                          (3,label,trial,'movement',f'Look {label.upper()} now.'),
+                          (5,'neutral',trial,'return','Return to CENTER. Wait for Ready.')])
+        return steps
     if mode == 'diagnostic':
         steps.append((10,'neutral','baseline','baseline','Look straight ahead. Blink naturally.'))
         for repeat in range(1,3):
@@ -91,7 +100,7 @@ class GuidedTrial:
         for index, (duration, label, trial, phase, cue) in enumerate(self.steps):
             if elapsed < offset + duration:
                 result.update(label=label, trial_id=trial, phase=phase, cue=cue,
-                              remaining_s=math.ceil(offset + duration - elapsed),
+                              remaining_s=math.ceil(offset + duration - elapsed),phase_elapsed_s=round(elapsed-offset,4),
                               step=index + 1, total_steps=len(self.steps))
                 if self.paused_at is not None:result['cue']='Look center / Retry. Waiting for Ready before the next instruction.'
                 return result
