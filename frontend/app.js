@@ -1,0 +1,199 @@
+import {drawHUD, downloadFrame} from './hud.js';
+
+const $ = id => document.getElementById(id);
+const isHUD = location.pathname === '/hud';
+if (isHUD) { document.body.classList.add('hud-body'); $('hud-only').hidden = false; }
+let state = null, seenSelection = null, session = null, audioEnabled = false;
+let token = sessionStorage.getItem('nuggies-token') || '';
+let queue = Promise.resolve(), audio = null, speechBusy = false, pollBusy = false;
+let requestCounter = 0;
+const clientID = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+let lastConnected = null;
+const slotButtons = [];
+for (let i = 0; i < 8; i++) {
+  const button = document.createElement('button'); button.className = 'slot'; button.dataset.slot = String(i);
+  const angle = i * Math.PI / 4;
+  button.style.left = `${50 + Math.sin(angle) * 38}%`;
+  button.style.top = `${50 - Math.cos(angle) * 38}%`;
+  button.addEventListener('click', () => command('focus', i));
+  $('slots').append(button); slotButtons.push(button);
+}
+
+async function api(path, payload) {
+  const headers = {'Authorization': `Bearer ${token}`};
+  if (payload !== undefined) headers['Content-Type'] = 'application/json';
+  const response = await fetch(path, {method: payload === undefined ? 'GET' : 'POST', headers,
+    body: payload === undefined ? undefined : JSON.stringify(payload), signal: AbortSignal.timeout(18000)});
+  if (response.status === 401) {
+    if (!$('token-dialog').open) $('token-dialog').showModal();
+    throw new Error('A session token is needed to connect.');
+  }
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    const exception = new Error(error.error || `Request failed (${response.status})`);
+    exception.status = response.status;
+    throw exception;
+  }
+  return response;
+}
+
+function feedback(text) { $('feedback').textContent = text; }
+function command(action, value) {
+  if (isHUD) return Promise.resolve();
+  queue = queue.then(async () => {
+    const response = await api('/api/action', {action, value, event_id: `${clientID}-${++requestCounter}`});
+    render(await response.json());
+    if (action === 'blink') feedback('Blink sent. A second blink within the test window selects.');
+  }).catch(error => feedback(error.message));
+  return queue;
+}
+
+function browserSpeak(text) {
+  if (!('speechSynthesis' in window)) { feedback('Speech is unavailable on this browser. Your sentence is still displayed.'); return; }
+  speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text); utterance.rate = 1;
+  utterance.onerror = () => feedback('Browser speech could not play. Your sentence remains visible.');
+  speechSynthesis.speak(utterance);
+}
+
+async function speakSelection(snapshot) {
+  if (!audioEnabled || isHUD || speechBusy || !snapshot.confirmed) return;
+  speechBusy = true;
+  try {
+    const response = await api('/api/speech', {selection_id: snapshot.selection_id, session_id: snapshot.session_id});
+    if (!audioEnabled) return;
+    if (response.headers.get('content-type')?.includes('audio')) {
+      if (audio) audio.pause();
+      const url = URL.createObjectURL(await response.blob());
+      audio = new Audio(url); audio.onended = audio.onerror = () => URL.revokeObjectURL(url);
+      try { await audio.play(); feedback('Speaking with your configured voice.'); }
+      catch { URL.revokeObjectURL(url); browserSpeak(snapshot.confirmed); feedback('Cloud audio could not play; using browser speech.'); }
+    } else { browserSpeak(snapshot.confirmed); feedback('Speaking with browser voice.'); }
+  } catch (error) {
+    if (error.status === 409) feedback('Another companion already claimed this utterance.');
+    else if (error.status === 503 && audioEnabled) { browserSpeak(snapshot.confirmed); feedback('Cloud speech unavailable; using browser voice.'); }
+    else feedback(error.message);
+  } finally { speechBusy = false; }
+}
+
+function render(next) {
+  if (state && next.session_id === state.session_id && next.revision < state.revision) return;
+  state = next;
+  if (session !== state.session_id) {
+    session = state.session_id; seenSelection = state.selection_id;
+  }
+  if (state.selection_id > seenSelection) {
+    seenSelection = state.selection_id;
+    feedback(`Selected: ${state.confirmed}`);
+    speakSelection({...state});
+  }
+  const contact = state.contacts.find(contact => contact.id === state.contact);
+  if (!$('contact').options.length) {
+    for (const item of state.contacts) {
+      const option = document.createElement('option'); option.value = item.id; option.textContent = item.name;
+      $('contact').append(option);
+    }
+  }
+  $('contact').value = state.contact; $('avatar').textContent = contact.initials;
+  $('relationship').textContent = contact.relationship;
+  $('phone-contact').textContent = `With ${contact.name}`;
+  $('screen-name').textContent = state.screen === 'spell' ? 'SPELL YOUR WORDS' : state.screen === 'needs' ? 'EVERYDAY NEEDS' : 'CONVERSATION';
+  $('page-info').textContent = state.screen === 'spell' ? 'Two groups, one letter at a time' : `Phrase set ${state.page + 1} · curated demo`;
+  state.slots.forEach((slot, index) => {
+    const button = slotButtons[index];
+    button.textContent = slot.label; button.disabled = !slot.enabled;
+    button.classList.toggle('selected', state.selected === index);
+    button.classList.toggle('utility', ['more', 'spell', 'back', 'space', 'delete', 'speak'].includes(slot.action));
+    button.setAttribute('aria-pressed', String(state.selected === index));
+    button.setAttribute('aria-label', `${slot.label}${slot.text ? ': ' + slot.text : ''}${state.selected === index ? ', highlighted' : ''}`);
+  });
+  const center = state.screen === 'spell' ? state.draft || 'Choose your letters.' : state.confirmed || 'Your words, at your pace.';
+  $('center-text').textContent = center; $('phone-text').textContent = state.confirmed || 'Your words, at your pace.';
+  $('center-label').textContent = state.screen === 'spell' ? 'YOUR DRAFT' : state.confirmed ? 'YOUR LAST SELECTION' : 'READY WHEN YOU ARE';
+  $('preview-text').textContent = state.preview || `${state.slots[state.selected].label} — double blink to choose`;
+  $('center-footer').textContent = state.screen === 'spell' ? 'Choose Speak when ready' : 'Double blink to choose';
+  const synthetic = state.input_mode === 'demo';
+  $('source-name').textContent = synthetic ? (state.demo_running ? 'Synthetic signal scenario' : 'Keyboard demonstration') : state.input_mode === 'serial' ? 'Nano USB · raw ADC' : 'Recorded ADC replay';
+  $('input-detail').textContent = synthetic ? 'No glasses or electrodes needed.' : state.sensor_actions ? 'Calibrated navigation enabled. Blink detection pending.' : 'Monitoring only. Sensor navigation is disabled.';
+  $('scenario').disabled = !synthetic;
+  $('scenario').textContent = state.demo_running ? 'Stop signal scenario' : 'Run signal scenario';
+  $('scenario').classList.toggle('running', state.demo_running);
+  $('connection').textContent = state.connected ? (synthetic ? 'Demo session' : 'Input connected') : 'Input paused';
+  $('connection').classList.toggle('disconnected', !state.connected);
+  $('phone-live').textContent = state.connected ? '● Connected' : '○ Input paused';
+  $('input-error').textContent = state.input_error;
+  $('trial-label').value = state.trial_label || 'unlabeled';
+  $('signal-info').textContent = `${state.samples.length} recent samples · raw ADC counts${state.calibrated ? ' · calibration loaded' : ''}`;
+  $('history-count').textContent = state.history.length;
+  const oldHistory = $('history').dataset.selection;
+  if (oldHistory !== String(state.selection_id)) {
+    $('history').replaceChildren();
+    for (const item of state.history) { const li = document.createElement('li'); li.textContent = item.text; $('history').append(li); }
+    $('history').dataset.selection = String(state.selection_id);
+  }
+  drawTrace(); drawHUD($('hud-preview'), state); drawHUD($('hud-full'), state);
+  $('hud-status').textContent = `${state.input_mode.toUpperCase()} · ${state.connected ? 'Connected' : 'Paused'} · ${state.screen}`;
+  if (lastConnected === false) feedback('Session reconnected.');
+  lastConnected = true;
+}
+
+function drawTrace() {
+  const canvas = $('trace'), ctx = canvas.getContext('2d');
+  const {width: w, height: h} = canvas;
+  ctx.fillStyle = '#0b1717'; ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#25382e';
+  for (let y = 0; y < 4; y++) { ctx.beginPath(); ctx.moveTo(0, y * h / 3); ctx.lineTo(w, y * h / 3); ctx.stroke(); }
+  if (!state.samples.length) return;
+  const values = state.samples.flatMap(sample => [sample.horizontal, sample.vertical]);
+  const min = Math.min(...values) - 100, max = Math.max(...values) + 100;
+  for (const [channel, color] of [['horizontal', '#b5d3c1'], ['vertical', '#e4ad8f']]) {
+    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2;
+    state.samples.forEach((sample, index) => {
+      const x = index * w / Math.max(1, state.samples.length - 1), y = h - (sample[channel] - min) / (max - min) * h;
+      if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }); ctx.stroke();
+  }
+}
+
+async function poll() {
+  if (pollBusy) return;
+  pollBusy = true;
+  try { render(await (await api('/api/state')).json()); }
+  catch (error) {
+    $('connection').textContent = 'Disconnected'; $('connection').classList.add('disconnected');
+    $('hud-status').textContent = 'Disconnected — last frame retained';
+    $('phone-live').textContent = '○ Disconnected';
+    if (lastConnected !== false) feedback(error.message);
+    lastConnected = false;
+    $('select').disabled = $('left').disabled = $('right').disabled = true;
+  } finally {
+    if (lastConnected) $('select').disabled = $('left').disabled = $('right').disabled = false;
+    pollBusy = false;
+  }
+}
+
+$('left').onclick = () => command('left'); $('right').onclick = () => command('right');
+$('select').onclick = () => command('select'); $('reset').onclick = () => command('reset');
+$('scenario').onclick = () => command('demo', !state?.demo_running);
+$('contact').onchange = event => command('contact', event.target.value);
+$('trial-label').onchange = event => command('label', event.target.value);
+$('download-hud').onclick = () => state && downloadFrame(state);
+$('audio-toggle').onclick = () => {
+  audioEnabled = !audioEnabled; $('audio-toggle').setAttribute('aria-pressed', String(audioEnabled));
+  $('audio-toggle').textContent = audioEnabled ? 'Speech enabled' : 'Enable speech';
+  if (!audioEnabled) { audio?.pause(); if ('speechSynthesis' in window) speechSynthesis.cancel(); }
+  feedback(audioEnabled ? 'Speech enabled on this companion. Future selections will be spoken.' : 'Speech paused. Text stays visible.');
+};
+$('token-submit').onclick = () => { token = $('token-input').value; sessionStorage.setItem('nuggies-token', token); setTimeout(poll, 0); };
+document.addEventListener('keydown', event => {
+  if (isHUD || event.repeat || $('token-dialog').open || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
+  const actions = {ArrowLeft: 'left', a: 'left', ArrowRight: 'right', d: 'right', ' ': 'select', Enter: 'select', b: 'blink', Escape: 'back'};
+  const action = actions[event.key] || actions[event.key.toLowerCase()];
+  if (action) { event.preventDefault(); command(action); }
+});
+function transformHUD() {
+  $('hud-full').style.transform = `scale(${$('mirror-x').checked ? -1 : 1},${$('mirror-y').checked ? -1 : 1})`;
+  $('hud-full').style.width = `${$('hud-scale').value}vw`;
+}
+for (const id of ['mirror-x', 'mirror-y', 'hud-scale']) $(id).oninput = transformHUD;
+poll(); setInterval(poll, 250);

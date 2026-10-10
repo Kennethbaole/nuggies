@@ -37,3 +37,18 @@ confirmation. See [Interaction](docs/INTERACTION.md).
 The ElevenLabs adapter, cache and explicit voice-upload helper are implemented.
 See [Speech](docs/SPEECH.md). Credentials use exported environment variables;
 automatic .env loading and microphone recording are not implemented.
+
+## Run the companion
+
+```sh
+python3 -m backend.app
+```
+
+Open http://127.0.0.1:8765. Left/Right navigates; Space confirms; B twice
+simulates blinks. Browser speech requires Enable speech. Companion, phone and
+silent HUD share state. Nuggies is the temporary product name.
+See [Application and labeled capture](docs/APPLICATION.md).
+
+Live EOG, biological blink detection, physical optics and target-device operation
+remain unverified. AI suggestions, microphone recording, automatic .env loading
+and Jetson provisioning are not implemented. The terminal tools require macOS/Linux.
