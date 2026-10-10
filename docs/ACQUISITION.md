@@ -87,8 +87,8 @@ recording and stops the protocol; restart acquisition before a new test.
 
 ## Offline glance-and-return prototype
 
-`backend.paired_glance` is an experimental horizontal-only detector, separate from
-the live application. It smooths A0 over 100 ms, tracks a slow resting baseline,
+`backend.paired_glance` is an experimental single-channel detector used for horizontal offline replay
+and, only with explicit opt-in, the supervised live wheel test described below. It smooths A0 over 100 ms, tracks a slow resting baseline,
 then requires a sustained excursion, an opposite excursion 0.8–5 seconds later,
 and 200 ms near baseline before emitting one PREV (negative-first) or NEXT
 (positive-first). A 500 ms cooldown follows. Baseline adaptation is frozen during
@@ -109,7 +109,7 @@ commands, missed movements, and latency before enabling navigation. Fast paired
 artifacts are rejected by timing, but slower artifacts can mimic the required
 pattern. Ordinary blinks are not SELECT commands in this prototype. The live app
 continues to use its existing classifier and remains monitoring-only unless
-explicitly configured otherwise; this prototype is not wired to live controls.
+explicitly configured otherwise; this prototype is only used live through the explicit experimental wheel-test toggle.
 
 The recording indicator distinguishes monitoring-only from local recording.
 **Stop test** ends cues but keeps recording; **Stop recording** finalizes capture
@@ -210,3 +210,32 @@ successful pairs, then test unchanged settings on fresh data. These development
 recordings are not held-out validation. The tool emits SELECT *candidates* in JSON;
 it is not connected to the live app, which remains monitoring-only. No gesture
 threshold or live navigation behavior is changed by running replay.
+
+## Supervised live wheel test
+
+For an experimental interaction trial with both Pills, choose **Start experimental
+eye wheel test** beside the wheel. This requires live serial input, stopped guided
+cues, and disabled calibrated navigation. It starts off on every server restart.
+The assumed rate is 250 Hz; use the matching Nano firmware and verified lead
+placement. After one second at center, glance, hold about 1–2 seconds, and return:
+
+| Movement and return | Wheel action |
+| --- | --- |
+| Left (negative-first A0) | Previous slot |
+| Right (positive-first A0) | Next slot |
+| Up (positive-first A1) | Select highlighted slot |
+| Down (negative-first A1) | Back |
+
+This uses independent paired-glance prototypes, not the offline double-blink
+classifier. A command follows return and settling, not a held eye position.
+Both detectors reset after each command; simultaneous completed candidates and
+clipping apply no action. Misses and unintended commands remain possible, and
+vertical polarity must be checked rather than assumed universal. This is a
+supervised usability test, not validated control. Keyboard/mouse remain available.
+
+Choose **Stop eye wheel test** beside the wheel or inside expanded Signal
+workspace to immediately disable sensor commands. Guided tests cannot run at the
+same time. Serial failure disables the mode; a sample gap resets candidates.
+Recording is independent. Speech is disabled during this test on the client and
+server; sensor-selected test phrases also cannot be synthesized after the mode
+is stopped. This permits observing wheel behavior without spoken output.

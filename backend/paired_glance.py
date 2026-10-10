@@ -1,4 +1,4 @@
-"""Experimental horizontal-only glance/return detector. Offline use only.
+"""Experimental single-channel glance/return detector for replay or opt-in wheel tests.
 
 Does not infer absolute eye position. One event requires two opposite excursions
 separated in time and a quiet finish. Defaults are exploratory, not calibration.

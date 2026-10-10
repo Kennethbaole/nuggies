@@ -60,7 +60,7 @@ function browserSpeak(text) {
 }
 
 async function speakSelection(snapshot) {
-  if (!audioEnabled || isHUD || speechBusy || !snapshot.confirmed) return;
+  if (!audioEnabled || isHUD || speechBusy || !snapshot.confirmed || snapshot.wheel_test || snapshot.source === 'eye-wheel-test') return;
   speechBusy = true;
   try {
     const response = await api('/api/speech', {selection_id: snapshot.selection_id, session_id: snapshot.session_id});
@@ -118,7 +118,7 @@ function render(next) {
   $('center-footer').textContent = state.screen === 'spell' ? 'Choose Speak when ready' : 'Double blink to choose';
   const synthetic = state.input_mode === 'demo';
   $('source-name').textContent = synthetic ? (state.demo_running ? 'Synthetic signal scenario' : 'Keyboard demonstration') : state.input_mode === 'serial' ? 'Nano USB · raw ADC' : 'Recorded ADC replay';
-  $('input-detail').textContent = synthetic ? 'No glasses or electrodes needed.' : state.sensor_actions ? 'Calibrated navigation enabled. Blink detection pending.' : 'Monitoring only. Sensor navigation is disabled.';
+  $('input-detail').textContent = state.wheel_test ? 'Experimental eye wheel control active. Speech disabled.' : synthetic ? 'No glasses or electrodes needed.' : state.sensor_actions ? 'Calibrated navigation enabled. Blink detection pending.' : 'Monitoring only. Sensor navigation is disabled.';
   $('scenario').disabled = !synthetic;
   $('scenario').textContent = state.demo_running ? 'Stop signal scenario' : 'Run signal scenario';
   $('scenario').classList.toggle('running', state.demo_running);
@@ -126,6 +126,18 @@ function render(next) {
   $('connection').classList.toggle('disconnected', !state.connected);
   $('phone-live').textContent = state.connected ? '● Connected' : '○ Input paused';
   $('input-error').textContent = state.input_error;
+  $('wheel-test-toggle').textContent = state.wheel_test ? 'Stop eye wheel test' : 'Start experimental eye wheel test';
+  $('wheel-test-toggle').setAttribute('aria-pressed', String(Boolean(state.wheel_test)));
+  $('wheel-test-toggle').disabled = !state.wheel_test && (state.input_mode !== 'serial' || !state.connected || state.sensor_actions || state.guided?.status === 'running');
+  $('wheel-test-stop').disabled = !state.wheel_test;
+  $('wheel-test-status').textContent = state.wheel_test ? state.wheel_message : 'Eye wheel control off';
+  if (state.wheel_test && audioEnabled) {
+    audioEnabled = false; audio?.pause();
+    if ('speechSynthesis' in window) speechSynthesis.cancel();
+    $('audio-toggle').setAttribute('aria-pressed', 'false');
+    $('audio-toggle').textContent = 'Enable speech';
+  }
+  $('audio-toggle').disabled = Boolean(state.wheel_test);
   $('trial-label').value = state.trial_label || 'unlabeled';
   $('recording-status').textContent = state.recording ? 'Recording locally' : 'Monitoring only · not recording';
   $('record-stop').disabled = !state.recording;
@@ -300,3 +312,6 @@ $('guided-start').onclick = () => command('guided_start', $('guided-protocol').v
 $('guided-stop').onclick = () => command('guided_stop');
 
 $('record-stop').onclick = () => command('record_stop');
+
+$('wheel-test-toggle').onclick = () => command('wheel_test', !state?.wheel_test);
+$('wheel-test-stop').onclick = () => command('wheel_test', false);

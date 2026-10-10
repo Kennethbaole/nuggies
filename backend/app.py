@@ -17,6 +17,7 @@ from urllib.parse import urlsplit
 from .envfile import load_env
 from .calibration import Calibration, ExponentialSmoother
 from .classifier import ThresholdClassifier
+from .live_wheel import LiveWheelTest
 from .guided import GuidedTrial
 from .ring import RingState
 from .speech import ElevenLabsSpeech, SpeechUnavailable
@@ -84,6 +85,9 @@ class Application:
         self.guided = GuidedTrial()
         self.recording = False
         self.record_stop = threading.Event()
+        self.wheel_test = False
+        self.wheel_detector = LiveWheelTest()
+        self.wheel_test_selections = deque(maxlen=128)
 
     def state(self):
         with self.lock:
@@ -93,7 +97,8 @@ class Application:
                         connected=self.connected and (self.source == "demo" or age is not None and age < 2000),
                         last_sample_age_ms=age, input_error=self.error,
                         calibrated=self.calibration is not None,
-                        sensor_actions=self.sensor_actions, demo_running=self.demo_running,
+                        sensor_actions=self.sensor_actions or self.wheel_test, demo_running=self.demo_running,
+                        wheel_test=self.wheel_test, wheel_message=self.wheel_detector.message,
                         speech_provider="elevenlabs" if self.speech.available else "browser",
                         suggest_available=self.suggester.available,
                         transcribe_available=self.transcriber.available,
@@ -129,6 +134,15 @@ class Application:
                     self.ring.revision += 1
             elif action == "suggestions_clear":
                 self.ring.clear_suggestions()
+            elif action == "wheel_test":
+                if type(payload.get("value")) is not bool:
+                    raise ValueError("wheel_test value must be boolean")
+                if payload["value"]:
+                    if (self.source != "serial" or not self.state()["connected"] or self.sensor_actions
+                            or self.guided.status == "running"):
+                        raise ValueError("Wheel test requires connected serial, stopped guided cues, and disabled calibrated control")
+                self.wheel_test = payload["value"]
+                self.wheel_detector.reset()
             elif action == "record_stop":
                 if not self.recording:
                     raise ValueError("No recording is active")
@@ -137,7 +151,7 @@ class Application:
                 self.guided.stop()
                 self.trial_label = "unlabeled"
             elif action == "guided_start":
-                if self.source != "serial" or not self.recording or not self.connected or self.sensor_actions:
+                if self.source != "serial" or not self.recording or not self.connected or self.sensor_actions or self.wheel_test:
                     raise ValueError("Guided testing requires live recording with sensor navigation disabled")
                 self.guided.start(time.monotonic(), payload.get("value") or "horizontal")
             elif action == "guided_stop":
@@ -231,7 +245,16 @@ class Application:
             self.samples.append(dict(timestamp_ms=sample.timestamp_ms,
                                      horizontal=sample.horizontal, vertical=sample.vertical,
                                      units=sample.units, source=sample.source))
-            if normalized is not None and self.sensor_actions:
+            if self.wheel_test:
+                if len(self.samples) > 1 and sample.timestamp_ms - self.samples[-2]["timestamp_ms"] > 500:
+                    self.wheel_detector.reset()
+                action = self.wheel_detector.process(sample.horizontal, sample.vertical)
+                if action:
+                    previous_selection = self.ring.selection_id
+                    self.ring.action(action, "eye-wheel-test")
+                    if self.ring.selection_id != previous_selection:
+                        self.wheel_test_selections.append(self.ring.selection_id)
+            elif normalized is not None and self.sensor_actions:
                 direction = self.classifier.classify(normalized).direction.value
                 action = self.gate.update(direction, sample.timestamp_ms)
                 if action:
@@ -316,6 +339,8 @@ class Application:
             with self.lock:
                 self.connected = False
                 self.error = f"{type(error).__name__}: {error}"
+                self.wheel_test = False
+                self.wheel_detector.reset()
 
         finally:
             with self.lock:
@@ -344,6 +369,8 @@ class Application:
             with self.lock:
                 self.connected = False
                 self.error = f"{type(error).__name__}: {error}"
+                self.wheel_test = False
+                self.wheel_detector.reset()
 
 
 def make_handler(app):
@@ -416,6 +443,8 @@ def make_handler(app):
                     # Only previously confirmed utterances may reach cloud TTS.
                     with app.lock:
                         selection_id = payload.get("selection_id")
+                        if app.wheel_test or selection_id in app.wheel_test_selections:
+                            raise ValueError("Speech is disabled for experimental wheel-test selections")
                         if payload.get("session_id") != app.session_id:
                             raise ValueError("Speech session mismatch")
                         item = next((item for item in app.ring.history if item["id"] == selection_id), None)
