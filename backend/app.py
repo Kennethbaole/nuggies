@@ -1,6 +1,7 @@
 """Local companion/HUD server. Run: python3 -m backend.app"""
 
 import argparse
+import base64
 from collections import deque
 import json
 import math
@@ -18,9 +19,13 @@ from .classifier import ThresholdClassifier
 from .ring import RingState
 from .speech import ElevenLabsSpeech, SpeechUnavailable
 from .state_machine import DoubleBlinkGate, GestureGate
+from .suggestions import GeminiSuggestions, SuggestionBusy, SuggestionUnavailable
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
+MAX_BODY = 4096
+MAX_SUGGEST_BODY = 4 * 1024 * 1024  # base64 audio from the browser microphone
+MIN_SUGGEST_INTERVAL = 1.0
 
 
 class Application:
@@ -31,6 +36,9 @@ class Application:
         self.token = os.environ.get("APP_TOKEN", "")
         self.session_id = secrets.token_hex(12)
         self.speech = ElevenLabsSpeech(ROOT / ".cache" / "tts")
+        self.suggester = GeminiSuggestions()
+        self.suggest_lock = threading.Lock()
+        self.last_suggest = 0.0
         self.samples = deque(maxlen=300)
         self.event_ids = deque(maxlen=256)
         self.audio_claims = deque(maxlen=128)
@@ -59,6 +67,7 @@ class Application:
                         calibrated=self.calibration is not None,
                         sensor_actions=self.sensor_actions, demo_running=self.demo_running,
                         speech_provider="elevenlabs" if self.speech.available else "browser",
+                        suggest_available=self.suggester.available,
                         trial_label=self.trial_label,
                         samples=list(self.samples))
             return data
@@ -88,6 +97,8 @@ class Application:
                 if self.ring.confirmed:
                     self.ring.confirm(self.ring.confirmed)
                     self.ring.revision += 1
+            elif action == "suggestions_clear":
+                self.ring.clear_suggestions()
             elif action == "label":
                 if payload.get("value") not in {"unlabeled", "neutral", "left", "right", "up", "down", "blink", "held_gaze"}:
                     raise ValueError("Unknown trial label")
@@ -96,6 +107,43 @@ class Application:
                 self.ring.action(action, "manual-demo", payload.get("value"))
             self.event_ids.append(event_id)
             return self.state()
+
+    def suggest(self, payload):
+        """Ask Gemini for reply previews from audio or text; the ring keeps its fallback on failure."""
+        if payload.get("session_id") != self.session_id:
+            raise ValueError("Suggestion session mismatch")
+        heard_text, audio_b64 = payload.get("heard_text"), payload.get("audio_b64")
+        if heard_text is not None and not isinstance(heard_text, str):
+            raise ValueError("heard_text must be a string")
+        audio = None
+        if audio_b64 is not None:
+            if not isinstance(audio_b64, str):
+                raise ValueError("audio_b64 must be a string")
+            try:
+                audio = base64.b64decode(audio_b64, validate=True)
+            except ValueError as error:
+                raise ValueError("audio_b64 is not valid base64") from error
+        if not self.suggester.available:
+            raise SuggestionUnavailable("Gemini is not configured; curated phrases remain")
+        if not self.suggest_lock.acquire(blocking=False):
+            raise SuggestionBusy("A suggestion request is already running")
+        try:
+            if time.monotonic() - self.last_suggest < MIN_SUGGEST_INTERVAL:
+                raise SuggestionBusy("Please wait a moment before listening again")
+            self.last_suggest = time.monotonic()
+            with self.lock:
+                contact = next((c for c in self.ring.config["contacts"] if c["id"] == self.ring.contact), None)
+                recent = [item["text"] for item in self.ring.history[:4]]
+                avoid = self.ring.shown + recent
+                examples = [p["text"] for p in self.ring.config["phrases"][:4]]
+            result = self.suggester.suggest(contact=contact, recent=recent, avoid=avoid, audio=audio,
+                                            mime_type=payload.get("mime_type"), heard_text=heard_text,
+                                            style_examples=examples)
+            with self.lock:
+                self.ring.set_suggestions(result.suggestions, result.heard, "gemini")
+                return self.state()
+        finally:
+            self.suggest_lock.release()
 
     def ingest(self, sample):
         normalized = self.calibration.normalize(sample) if self.calibration else None
@@ -247,15 +295,18 @@ def make_handler(app):
             if not self.authorized():
                 return self.reply(401, dict(error="Enter the session token"))
             try:
+                path = urlsplit(self.path).path
+                limit = MAX_SUGGEST_BODY if path == "/api/suggest" else MAX_BODY
                 length = int(self.headers.get("Content-Length", "0"))
-                if not 0 < length <= 4096:
-                    raise ValueError("Request must contain at most 4096 bytes")
+                if not 0 < length <= limit:
+                    raise ValueError(f"Request must contain at most {limit} bytes")
                 payload = json.loads(self.rfile.read(length))
                 if not isinstance(payload, dict):
                     raise ValueError("Expected a JSON object")
-                path = urlsplit(self.path).path
                 if path == "/api/action":
                     return self.reply(200, app.command(payload))
+                if path == "/api/suggest":
+                    return self.reply(200, app.suggest(payload))
                 if path == "/api/speech":
                     # Only previously confirmed utterances may reach cloud TTS.
                     with app.lock:
@@ -280,7 +331,9 @@ def make_handler(app):
                 return self.reply(404, dict(error="Unknown endpoint"))
             except (ValueError, json.JSONDecodeError) as error:
                 return self.reply(400, dict(error=str(error)))
-            except SpeechUnavailable as error:
+            except SuggestionBusy as error:
+                return self.reply(429, dict(error=str(error)))
+            except (SpeechUnavailable, SuggestionUnavailable) as error:
                 return self.reply(503, dict(error=str(error)))
     return Handler
 

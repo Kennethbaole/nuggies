@@ -23,6 +23,29 @@ class RingState:
         self.revision = 0
         self.last_source = "keyboard"
         self.history = []
+        self.suggested = None  # Model replies replacing the Home phrase pool, if any.
+        self.suggestions_provider = "curated-demo"
+        self.heard = ""
+        self.shown = []  # Recently offered suggestion texts, so refreshes don't repeat.
+
+    def set_suggestions(self, items, heard="", provider="gemini"):
+        """Replace the Home pool with previewed replies; nothing is spoken."""
+        self.suggested = list(items)
+        self.suggestions_provider = provider
+        self.heard = heard
+        self.shown = (self.shown + [item["text"] for item in items])[-30:]
+        self.pages["home"] = 0
+        if self.screen == "home":
+            self.selected = 0
+        self.revision += 1
+
+    def clear_suggestions(self):
+        self.suggested, self.heard = None, ""
+        self.suggestions_provider = "curated-demo"
+        self.pages["home"] = 0
+        if self.screen == "home":
+            self.selected = 0
+        self.revision += 1
 
     def _slot(self, label, action, text="", enabled=True, value=""):
         return dict(label=label, action=action, text=text, enabled=enabled, value=value)
@@ -48,7 +71,7 @@ class RingState:
             slots[6] = self._slot("Delete", "delete", enabled=bool(self.draft))
             slots[7] = self._slot("Speak", "speak", self.draft, enabled=bool(self.draft.strip()))
         else:
-            pool = self.config["phrases" if self.screen == "home" else "needs"]
+            pool = (self.suggested or self.config["phrases"]) if self.screen == "home" else self.config["needs"]
             page = self.pages[self.screen]
             for index, phrase in zip(PHRASE_SLOTS, pool[page * 5:page * 5 + 5]):
                 slots[index] = self._slot(phrase["label"], "phrase", phrase["text"], value=phrase["id"])
@@ -62,8 +85,8 @@ class RingState:
                     contact=self.contact, contacts=self.config["contacts"], selected=self.selected,
                     slots=slots, preview=slots[self.selected]["text"], confirmed=self.confirmed,
                     selection_id=self.selection_id, draft=self.draft, page=self.pages.get(self.screen, 0),
-                    source=self.last_source, suggestions_provider="curated-demo",
-                    history=list(self.history))
+                    source=self.last_source, suggestions_provider=self.suggestions_provider,
+                    heard=self.heard, history=list(self.history))
 
     def confirm(self, text):
         text = text.strip()
@@ -93,6 +116,8 @@ class RingState:
                 self.selected = value
         elif action == "contact":
             self.contact = value
+            self.suggested, self.heard = None, ""  # A new conversation partner changes the context.
+            self.suggestions_provider = "curated-demo"
             self.screen, self.selected = "home", 0
             self.pages = {"home": 0, "needs": 0}
             self.letters, self.letter_stack = "ABCDEFGHIJKLMNOPQRSTUVWXYZ", []

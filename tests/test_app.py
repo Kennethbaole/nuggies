@@ -11,6 +11,10 @@ from urllib.request import Request, urlopen
 from backend.app import Application, make_handler
 from backend.speech import ElevenLabsSpeech, SpeechUnavailable
 
+# Tests must not read a developer's real .env (keys, voice IDs).
+patch("backend.speech.load_env").start()
+patch("backend.suggestions.load_env").start()
+
 
 class ApplicationTests(unittest.TestCase):
     def test_action_dedup_and_validation(self):

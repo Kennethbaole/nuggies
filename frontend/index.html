@@ -22,7 +22,17 @@
       <div class="context-card">
         <label class="eyebrow" for="contact">SPEAKING WITH</label>
         <div class="contact-row"><div id="avatar" class="avatar">AL</div><div><select id="contact" aria-label="Conversation contact"></select><div id="relationship" class="muted">Family</div></div><span class="contact-dot"></span></div>
-        <div class="context-note">Local sample phrases<br><span>Ready for your suggestion provider</span></div>
+        <div class="context-note"><span id="suggest-source">Local sample phrases</span><br><span id="heard"></span></div>
+        <div class="listen-row">
+          <button id="listen" class="outline-button listen-btn" title="Listen to the other person"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span id="listen-label">Listen</span></button>
+          <button id="text-toggle" class="outline-button listen-btn" aria-expanded="false" aria-controls="text-panel" title="Type what the other person said"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V5h16v2M12 5v14M9 19h6"/></svg><span>Text</span></button>
+        </div>
+        <form id="text-panel" class="text-panel" hidden>
+          <label class="eyebrow" for="heard-input">WHAT THEY SAID</label>
+          <div class="text-field"><input id="heard-input" type="text" maxlength="280" placeholder="Type it here…" autocomplete="off"><button id="text-send" type="submit" aria-label="Suggest replies"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+          <div class="muted">Press Enter to get reply suggestions.</div>
+        </form>
+        <button id="suggest-clear" class="quiet-button clear-suggestions" hidden>Use sample phrases</button>
       </div>
       <div class="input-card"><div class="eyebrow">INPUT SOURCE</div><div id="source-name" class="source-name">Keyboard demonstration</div><p id="input-detail">No glasses or electrodes needed.</p><button id="scenario" class="outline-button">Run signal scenario</button></div>
       <details class="signal-details"><summary>Signal workspace <span>↗</span></summary><canvas id="trace" width="480" height="180" aria-label="Horizontal and vertical raw ADC trace"></canvas><div class="trace-legend"><span>● Horizontal</span><span>● Vertical</span></div><div id="signal-info" class="muted"></div><label class="trial-control">Trial label<select id="trial-label"><option value="unlabeled">Unlabeled</option><option value="neutral">Neutral</option><option value="left">Left</option><option value="right">Right</option><option value="up">Up</option><option value="down">Down</option><option value="blink">Blink</option><option value="held_gaze">Held gaze</option></select></label><div class="muted">Set before each trial. Labels accompany live app recordings.</div><div id="input-error" role="status"></div></details>
