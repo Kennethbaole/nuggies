@@ -9,6 +9,7 @@ import mimetypes
 import os
 from pathlib import Path
 import secrets
+import socket
 import statistics
 import threading
 import time
@@ -487,6 +488,8 @@ class Application:
                     if Path(record_path).exists() or label_path.exists() or trial_path.exists():
                         raise ValueError("Recording or label file already exists; choose a new name")
                 connection = stack.enter_context(serial.Serial(port, 115200, timeout=0.5, exclusive=True))
+                with self.lock:
+                    self.error = ""
                 source = SerialADCSource(connection)
                 raw_stream = stack.enter_context(open(record_path, "x", newline="")) if record_path else None
                 recorder = ADCRecorder(raw_stream) if raw_stream else None
@@ -535,6 +538,12 @@ class Application:
                 if self.guided.status == "running":
                     self.guided.stop()
                 self.trial_label = "unlabeled"
+
+    def run_serial_forever(self, port, retry_s=2.0):
+        """Reopen the port after an unplug or a missing Nano, so a boot-time service recovers."""
+        while not self.stop.is_set():
+            self.run_serial(port)
+            self.stop.wait(retry_s)
 
     def run_replay(self, path):
         from .recording import CSVReplaySource
@@ -666,6 +675,16 @@ def make_handler(app):
     return Handler
 
 
+class DualStackServer(ThreadingHTTPServer):
+    """Binds an IPv6 host such as `::` while still accepting IPv4 clients."""
+
+    address_family = socket.AF_INET6
+
+    def server_bind(self):
+        self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        super().server_bind()
+
+
 def main():
     load_env()
     parser = argparse.ArgumentParser(description=__doc__)
@@ -699,7 +718,8 @@ def main():
             if calibration is None:
                 parser.error("--lowpass-hz requires --calibration")
             app.smoother = ExponentialSmoother(calibration.sample_rate_hz, args.lowpass_hz)
-        server = ThreadingHTTPServer((args.host, args.port), make_handler(app))
+        server_class = DualStackServer if ":" in args.host else ThreadingHTTPServer
+        server = server_class((args.host, args.port), make_handler(app))
         if args.eog_log:
             try:app.eog_log=DiagnosticLog(args.eog_log,app.wheel_detector)
             except OSError:
@@ -707,7 +727,8 @@ def main():
                 raise
     except (ValueError, OSError) as error:
         parser.error(str(error))
-    target, worker_args = (app.run_serial, (args.serial_port, args.record)) if args.serial_port else (app.run_replay, (args.replay,)) if args.replay else (app.run_demo, ())
+    serial_target = (app.run_serial, (args.serial_port, args.record)) if args.record else (app.run_serial_forever, (args.serial_port,))
+    target, worker_args = serial_target if args.serial_port else (app.run_replay, (args.replay,)) if args.replay else (app.run_demo, ())
     worker = threading.Thread(target=target, args=worker_args, daemon=True)
     worker.start()
     app.log_timing = True

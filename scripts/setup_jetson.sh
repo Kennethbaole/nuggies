@@ -24,7 +24,9 @@
 #   PIPER_DIR      Where Piper voices go      (default: .cache/piper, Git-ignored)
 #   ASR_MODEL      Qwen speech-to-text model  (default: Qwen/Qwen3-ASR-0.6B; 1.7B is more accurate)
 #   ASR_VENV       Venv for torch + qwen-asr  (default: .venv-asr, Git-ignored)
-#   TORCH_INDEX_URL  Jetson torch wheels      (default: https://pypi.jetson-ai-lab.io/jp6/cu126)
+#   TORCH_INDEX_URL  CUDA torch wheels        (default by L4T release: R36/JetPack 6 uses
+#                    https://pypi.jetson-ai-lab.io/jp6/cu126; R38+/JetPack 7 uses PyTorch's
+#                    CUDA 13 aarch64 wheels, https://download.pytorch.org/whl/cu130)
 #   SKIP_POWER=1   Leave the power mode alone; the summary reports it as SKIPPED
 #
 # NVIDIA firmware/OS/JetPack provisioning comes first and is not done here;
@@ -38,7 +40,14 @@ PIPER_VOICE="${PIPER_VOICE:-en_US-lessac-medium}"
 PIPER_DIR="${PIPER_DIR:-.cache/piper}"
 ASR_MODEL="${ASR_MODEL:-Qwen/Qwen3-ASR-0.6B}"
 ASR_VENV="${ASR_VENV:-.venv-asr}"
-TORCH_INDEX_URL="${TORCH_INDEX_URL:-https://pypi.jetson-ai-lab.io/jp6/cu126}"
+# JetPack 7 (L4T R38+) has CUDA 13, which runs PyTorch's standard aarch64 wheels;
+# JetPack 6 (R36) needs NVIDIA's Jetson builds.
+L4T_MAJOR="$(sed -n 's/^# R\([0-9]*\).*/\1/p' /etc/nv_tegra_release 2>/dev/null || true)"
+if [[ "${L4T_MAJOR:-0}" -ge 38 ]]; then
+    TORCH_INDEX_URL="${TORCH_INDEX_URL:-https://download.pytorch.org/whl/cu130}"
+else
+    TORCH_INDEX_URL="${TORCH_INDEX_URL:-https://pypi.jetson-ai-lab.io/jp6/cu126}"
+fi
 SKIP_POWER="${SKIP_POWER:-0}"
 VENV=".venv"
 
@@ -185,7 +194,7 @@ require_file "$PIPER_MODEL_FILE.json" 100 "Piper voice config"
 step "Creating $ASR_VENV for Qwen3-ASR (Jetson torch + qwen-asr)"
 # A separate venv: torch and qwen-asr's pinned transformers are large, and the
 # app's own venv stays light. PyPI's aarch64 torch has no CUDA, so torch comes
-# from NVIDIA's Jetson index first, and that index stays available while
+# from a CUDA index first (see TORCH_INDEX_URL), and that index stays available while
 # qwen-asr installs so pip cannot swap in a CPU-only build.
 [[ -x "$ASR_VENV/bin/python" ]] || python3 -m venv "$ASR_VENV"
 "$ASR_VENV/bin/python" -m pip install --upgrade pip
@@ -195,7 +204,7 @@ step "Creating $ASR_VENV for Qwen3-ASR (Jetson torch + qwen-asr)"
 if "$ASR_VENV/bin/python" -c "import sys, torch; sys.exit(not torch.cuda.is_available())"; then
     record PASS "torch CUDA" "torch $("$ASR_VENV/bin/python" -c 'import torch; print(torch.__version__)')"
 else
-    die "torch in $ASR_VENV cannot see the GPU; delete $ASR_VENV and re-run with TORCH_INDEX_URL=https://pypi.jetson-ai-lab.io/jp6/cu129"
+    die "torch in $ASR_VENV cannot see the GPU; delete $ASR_VENV and re-run with another TORCH_INDEX_URL (JetPack 6: https://pypi.jetson-ai-lab.io/jp6/cu129; JetPack 7: https://download.pytorch.org/whl/cu132)"
 fi
 
 step "Downloading $ASR_MODEL"
