@@ -17,6 +17,12 @@ reading while the wearer is using eye input.
   bottom of the screen while the wheel is in view. Speaking-with (Listen/Text) and
   recent words follow. Connection, companion mirror, lens preview and signal tools
   sit behind a "More tools" button. Keyboard hints are hidden on touchscreens.
+- Full-screen wheel: the corner button beside the wheel heading lays the wheel
+  panel over the whole page with the highlighted preview, wheel and confirm
+  controls. It hides the side panels and the gaze explainer (gaze status stays
+  while communication runs). Press the button again to exit. It works inside the
+  page instead of using the browser Fullscreen API, which iPhone Safari lacks and
+  which would take over Esc (Back).
 - Wheel center text shrinks to fit the circle (down to 13 px) instead of scrolling.
   Below 360 px the small label above it is dropped first. Only very long spelled
   drafts still scroll.

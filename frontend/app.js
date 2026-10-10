@@ -374,6 +374,16 @@ function transformHUD() {
 for (const id of ['mirror-x', 'mirror-y', 'hud-scale']) $(id).oninput = transformHUD;
 poll(); setInterval(poll, 250);
 
+// Full-screen wheel: the wheel panel covers the page so only the choices and confirm controls show.
+// In-page rather than the Fullscreen API, which iPhone Safari lacks and which would take Esc away from Back.
+$('wheel-focus').onclick = () => {
+  const focused = document.body.classList.toggle('wheel-focus-open');
+  $('wheel-focus').setAttribute('aria-pressed', String(focused));
+  $('wheel-focus').setAttribute('aria-label', focused ? 'Exit full screen' : 'Show the wheel full screen');
+  $('wheel-focus').title = focused ? 'Exit full screen' : 'Full screen';
+  fitCenterText();
+};
+
 // Expand the existing workspace without opening another serial connection.
 const signalWorkspace = document.querySelector('.signal-details');
 function setSignalExpanded(expanded) {
