@@ -225,10 +225,30 @@ function render(next) {
     $('history').dataset.selection = String(state.selection_id);
   }
   drawTrace(); drawHUD($('hud-preview'), state); drawHUD($('hud-full'), state);
+  fitCenterText();
   $('hud-status').textContent = `${state.input_mode.toUpperCase()} · ${state.connected ? 'Connected' : 'Paused'} · ${state.screen}`;
   if (lastConnected === false) feedback('Session reconnected.');
   lastConnected = true;
 }
+
+// Shrink long center text to fit the circle rather than scroll it; very long spelled drafts still scroll at 13px.
+let fittedCenter = '';
+function fitCenterText() {
+  const text = $('center-text'), key = `${text.textContent}|${$('wheel').clientWidth}`;
+  if (key === fittedCenter) return;
+  fittedCenter = key;
+  const shrink = () => {
+    text.style.fontSize = '';
+    let size = Math.round(parseFloat(getComputedStyle(text).fontSize));
+    const floor = Math.min(size, 13);
+    while (text.scrollHeight > text.clientHeight + 1 && size > floor) text.style.fontSize = `${--size}px`;
+    return text.scrollHeight <= text.clientHeight + 1;
+  };
+  // On the smallest phones, drop the decorative label before resorting to scroll.
+  $('wheel').classList.remove('center-compact');
+  if (!shrink()) { $('wheel').classList.add('center-compact'); shrink(); }
+}
+addEventListener('resize', fitCenterText);
 
 function toBase64(buffer) {
   const bytes = new Uint8Array(buffer); let text = '';
@@ -327,6 +347,11 @@ $('text-panel').onsubmit = event => {
   if (text) suggest({heard_text: text}).then(ok => { if (ok) $('heard-input').value = ''; });
 };
 $('download-hud').onclick = () => state && downloadFrame(state);
+$('mobile-tools-toggle').onclick = () => {
+  const open = document.body.classList.toggle('mobile-tools-open');
+  $('mobile-tools-toggle').setAttribute('aria-expanded', String(open));
+  $('mobile-tools-toggle').textContent = open ? 'Hide tools' : 'More tools';
+};
 function setAudio(enabled) {
   audioEnabled = enabled; $('audio-toggle').setAttribute('aria-pressed', String(audioEnabled));
   $('audio-toggle').textContent = audioEnabled ? 'Speech enabled' : 'Enable speech';
