@@ -110,3 +110,14 @@ over 275s negative exposure. Current live hover stalled in replay. No live contr
 was replaced. See [Continuous EOG experiments](EOG_CONTINUOUS_EXPERIMENT.md)
 for results, reproducible commands, frozen raw-only replay and remaining work.
 The branch suite passes 149 tests.
+
+
+### Shape, retry and baseline follow-up (2026-10-10)
+
+See [improvement roadmap](EOG_IMPROVEMENT_ROADMAP.md) for the requested guided-center/retry design,
+research assessment and implementation priorities. New opt-in replay variants:
+3s retry gate15/20 with5false directions;5s gate14/20 with4false over275s.
+Existing waveform rejection remains16/20 with6false. Remembering rejected
+labels, extra shape features and stable-only baseline replacement did not improve
+the overall result; retain them as documented comparisons, not live defaults.
+No application, OLED, confirmation or speech integration changed.

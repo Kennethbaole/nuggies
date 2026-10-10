@@ -151,3 +151,14 @@ movement/rest. The remaining genuine classification issue is blink-related
 vertical activity resembling up. Next add boundary-sensitivity reporting as a
 separate metric while preserving the strict score, and maintain recovery state
 for rejected excursions without activating their direction.
+
+
+### Shape, retry and baseline follow-up (2026-10-10)
+
+See [improvement roadmap](EOG_IMPROVEMENT_ROADMAP.md) for the requested guided-center/retry design,
+research assessment and implementation priorities. New opt-in replay variants:
+3s retry gate15/20 with5false directions;5s gate14/20 with4false over275s.
+Existing waveform rejection remains16/20 with6false. Remembering rejected
+labels, extra shape features and stable-only baseline replacement did not improve
+the overall result; retain them as documented comparisons, not live defaults.
+No application, OLED, confirmation or speech integration changed.
