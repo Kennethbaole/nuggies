@@ -587,3 +587,14 @@ No app/serial/confirmation integration changed; G03 remains open. Next inspect
 missed and false candidates, then opt-in diagnostic integration. Full methods,
 commands, results and limits: [Continuous EOG experiments](docs/EOG_CONTINUOUS_EXPERIMENT.md).
 Gaze highlighting remains removed. No further blanket acquisition requested.
+
+### Continuous replay error review
+
+Of four strict misses, three had correct-direction onsets12/40/180ms before the
+cue (boundary ambiguous). Preserve strict16/20; do not claim19/20validated accuracy.
+Fourthleftcandidate was rejected(distance0.16873>0.08); its opposite return then
+emittedright because suppression tracks only accepted directions. Sixfalse counts
+include those threeearlyevents, thatreturn, andtwoblink-relatedupcandidates.
+Next separate scoring-boundary uncertainty from detection errors and preserve
+return tracking after a rejected excursion. Detailed evidence is in the continuous
+guide; no detector or scorer was changed by this inspection.

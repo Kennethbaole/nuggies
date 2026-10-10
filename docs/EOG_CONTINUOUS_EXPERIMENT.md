@@ -129,3 +129,25 @@ report; refine event onset and uncertainty using training data; compare addition
 negative sessions without relabeling them as a new independent test. Then expose
 the frozen candidate as an opt-in diagnostic stream before connecting navigation.
 The existing app detector is unchanged. Gaze highlighting stays removed.
+
+## Follow-up inspection of the four strict misses
+
+Inspection of per-event timing found correct up/right/right candidates starting
+12, 40 and 180 ms before the respective movement cues. They were emitted after
+the cue but scored by onset, so each counted as both a miss and a false direction
+in prepare. These are boundary-ambiguous detections, not three demonstrated
+failures to recognize direction. Cue labels do not establish actual eye onset;
+do not silently relabel them or replace the strict16/20result with19/20accuracy.
+
+The fourth, left repetition4, produced an unknown candidate starting100ms before
+the cue with waveform distance0.16873, above the0.08rejection threshold. Its return
+was classified right. Because the initial candidate was rejected, the policy had
+no accepted left direction to suppress that opposite return. This is a concrete
+interaction between rejection and return tracking to improve.
+
+The six strict false directions comprise the three boundary-ambiguous events,
+the erroneous right return, and two up candidates during a reviewed double-blink
+movement/rest. The remaining genuine classification issue is blink-related
+vertical activity resembling up. Next add boundary-sensitivity reporting as a
+separate metric while preserving the strict score, and maintain recovery state
+for rejected excursions without activating their direction.
