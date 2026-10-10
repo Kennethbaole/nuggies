@@ -16,6 +16,9 @@ Examples (start backend.app first; find ports with python -m scripts.doctor):
 
 Frame format, one line: W:<selected>|<8 labels>|<3 centre lines>
 selected is -1 when nothing is highlighted; an empty label hides that slot.
+A first centre line starting with "!" is an alert: the display drops the wheel
+and shows it large, with the second line beneath. It is used for the moment a
+double blink will be accepted, so the wearer does not blink too early.
 USB only for now: the sketch's Wi-Fi mode expects a WebSocket server, which
 does not exist yet.
 """
@@ -40,6 +43,8 @@ MAX_LABEL = 10  # Must match MAX_LABEL in firmware/esp32_hud.
 CENTER_LIMITS = {1: (14,), 2: (13, 13), 3: (10, 14, 10)}
 HEARTBEAT_S = 1.0  # The sketch shows "No link" when frames stop for 4 s.
 OFFLINE_TEXT = "Website offline"
+MAX_CENTER = 14  # Must match MAX_CENTER in firmware/esp32_hud.
+BLINK_ALERT = "!DOUBLE BLINK"
 
 _ASCII = {"–": "-", "—": "-", "…": "..", "‘": "'", "’": "'", "“": '"', "”": '"'}
 
@@ -52,9 +57,11 @@ def ascii_text(text) -> str:
 
 
 def center_text(state: dict) -> str:
-    """Same choice of centre text as frontend/hud.js."""
+    """Same choice of centre text as frontend/hud.js, plus the eye-control reading pause."""
     hover = state.get("gaze_hover") or {}
     if state.get("eog_communication"):
+        if state.get("eog_paused"):  # Glances do nothing until a double blink resumes.
+            return "Paused. Double blink"
         if state.get("eog_choice_pending"):
             label = state["slots"][state["selected"]]["label"]
             return f"{label}. {'Double blink' if state.get('eog_confirmation_ready') else 'Return center'}"
@@ -98,7 +105,10 @@ def frame_for(state: dict) -> str:
     # The website shows no highlight while the eyes drive the wheel.
     if state.get("wheel_test") or type(selected) is not int or not 0 <= selected < SLOTS or not labels[selected]:
         selected = -1
-    lines = wrap_center(center_text(state))
+    if state.get("eog_communication") and state.get("eog_choice_pending") and state.get("eog_confirmation_ready"):
+        lines = [BLINK_ALERT, ascii_text(slots[state["selected"]].get("label"))[:MAX_CENTER]]
+    else:
+        lines = wrap_center(center_text(state))
     return "W:" + "|".join([str(selected), *labels, *(lines + [""] * 3)[:3]])
 
 

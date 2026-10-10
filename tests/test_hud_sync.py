@@ -101,10 +101,24 @@ class FrameTests(unittest.TestCase):
         state.update(eog_choice_pending=True, eog_confirmation_ready=False)
         label = state["slots"][state["selected"]]["label"]
         self.assertEqual(center_text(state), f"{label}. Return center")
+        _, labels, center = fields(frame_for(state))
+        self.assertEqual([index for index, text in enumerate(labels) if text], [0, 2, 4, 6])
+        self.assertFalse(center[0].startswith("!"))  # too early to blink: no alert yet
         state["eog_confirmation_ready"] = True
         self.assertEqual(center_text(state), f"{label}. Double blink")
-        _, labels, _ = fields(frame_for(state))
-        self.assertEqual([index for index, text in enumerate(labels) if text], [0, 2, 4, 6])
+        self.assertEqual(fields(frame_for(state))[2], ["!DOUBLE BLINK", label, ""])
+
+    def test_reading_pause_shows_on_the_display(self):
+        state = RingState().snapshot()
+        state.update(eog_communication=True, wheel_test=True, eog_paused=True, gaze_hover=dict(phase="ready"))
+        self.assertEqual(fields(frame_for(state))[2], ["Paused.", "Double blink", ""])
+
+    def test_blink_alert_needs_communication_mode_and_a_pending_choice(self):
+        state = RingState().snapshot()
+        state.update(eog_confirmation_ready=True)
+        self.assertFalse(fields(frame_for(state))[2][0].startswith("!"))
+        state.update(eog_communication=True, wheel_test=True, eog_choice_pending=False)
+        self.assertFalse(fields(frame_for(state))[2][0].startswith("!"))
 
     def test_wrap_fits_the_inner_ellipse(self):
         self.assertEqual(wrap_center(""), [])

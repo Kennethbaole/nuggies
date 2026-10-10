@@ -6,6 +6,8 @@
 //                                            slot (-1 = none), 8 labels (empty = hidden slot),
 //                                            3 centre lines. Sent whole on every change and
 //                                            once a second; "No link" shows if it stops for 4 s.
+//                                            A first centre line starting with "!" replaces the
+//                                            wheel with that text, large (e.g. "!DOUBLE BLINK").
 //   O:Food,Warm,Cool,Move,Light,Spell,More   new options (up to 7; Back stays at the bottom)
 //   H:3                                      highlight slot 3 (0 = top, clockwise; 4 = Back)
 //   T:speaking...                            status message for 1.5 s
@@ -27,7 +29,7 @@
 
 // ---------- Settings ----------
 #define USE_WIFI 0          // 1 = join the hotspot and connect to the WebSocket server
-#define FLIP_MODE 0         // 0 = normal, 1 = mirror left-right, 2 = mirror top-bottom
+#define FLIP_MODE 1         // 0 = normal, 1 = mirror left-right, 2 = mirror top-bottom
 
 // Copy secrets.example.h to secrets.h (ignored by Git) and put the real values there.
 #if __has_include("secrets.h")
@@ -303,6 +305,16 @@ void drawCenterText() {
   }
 }
 
+// Full-screen cue from the website, e.g. the moment a double blink will be accepted.
+void drawAlert() {
+  u8g2.setDrawColor(1);
+  for (int i = 0; i < 3; i++) u8g2.drawFrame(i, i, 128 - 2 * i, 64 - 2 * i);
+  u8g2.setFont(u8g2_font_9x15B_tr);
+  drawCentered(centerText[0] + 1, CX, 24);
+  u8g2.setFont(u8g2_font_7x13_tr);
+  drawCentered(centerText[1], CX, 46);
+}
+
 void drawRing() {
   u8g2.setDrawColor(1);
   u8g2.drawEllipse(CX, CY, ORX, ORY, U8G2_DRAW_ALL);
@@ -369,6 +381,7 @@ void loop() {
 
   u8g2.clearBuffer();
   if (millis() < statusUntil) drawStatus();
+  else if (mirrorMode && centerText[0][0] == '!') drawAlert();
   else drawRing();
   u8g2.sendBuffer();
   delay(20);
