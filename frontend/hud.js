@@ -8,19 +8,22 @@ export function drawHUD(canvas, state, monochrome = true) {
   ctx.strokeStyle = '#303030'; ctx.lineWidth = Math.max(1, w / 512);
   ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
   state.slots.forEach((slot, index) => {
+    if (state.eog_communication && !slot.enabled) return;
     const angle = index * Math.PI / 4 - Math.PI / 2;
     const x = cx + Math.cos(angle) * rx, y = cy + Math.sin(angle) * ry;
     ctx.font = `${Math.max(5, Math.round(w / 32))}px monospace`;
     const label = slot.label.slice(0, 9);
     const boxW = Math.max(ctx.measureText(label).width + w / 45, w / 10);
     const boxH = h / 11;
-    ctx.fillStyle = index === state.selected ? '#fff' : '#000';
+    ctx.fillStyle = !state.wheel_test && index === state.selected ? '#fff' : '#000';
     ctx.fillRect(x - boxW / 2, y - boxH / 2, boxW, boxH);
-    ctx.fillStyle = index === state.selected ? '#000' : slot.enabled ? '#fff' : '#555';
+    ctx.fillStyle = !state.wheel_test && index === state.selected ? '#000' : slot.enabled ? '#fff' : '#555';
     ctx.fillText(label, x, y);
   });
   ctx.fillStyle = '#fff'; ctx.font = `${Math.max(5, Math.round(w / 38))}px monospace`;
-  const text = state.screen === 'spell' ? state.draft || 'Choose letters' : state.confirmed || 'Your words, at your pace.';
+  const communicationText = state.eog_communication ? (state.eog_choice_pending ? `${state.slots[state.selected].label}. ${state.eog_confirmation_ready ? 'Double blink' : 'Return center'}` : state.gaze_hover?.phase === 'ready' ? 'Choose a reply' : 'Look center') : null;
+  const testText = communicationText || (state.wheel_test ? (state.gaze_hover?.message || state.wheel_message || 'Eye test') : null);
+  const text = testText || (state.screen === 'spell' ? state.draft || 'Choose letters' : state.confirmed || 'Your words, at your pace.');
   const limit = w * .4, lines = [];
   let current = '';
   for (const word of text.split(/\s+/)) {

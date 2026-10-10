@@ -60,7 +60,7 @@ function browserSpeak(text) {
 }
 
 async function speakSelection(snapshot) {
-  if (!audioEnabled || isHUD || speechBusy || !snapshot.confirmed || snapshot.wheel_test || snapshot.source === 'eye-wheel-test') return;
+  if (!audioEnabled || isHUD || speechBusy || !snapshot.confirmed || (snapshot.wheel_test && !snapshot.eog_communication) || snapshot.source === 'eye-wheel-test') return;
   speechBusy = true;
   try {
     const response = await api('/api/speech', {selection_id: snapshot.selection_id, session_id: snapshot.session_id});
@@ -109,14 +109,15 @@ function render(next) {
     button.textContent = slot.label; button.disabled = !slot.enabled;
     button.classList.toggle('selected', !state.wheel_test && state.selected === index);
     button.classList.toggle('utility', ['more', 'spell', 'back', 'space', 'delete', 'speak'].includes(slot.action));
-    button.setAttribute('aria-pressed', String(state.selected === index));
-    button.setAttribute('aria-label', `${slot.label}${slot.text ? ': ' + slot.text : ''}${state.selected === index ? ', highlighted' : ''}`);
+    button.setAttribute('aria-pressed', String(!state.wheel_test && state.selected === index));
+    button.setAttribute('aria-label', `${slot.label}${slot.text ? ': ' + slot.text : ''}${!state.wheel_test && state.selected === index ? ', highlighted' : ''}`);
   });
   const center = state.screen === 'spell' ? state.draft || 'Choose your letters.' : state.confirmed || 'Your words, at your pace.';
   $('center-text').textContent = center; $('phone-text').textContent = state.confirmed || 'Your words, at your pace.';
   $('center-label').textContent = state.screen === 'spell' ? 'YOUR DRAFT' : state.confirmed ? 'YOUR LAST SELECTION' : 'READY WHEN YOU ARE';
-  $('preview-text').textContent = state.preview || `${state.slots[state.selected].label} — ${state.wheel_test ? 'hover only · click or Space to choose' : 'double blink to choose'}`;
-  $('center-footer').textContent = state.wheel_test ? 'Gaze highlights · click or Space to choose' : state.screen === 'spell' ? 'Choose Speak when ready' : 'Double blink to choose';
+  $('preview-label').textContent = state.wheel_test ? 'EYE TEST' : 'HIGHLIGHTED';
+  $('preview-text').textContent = state.preview || `${state.slots[state.selected].label} — ${state.wheel_test ? 'direction test · speech off' : 'double blink to choose'}`;
+  $('center-footer').textContent = state.wheel_test ? 'Read direction in test status' : state.screen === 'spell' ? 'Choose Speak when ready' : 'Double blink to choose';
   const synthetic = state.input_mode === 'demo';
   $('source-name').textContent = synthetic ? (state.demo_running ? 'Synthetic signal scenario' : 'Keyboard demonstration') : state.input_mode === 'serial' ? 'Nano USB · raw ADC' : 'Recorded ADC replay';
   $('input-detail').textContent = state.wheel_test ? 'Experimental eye wheel control active. Speech disabled.' : synthetic ? 'No glasses or electrodes needed.' : state.sensor_actions ? 'Calibrated navigation enabled. Blink detection pending.' : 'Monitoring only. Sensor navigation is disabled.';
@@ -129,20 +130,70 @@ function render(next) {
   $('input-error').textContent = state.input_error;
   $('wheel-test-toggle').textContent = state.wheel_test ? 'Stop eye wheel test' : 'Start experimental eye wheel test';
   $('wheel-test-toggle').setAttribute('aria-pressed', String(Boolean(state.wheel_test)));
-  $('wheel-test-toggle').disabled = !state.wheel_test && (state.input_mode !== 'serial' || !state.connected || state.sensor_actions || state.guided?.status === 'running');
+  $('wheel-test-toggle').disabled = !state.wheel_test && ((state.input_mode !== 'serial' && !(state.input_mode === 'replay' && state.eog_engine === 'waveform')) || !state.connected || state.sensor_actions || state.guided?.status === 'running');
   $('wheel-test-stop').disabled = !state.wheel_test;
   const gaze = state.gaze_hover;
   $('wheel-test-status').textContent = state.wheel_test
     ? `${state.wheel_message}${gaze?.slot != null ? ' → ' + state.slots[gaze.slot].label : ''}` : 'Eye wheel control off';
   $('gaze-readings').textContent = state.wheel_test && gaze
     ? `EOG deviation · Horizontal ${gaze.horizontal} · Vertical ${gaze.vertical} ADC counts · ${gaze.phase}` : '';
-  if (state.wheel_test && audioEnabled) {
+  const guidedEOG = state.eog_engine === 'waveform';
+  $('eog-guidance').hidden = !guidedEOG;
+  $('speed-test-start').hidden = !guidedEOG;
+  $('speed-test-start').disabled = !state.connected || !state.recording || Boolean(state.pending_eog_check) || state.guided?.status === 'running';
+  const speedAttempts = state.speed_results || [];
+  const lastSpeed = [...speedAttempts].reverse().find(x => x.detected);
+  $('speed-test-results').textContent = state.pending_eog_check ? 'Centering before the speed check…'
+    : speedAttempts.length ? `${speedAttempts.filter(x => x.complete).length}/12 attempts complete · ${speedAttempts.filter(x => x.correct).length} matched${lastSpeed ? ` · Last: ${lastSpeed.cue_to_detection_ms} ms cue-to-response${lastSpeed.early_candidate ? ' (started before cue)' : ''}` : ''}${state.speed_median_ms != null ? ` · Median ${state.speed_median_ms} ms (includes reaction time)` : ''}` : '';
+
+  if (state.wheel_test && guidedEOG) {
+    const cueActive = ['diagnostic', 'speed'].includes(state.guided?.protocol) && state.guided?.status === 'running';
+    const title = gaze?.phase === 'retry' ? 'Look center / Retry' : gaze?.phase === 'centering' ? 'Look straight ahead'
+      : gaze?.phase === 'signal_lost' ? 'Signal interrupted' : gaze?.direction ? `${gaze.direction.toUpperCase()} detected` : 'Ready';
+    $('center-label').textContent = cueActive ? 'LIVE EYE SIGNAL CHECK' : 'EYE SIGNAL TEST';
+    $('center-text').textContent = gaze?.needs_retry ? title : cueActive ? state.guided.cue : title;
+    $('center-footer').textContent = gaze?.phase === 'ready' ? 'One direction, then center · speech off'
+      : gaze?.phase === 'recovery' ? 'Return to center · wait for Ready' : `${Math.round((gaze?.progress || 0) * 100)}% clean rest`;
+    $('preview-text').textContent = gaze?.direction ? `${gaze.direction.toUpperCase()} → ${state.slots[gaze.slot].label}`
+      : gaze?.last_event ? `Last reading: ${gaze.last_event.label} · ${gaze.last_event.reason.replaceAll('_', ' ')}` : title;
+  }
+  if (state.wheel_test && state.guided?.protocol === 'speed' && gaze?.direction && lastSpeed) {
+    $('preview-text').textContent += ` · ${(lastSpeed.cue_to_detection_ms / 1000).toFixed(2)}s response`;
+  }
+  $('eog-communication-toggle').textContent = state.eog_communication ? 'Stop gaze + double-blink communication' : 'Start gaze + double-blink communication';
+  $('eog-communication-toggle').setAttribute('aria-pressed', String(Boolean(state.eog_communication)));
+  $('eog-communication-toggle').disabled = !state.eog_communication && (!state.connected || !guidedEOG || state.input_mode !== 'serial' || state.guided?.status === 'running');
+  document.body.classList.toggle('communication-active', Boolean(state.eog_communication));
+  if (!state.eog_communication) document.querySelector('.preview').classList.remove('confirmation-ready');
+  $('eog-mode-help').textContent = state.eog_communication ? 'Communication is on: choose a reply, return to Ready, then double blink to confirm.' : 'In navigation checks, blinks are observed without selection or speech.';
+  $('eog-communication-status').textContent = state.eog_communication ? state.eog_confirmation : 'Experimental: gaze chooses; return to center, then double blink confirms. Single blinks do nothing.';
+  if (state.eog_communication) {
+    $('center-label').textContent = 'GAZE + DOUBLE BLINK';
+    const choice = state.slots[state.selected];
+    const pending = Boolean(state.eog_choice_pending);
+    $('center-text').textContent = pending ? choice.label : gaze?.phase === 'ready' ? 'Choose a reply' : gaze?.needs_retry ? 'Look center / Retry' : 'Look straight ahead';
+    $('center-footer').textContent = state.eog_confirmation_ready ? 'Ready to confirm · double blink' : pending ? 'Detected · return to center' : gaze?.phase === 'ready' ? 'Look up or right for a reply' : `${Math.round((gaze?.progress || 0) * 100)}% clean rest`;
+    $('preview-label').textContent = pending ? 'DETECTED CHOICE · NOT YET SELECTED' : 'NO PENDING CHOICE';
+    $('preview-text').textContent = pending ? choice.text || choice.label : 'Look at an option. Your detected choice will appear here before you confirm.';
+    document.querySelector('.preview').classList.toggle('confirmation-ready', Boolean(state.eog_confirmation_ready));
+    $('wheel-test-status').textContent = gaze?.phase === 'ready' ? state.eog_confirmation : gaze?.message;
+    $('input-detail').textContent = audioEnabled ? 'Experimental gaze and double-blink communication. Confirmed replies are spoken.' : 'Experimental gaze and double-blink communication. Speech is off; Enable speech to hear confirmed replies.';
+    $('page-info').textContent = 'Two replies · More · Back';
+  }
+  $('eog-recenter').disabled = !state.wheel_test || !state.connected;
+  $('eog-progress').value = state.wheel_test ? (gaze?.progress || 0) : 0;
+  const lastEOG = gaze?.last_event;
+  $('eog-event').textContent = state.wheel_test && lastEOG
+    ? `Last reading: ${lastEOG.label} · ${lastEOG.reason.replaceAll('_', ' ')}` : '';
+  $('eog-quality').textContent = state.wheel_test && gaze?.totals
+    ? `Directions ${gaze.totals.accepted} · Retries ${gaze.totals.rejected} · Blink events ${gaze.totals.blinks} · Signal interruptions ${gaze.totals.faults}${gaze.waiting_too_long ? ' · Check electrode contact or recenter' : ''}` : '';
+  if (state.wheel_test && !state.eog_communication && audioEnabled) {
     audioEnabled = false; audio?.pause();
     if ('speechSynthesis' in window) speechSynthesis.cancel();
     $('audio-toggle').setAttribute('aria-pressed', 'false');
     $('audio-toggle').textContent = 'Enable speech';
   }
-  $('audio-toggle').disabled = Boolean(state.wheel_test);
+  $('audio-toggle').disabled = Boolean(state.wheel_test && !state.eog_communication);
   $('trial-label').value = state.trial_label || 'unlabeled';
   $('recording-status').textContent = state.recording ? 'Recording locally' : 'Monitoring only · not recording';
   $('record-stop').disabled = !state.recording;
@@ -151,7 +202,12 @@ function render(next) {
   $('trial-label').disabled = guidedRunning;
   $('guided-protocol').disabled = guidedRunning;
   if (guidedRunning) $('guided-protocol').value = guided.protocol;
-  $('guided-start').disabled = guidedRunning || !state.recording || !state.connected || state.sensor_actions;
+  $('guided-protocol').querySelector('option[value="diagnostic"]').disabled = !guidedEOG;
+  if (!guidedEOG && ['diagnostic', 'speed'].includes($('guided-protocol').value)) $('guided-protocol').value = 'horizontal';
+  $('guided-protocol').querySelector('option[value="speed"]').disabled = !guidedEOG;
+  const diagnosticCheck = ['diagnostic', 'speed'].includes($('guided-protocol').value);
+  $('guided-start').disabled = guidedRunning || !state.recording || !state.connected || (diagnosticCheck
+    ? !guidedEOG || !state.wheel_test || gaze?.phase !== 'ready' : state.sensor_actions);
   $('guided-stop').disabled = !guidedRunning;
   $('guided-cue').textContent = guided.cue || 'Live recording required to start a guided test.';
   $('guided-progress').textContent = guidedRunning ? `${guided.remaining_s}s · Step ${guided.step}/${guided.total_steps} · ${guided.trial_id}` : guided.status;
@@ -271,12 +327,13 @@ $('text-panel').onsubmit = event => {
   if (text) suggest({heard_text: text}).then(ok => { if (ok) $('heard-input').value = ''; });
 };
 $('download-hud').onclick = () => state && downloadFrame(state);
-$('audio-toggle').onclick = () => {
-  audioEnabled = !audioEnabled; $('audio-toggle').setAttribute('aria-pressed', String(audioEnabled));
+function setAudio(enabled) {
+  audioEnabled = enabled; $('audio-toggle').setAttribute('aria-pressed', String(audioEnabled));
   $('audio-toggle').textContent = audioEnabled ? 'Speech enabled' : 'Enable speech';
   if (!audioEnabled) { audio?.pause(); if ('speechSynthesis' in window) speechSynthesis.cancel(); }
   feedback(audioEnabled ? 'Speech enabled on this companion. Future selections will be spoken.' : 'Speech paused. Text stays visible.');
-};
+}
+$('audio-toggle').onclick = () => setAudio(!audioEnabled);
 $('token-submit').onclick = () => { token = $('token-input').value; sessionStorage.setItem('nuggies-token', token); setTimeout(poll, 0); };
 document.addEventListener('keydown', event => {
   if (isHUD || event.repeat || $('token-dialog').open || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
@@ -318,5 +375,13 @@ $('guided-stop').onclick = () => command('guided_stop');
 
 $('record-stop').onclick = () => command('record_stop');
 
+$('speed-test-start').onclick = () => command('speed_test');
+$('eog-communication-toggle').onclick = () => {
+  const starting = !state?.eog_communication;
+  // This click is the user gesture browsers require before audio; double-blink confirmations then speak.
+  if (starting && !isHUD && !audioEnabled) setAudio(true);
+  command('eog_communication', starting);
+};
 $('wheel-test-toggle').onclick = () => command('wheel_test', !state?.wheel_test);
+$('eog-recenter').onclick = () => command('eog_recenter');
 $('wheel-test-stop').onclick = () => command('wheel_test', false);

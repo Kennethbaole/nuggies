@@ -11,6 +11,7 @@ class RingState:
     def __init__(self, config=None):
         self.config = config or json.loads(CONFIG.read_text())
         self.contact = self.config["contacts"][0]["id"]
+        self.cardinal_layout = False
         self.screen = "home"
         self.selected = 0
         self.pages = {"home": 0, "needs": 0}
@@ -78,10 +79,13 @@ class RingState:
         else:
             pool = (self.suggested or self.config["phrases"]) if self.screen == "home" else self.config["needs"]
             page = self.pages[self.screen]
-            for index, phrase in zip(PHRASE_SLOTS, pool[page * 5:page * 5 + 5]):
+            page_size = 2 if self.cardinal_layout else 5
+            phrase_slots = (0, 2) if self.cardinal_layout else PHRASE_SLOTS
+            for index, phrase in zip(phrase_slots, pool[page * page_size:page * page_size + page_size]):
                 slots[index] = self._slot(phrase["label"], "phrase", phrase["text"], value=phrase["id"])
-            slots[6] = self._slot("More", "more", enabled=(page + 1) * 5 < len(pool))
-            slots[7] = self._slot("Spell", "spell")
+            slots[6] = self._slot("More", "more", enabled=(page + 1) * page_size < len(pool))
+            if not self.cardinal_layout:
+                slots[7] = self._slot("Spell", "spell")
         return slots
 
     def snapshot(self):

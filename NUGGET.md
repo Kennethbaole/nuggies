@@ -1,6 +1,17 @@
+> 2026-10-10 update: A separate opt-in experimental communication mode now connects
+> gaze, recovered-center readiness, and double-blink confirmation to the existing
+> phrase/speech pipeline. Diagnostic eye-wheel mode still cannot confirm or speak.
+> See [communication flow](docs/EOG_COMMUNICATION.md). No live confirmation accuracy is claimed.
+
 # NUGGET — project truth and agent handoff
 
 Updated: 2026-10-10. Repository audited at `b1ceaa0216426cba830f387c474bec8e05c9c3b8`.
+
+Latest experimental implementation: `12342a4` on
+`experiment/eog-continuous-detection`. Guided EOG live-check instructions and
+current evidence: [EOG_LIVE_CHECK](docs/EOG_LIVE_CHECK.md). Base suite167run,
+166passed,1optional skip; guided and normal desktop/mobile browser checks passed.
+No new wearer or physical OLED result is claimed.
 
 Read this before changing the project. This is the central reference for project intent, implementation boundaries, evidence, unresolved gaps, and the next work. Detailed guides remain useful, but their known stale statements are listed below. A feature being present in code does not establish that it works on the intended hardware or for the intended users.
 
@@ -180,7 +191,7 @@ Before body-connected acquisition, follow the setup/electrode/power verification
 
 Positive A0 assumes right; positive A1 assumes up. The hover latches until an opposite projection below -1000 counts lasts ten samples, or 2000 samples pass (eight seconds at 250 Hz). Release requires 100 quiet samples below 600 counts, followed by a reset/warmup. Clipping resets it. The app also resets it when a received sample gap exceeds 500 ms.
 
-The companion underlines active gaze feedback. The ring's keyboard focus can remain at the last enabled slot after hover clears. Browser/Pillow HUD renderers use `selected` and do not implement the companion's separate hover styling. A hover aimed at a disabled slot can differ from the ring's retained selection.
+Gaze visualization was subsequently removed; the companion exposes detector status/readouts. The ring's keyboard focus can remain at the last enabled slot after hover clears. Browser/Pillow HUD renderers use `selected` and do not implement the companion's separate hover styling. A hover aimed at a disabled slot can differ from the ring's retained selection.
 
 The last specific live result was inaccurate directional correspondence, including a repeated center/left trial. Plausible causes include polarity, channel gain differences, baseline drift, onset timing, return pulses and blinks. The repository has not isolated a cause. AC-coupled pulses are not a measurement of continuous absolute gaze position.
 
@@ -553,3 +564,87 @@ NUGGET gap IDs resolved or added:
 A fix is complete only when its actual production path has been checked; a test that manually creates the missing state is insufficient. For a hardware/service claim, record the concrete setup and observation. For a new product decision, distinguish owner-approved direction from an agent's proposed next step.
 
 No application, firmware or detector defects were fixed as part of this documentation audit. Keep section 10 entries open until subsequent work supplies the implementation and evidence.
+
+### 2026-10-10 — Continuous EOG experiment branch
+
+Branch: `experiment/eog-continuous-detection`, based on main `301cfef`.
+Gaze visualization was removed before this branch; earlier underline descriptions
+above are historical. Existing reviewed recordings are sufficient for current
+algorithm development; do not request a blanket repeat of acquisition.
+
+Added offline causal segmentation and continuous replay comparison. Detectors
+receive raw values only, run whole files, and reset on transport gaps/clipping,
+not movement cues. Labels fit training examples and score held-out repetitions.
+The current live-hover comparator reproduced a stall and missed all 20 scored
+cardinal trials in full replay. This differs from cue-reset window experiments.
+Initial learned 1s waveforms found 11/20 with 9 false directions over 275s scored
+negative exposure. Adaptive blink cooldown, bounded DC adaptation, opposite-return
+suppression and uncertain-event rejection improved development replay to 16/20,
+0 wrong directions during scored movements and 6 false directions over 275s.
+These reused-data results remain development evidence, not independent validation.
+No new detector is connected to Application or confirmation. G03 remains open.
+See forthcoming continuous experiment guide for refinements and reproducibility.
+
+### Continuous experiment refinement and final branch handoff
+
+Compared twelve continuous variants and an alternative onset alignment using
+existing recordings only. Default waveform/rejection:16/20 correct movements,
+0 wrong directions during movements,0 duplicate correct events,6 false directions
+over275s negative exposure; median cue-to-emission1.51s. Small LSTM:15/20 with
+16false; three-layer recurrent model:14/20 with23false. These are reused-data
+development comparisons, not independent validation. New explicit candidate
+profile/replay CLI runs without labels; verified on68873rawsamples.149tests pass.
+No app/serial/confirmation integration changed; G03 remains open. Next inspect
+missed and false candidates, then opt-in diagnostic integration. Full methods,
+commands, results and limits: [Continuous EOG experiments](docs/EOG_CONTINUOUS_EXPERIMENT.md).
+Gaze highlighting remains removed. No further blanket acquisition requested.
+
+### Continuous replay error review
+
+Of four strict misses, three had correct-direction onsets12/40/180ms before the
+cue (boundary ambiguous). Preserve strict16/20; do not claim19/20validated accuracy.
+Fourthleftcandidate was rejected(distance0.16873>0.08); its opposite return then
+emittedright because suppression tracks only accepted directions. Sixfalse counts
+include those threeearlyevents, thatreturn, andtwoblink-relatedupcandidates.
+Next separate scoring-boundary uncertainty from detection errors and preserve
+return tracking after a rejected excursion. Detailed evidence is in the continuous
+guide; no detector or scorer was changed by this inspection.
+
+
+### Shape, retry and baseline follow-up (2026-10-10)
+
+See [improvement roadmap](docs/EOG_IMPROVEMENT_ROADMAP.md) for the requested guided-center/retry design,
+research assessment and implementation priorities. New opt-in replay variants:
+3s retry gate15/20 with5false directions;5s gate14/20 with4false over275s.
+Existing waveform rejection remains16/20 with6false. Remembering rejected
+labels, extra shape features and stable-only baseline replacement did not improve
+the overall result; retain them as documented comparisons, not live defaults.
+No application, OLED, confirmation or speech integration changed.
+
+
+### Integrated guided EOG mode — 2026-10-10
+
+The experimental branch now has opt-in app integration using --eog-profile:
+three-second guided center, hybrid DC/rest estimates, five-second retry,
+recovery/return suppression, uncertain horizontal blink handling and quality
+faults. Cardinal focus only; no automatic confirmation or speech. Browser HUD
+shows status without gaze highlighting. Private raw/decision logs and a short
+readiness-aware live protocol are available. Selected exact-runtime replay:
+16/20 correct,0wrong/duplicates,3false candidates/275s (two boundary ambiguous,
+one blink-related up); median cue-to-emission1.51s. Existing main behavior
+without the profile flag is unchanged. Physical OLED status adapter is untested.
+See [live-check guide](docs/EOG_LIVE_CHECK.md) for evidence, launch instructions and remaining
+limitations. Earlier statements that no integration exists are historical.
+
+
+### Homepage speed-check follow-up
+
+First live manual check: operator confirms intended cardinal responses and
+retry for an untrained diagonal; no cue labels, so no numeric accuracy claim.
+A new homepage button starts a recorded12-direction speed check after center.
+Cue-to-response (includes reaction/UI delay) and candidate-window timing are
+reported separately; early candidates are flagged. Detector settings remain
+fixed.169tests run:168pass,1optional skip; homepage flow browser-checked.
+See EOG_LIVE_CHECK.md for definitions and the live recording limitations.
+
+For the current detector investigation and continuation instructions, read [Claude development handoff](docs/CLAUDE_HANDOFF.md). Double-blink pulse-shape diagnostics are observational pending replay validation.
