@@ -41,3 +41,49 @@ class PipelineTests(unittest.TestCase):
         self.assertIsNone(p.confirmation.target)
         self.assertEqual(validate_event(p.pending_events[-1])['type'],'fault')
         with self.assertRaises(ValueError):validate_event(dict(schema_version=99,type='selection'))
+
+    def pair(self,d,index):
+        def blink(*args):
+            d.raw_index=index;d.phase='ready'
+            d.last_blink_result=dict(label='double_blink',reason='blink',source='pulse_stream',pulse_pair_valid=True,waveform_label='double_blink',onset_sample=index-200,emitted_sample=index,distance=.02,direction_margin=4,horizontal_fraction=.01)
+        return patch.object(d,'process',side_effect=blink)
+
+    def gaze(self,d,index):
+        def focus(*args):
+            d.raw_index=index;d.phase='ready';d.last_result=dict(label='up',reason='accepted',onset_sample=index-20,emitted_sample=index)
+            return 0
+        return patch.object(d,'process',side_effect=focus)
+
+    def test_centred_double_blink_pauses_and_resumes_gaze_choices(self):
+        p=self.pipeline();d=p.detector
+        with self.pair(d,1000):result=p.process(8192,8192,0,communication=True)
+        self.assertTrue(p.paused);self.assertTrue(result['state']['paused'])
+        self.assertEqual([e['type'] for e in result['events']],['double_blink','pause'])
+        for event in result['events']:validate_event(event)
+        with self.gaze(d,1300):result=p.process(8192,8192,4,communication=True)
+        self.assertFalse(any(e['type'] in ('gaze_accepted','selection') for e in result['events']))
+        self.assertIsNone(p.confirmation.target)
+        with self.pair(d,1400):p.process(8192,8192,8,communication=True)
+        self.assertTrue(p.paused,'a repeat blink inside the two-second guard must not toggle')
+        with self.pair(d,1700):result=p.process(8192,8192,12,communication=True)
+        self.assertFalse(p.paused);self.assertFalse(any(e['type']=='selection' for e in result['events']))
+        with self.gaze(d,2300):result=p.process(8192,8192,16,communication=True)
+        self.assertEqual(result['events'][0]['type'],'gaze_accepted')
+
+    def test_double_blink_with_pending_choice_selects_instead_of_pausing(self):
+        p=self.pipeline();d=p.detector
+        with self.gaze(d,100):p.process(8192,8192,0,communication=True)
+        with self.pair(d,500):result=p.process(8192,8192,4,communication=True)
+        self.assertEqual(sum(e['type']=='selection' for e in result['events']),1);self.assertFalse(p.paused)
+        with self.pair(d,800):p.process(8192,8192,8,communication=True)
+        self.assertFalse(p.paused,'blinking again right after a selection must not pause')
+
+    def test_pause_needs_communication_and_clears_when_it_stops(self):
+        p=self.pipeline();d=p.detector
+        with self.pair(d,1000):p.process(8192,8192,0,communication=False)
+        self.assertFalse(p.paused)
+        with self.pair(d,2000):p.process(8192,8192,4,communication=True)
+        self.assertTrue(p.paused)
+        with patch.object(d,'process',return_value=None):p.process(8192,8192,8,communication=False)
+        self.assertFalse(p.paused)
+

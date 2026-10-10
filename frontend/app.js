@@ -176,6 +176,7 @@ function render(next) {
     const pending = Boolean(state.eog_choice_pending);
     $('center-text').textContent = pending ? choice.label : gaze?.phase === 'ready' ? 'Choose a reply' : gaze?.needs_retry ? 'Look center / Retry' : 'Look straight ahead';
     $('center-footer').textContent = state.eog_confirmation_ready ? 'Ready to confirm · double blink' : pending ? 'Detected · return to center' : gaze?.phase === 'ready' ? 'Look left or right for a reply' : `${Math.round((gaze?.progress || 0) * 100)}% clean rest`;
+    if (state.eog_paused) { $('center-text').textContent = 'Paused'; $('center-footer').textContent = 'Look around · double blink at center to resume'; }
     $('preview-label').textContent = pending ? 'DETECTED CHOICE · NOT YET SELECTED' : 'NO PENDING CHOICE';
     $('preview-text').textContent = pending ? choice.text || choice.label : 'Look at an option. Your detected choice will appear here before you confirm.';
     document.querySelector('.preview').classList.toggle('confirmation-ready', Boolean(state.eog_confirmation_ready));
@@ -186,6 +187,7 @@ function render(next) {
   // One peripheral-vision colour per interaction state; text alone is unreadable while gazing elsewhere.
   const eogCue = !state.wheel_test || !guidedEOG || !state.connected ? ''
     : Date.now() < selectedFlashUntil ? 'selected'
+    : state.eog_paused ? 'paused'
     : gaze?.phase === 'retry' ? 'retry'
     : gaze?.phase !== 'ready' && gaze?.phase !== 'recovery' ? 'wait'
     : state.eog_confirmation_ready ? 'confirm'

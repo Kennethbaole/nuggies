@@ -190,3 +190,4 @@ body[data-eog-cue=confirm]::after,body[data-eog-cue=confirm] .wheel-center{anima
 .homepage.communication-active .slot.utility{font-size:21px;min-width:110px}
 @media(max-width:760px){.homepage.communication-active .slot{font-size:17px;min-width:84px;max-width:110px;min-height:52px;padding:10px}.homepage.communication-active .slot.utility{font-size:15px;min-width:76px}}
 .homepage.communication-active .wheel-center .eyebrow{display:none}
+body[data-eog-cue=paused]{--cue:#9aa3a0}.eog-cue-legend [data-cue=paused]{--dot:#9aa3a0}

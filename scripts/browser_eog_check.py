@@ -76,6 +76,11 @@ def main():
             expect(page.locator('#eog-communication-status')).to_contain_text('Look center / Retry')
             expect(page.locator('#center-text')).to_have_text('Choose a reply',timeout=10000)
             expect(page.locator('body')).to_have_attribute('data-eog-cue','ready')
+            with app.lock:app.eog_pipeline.paused=True
+            expect(page.locator('body')).to_have_attribute('data-eog-cue','paused')
+            expect(page.locator('#center-text')).to_have_text('Paused')
+            with app.lock:app.eog_pipeline.paused=False
+            expect(page.locator('body')).to_have_attribute('data-eog-cue','ready')
             assert all(not app.ring.slots()[i]['enabled'] for i in (1,3,5,7))
             # Starting communication is the audio gesture; speech must already be on.
             expect(page.locator('#audio-toggle')).to_have_attribute('aria-pressed','true')
@@ -123,7 +128,7 @@ def main():
             browser.close()
         report=dict(ok=True,mode='HTTP/browser UI state simulation; not sensor accuracy',checks=[
             'opt-in','center progress','ready','retry reason','prominent status','readiness-aware cues','recenter','stale signal',
-            'homepage speed check','opt-in communication','four reachable positions','fixed detected-choice preview','explicit confirmation readiness','speech auto-enabled with communication','peripheral colour cues','recording protocol startable from eye control','confirmed browser speech once','diagnostic speech disabled','gaze highlighting absent','HUD rendering','diagnostic mode cannot confirm','no JS errors'])
+            'homepage speed check','opt-in communication','four reachable positions','fixed detected-choice preview','explicit confirmation readiness','speech auto-enabled with communication','peripheral colour cues','reading pause shown','recording protocol startable from eye control','confirmed browser speech once','diagnostic speech disabled','gaze highlighting absent','HUD rendering','diagnostic mode cannot confirm','no JS errors'])
         (output/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report))
     finally:
         stop.set();feeder.join(timeout=2);server.shutdown();server.server_close();worker.join(timeout=2)

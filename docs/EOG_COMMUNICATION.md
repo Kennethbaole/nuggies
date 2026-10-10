@@ -331,3 +331,18 @@ read as Up, so it was not used. Cued sessions 4/5/6 were unchanged except one mo
 accepted direction outside cues in session 6. The gain is small: remaining vertical
 rejections are distant matches against the morning templates, which points to
 re-recording the vertical examples rather than further loosening.
+
+### Reading pause (2026-10-10)
+
+In communication mode, a valid pulse-stream double blink while Ready with **no pending
+choice** toggles a reading pause instead of doing nothing. While paused, accepted gaze
+directions are reported as candidates with `paused: true` and never focus or arm a
+choice, so the wearer can look at the options. A second centred double blink resumes.
+A double blink with a pending armed choice still selects. A two-second guard after any
+selection or toggle prevents a repeated blink from flipping the state. Stopping
+communication or recentering clears the pause. The contract adds event type `pause`
+(`paused` boolean) and `state.paused`; the app exposes `eog_paused`. Pulse-pair detection
+is unavailable during centering/retry, so the wearer must be Ready (centred, settled)
+to pause or resume. A natural double blink can toggle the pause; the grey frame shows it.
+Software-tested only; no live wearer result yet.
+

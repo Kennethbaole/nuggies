@@ -38,6 +38,7 @@ Every event has a monotonically increasing process-local `event_id`, `type`, and
 | selection | One consumed confirmation; `slot`, `choice_id`, `onset_sample`, confirmation=double_blink |
 | fault | Input interruption, clipping or timing fault; `reason` |
 | reset | Deliberate reset; `cause` |
+| pause | Reading pause toggled by a centred double blink with no pending choice; `paused` boolean. While paused no `gaze_accepted` or `selection` is emitted |
 
 Slots are fixed: **up=0, right=2, down=4, left=6**. No diagonal selections.
 `decision` can include distances, energy fractions and pulse timing in milliseconds;
