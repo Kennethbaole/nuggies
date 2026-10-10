@@ -22,7 +22,10 @@ class GuidedTrialTests(unittest.TestCase):
         with self.assertRaises(ValueError): trial.start(1)
         self.assertEqual(trial.snapshot(sum(s[0] for s in steps))['status'], 'complete')
         self.assertEqual(trial.snapshot(999)['label'], 'unlabeled')
-        trial.start(1000); trial.stop()
+        first_id = trial.run_id
+        trial.start(1000)
+        self.assertNotEqual(trial.run_id, first_id)
+        trial.stop()
         self.assertEqual(trial.snapshot(1001)['status'], 'stopped')
 
     def test_app_requires_recording_and_blocks_manual_labels(self):

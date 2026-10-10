@@ -236,7 +236,7 @@ class Application:
                     label_writer.writerow(("timestamp_ms", "intended_label"))
                     trial_stream = stack.enter_context(open(trial_path, "x", newline=""))
                     trial_writer = csv.writer(trial_stream)
-                    trial_writer.writerow(("timestamp_ms", "intended_label", "trial_id", "phase", "cue"))
+                    trial_writer.writerow(("timestamp_ms", "intended_label", "trial_id", "phase", "cue", "run_id"))
                     with self.lock:
                         self.recording = True
                 while not self.stop.is_set():
@@ -252,7 +252,7 @@ class Application:
                             label = self.trial_label
                         label_writer.writerow((sample.timestamp_ms, label))
                         label_stream.flush()
-                        trial_writer.writerow((sample.timestamp_ms, label, guided["trial_id"], guided["phase"], guided["cue"]))
+                        trial_writer.writerow((sample.timestamp_ms, label, guided["trial_id"], guided["phase"], guided["cue"], guided["run_id"]))
                         trial_stream.flush()
                     self.ingest(sample)
         except Exception as error:

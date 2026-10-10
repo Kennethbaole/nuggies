@@ -66,11 +66,11 @@ signal workspace and choose **Start guided test**. Follow the on-screen cues;
 manual labeling is locked until completion or Stop test. The server schedules a
 5-second preparation, 20-second neutral baseline, five alternating left/right
 trials (3-second center preparation, 2-second sideways hold, 4-second return),
-five blink trials, and a final 20-second neutral baseline. Total: 170 seconds.
+five blink trials, and a final 20-second neutral baseline. Total: 175 seconds. Blink cues last 2 seconds to allow reaction time.
 Keep the page visible; timing does not pause when the browser is hidden.
 
 Recording now also writes `<name>.trials.csv` with receipt timestamp, intended
-label, trial ID, phase, and cue for every sample. The raw CSV and two-column
+label, trial ID, phase, cue, and unique run ID for every sample. The raw CSV and two-column
 labels CSV remain compatible with existing tools. Return phases are explicitly
 separate from movement phases. All sidecars stay local in recordings/. Cue times
 are server instructions, not measured human reaction times or exact event onsets;
@@ -81,3 +81,29 @@ validate the disconnected vertical channel or the two-channel blink detector.
 The start button requires active recording and a connected input. Stop test ends
 cues and restores Unlabeled, while raw recording continues. A disconnect ends
 recording and stops the protocol; restart acquisition before a new test.
+
+## Offline glance-and-return prototype
+
+`backend.paired_glance` is an experimental horizontal-only detector, separate from
+the live application. It smooths A0 over 100 ms, tracks a slow resting baseline,
+then requires a sustained excursion, an opposite excursion 0.8–5 seconds later,
+and 200 ms near baseline before emitting one PREV (negative-first) or NEXT
+(positive-first). A 500 ms cooldown follows. Baseline adaptation is frozen during
+a candidate. Incomplete candidates expire without a command. A1 is never read.
+This detects a signal pattern, not absolute eye position; it deliberately requires
+a glance, hold, and return. A user who does not return receives no command.
+
+```sh
+python3 -m backend.review_glances recordings/eog-trial.csv --threshold 1500
+```
+
+Replay reports events and optional trial-phase metadata as JSON to stdout.
+Metadata is checked for alignment and used only for reporting, never for detection.
+Save reports under recordings/ to keep them local. Sampling time uses sample index
+and `--fs` (default 250); verify the real acquisition rate first. Defaults are
+exploratory: independent recordings must establish detection, duplicate/false
+commands, missed movements, and latency before enabling navigation. Fast paired
+artifacts are rejected by timing, but slower artifacts can mimic the required
+pattern. Ordinary blinks are not SELECT commands in this prototype. The live app
+continues to use its existing classifier and remains monitoring-only unless
+explicitly configured otherwise; this prototype is not wired to live controls.
