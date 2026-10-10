@@ -43,7 +43,7 @@ def main():
     source.add_argument("--wav", help="Audio file (wav/mp3/ogg/flac/m4a/webm)")
     source.add_argument("--record", type=float, metavar="SECONDS", help="Record from the default microphone")
     parser.add_argument("--model", help="Override GEMINI_MODEL for this run")
-    parser.add_argument("--name", default="Alex")
+    parser.add_argument("--name", default="Bella")
     parser.add_argument("--relationship", default="Family")
     args = parser.parse_args()
     load_env()

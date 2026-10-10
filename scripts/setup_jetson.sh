@@ -7,7 +7,7 @@
 #
 # Steps: apt packages, project venv + requirements.txt, dialout group for the
 # Nano's USB serial port, MAXN SUPER power mode, Ollama + model, Piper + voice,
-# whisper.cpp (built for the GPU) + speech-to-text model.
+# Qwen3-ASR speech-to-text (GPU torch + qwen-asr in its own venv) + model.
 # Re-running is safe; finished steps are skipped or repeated harmlessly.
 #
 # Failure policy:
@@ -22,29 +22,26 @@
 #   OLLAMA_MODEL   Ollama model to pull       (default: llama3.2:3b)
 #   PIPER_VOICE    Piper voice to download    (default: en_US-lessac-medium)
 #   PIPER_DIR      Where Piper voices go      (default: .cache/piper, Git-ignored)
-#   WHISPER_MODEL  whisper.cpp model          (default: small.en; base.en is faster)
-#   WHISPER_REF    whisper.cpp release tag    (default: v1.9.5)
-#   WHISPER_DIR    whisper.cpp checkout       (default: .cache/whisper.cpp, Git-ignored)
+#   ASR_MODEL      Qwen speech-to-text model  (default: Qwen/Qwen3-ASR-0.6B; 1.7B is more accurate)
+#   ASR_VENV       Venv for torch + qwen-asr  (default: .venv-asr, Git-ignored)
+#   TORCH_INDEX_URL  Jetson torch wheels      (default: https://pypi.jetson-ai-lab.io/jp6/cu126)
 #   SKIP_POWER=1   Leave the power mode alone; the summary reports it as SKIPPED
 #
 # NVIDIA firmware/OS/JetPack provisioning comes first and is not done here;
-# see docs/JETSON_HANDOFF.md. The app does not call Ollama, Piper or whisper.cpp
-# yet; this only installs them so they can be integrated and tested on the device.
+# see docs/JETSON_HANDOFF.md. The app reaches Qwen through backend.asr_server
+# (ASR_URL); Piper is installed but not wired into the app yet.
 
 set -euo pipefail
 
 OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.2:3b}"
 PIPER_VOICE="${PIPER_VOICE:-en_US-lessac-medium}"
 PIPER_DIR="${PIPER_DIR:-.cache/piper}"
-WHISPER_MODEL="${WHISPER_MODEL:-small.en}"
-WHISPER_REF="${WHISPER_REF:-v1.9.5}"
-WHISPER_DIR="${WHISPER_DIR:-.cache/whisper.cpp}"
+ASR_MODEL="${ASR_MODEL:-Qwen/Qwen3-ASR-0.6B}"
+ASR_VENV="${ASR_VENV:-.venv-asr}"
+TORCH_INDEX_URL="${TORCH_INDEX_URL:-https://pypi.jetson-ai-lab.io/jp6/cu126}"
 SKIP_POWER="${SKIP_POWER:-0}"
 VENV=".venv"
 
-WHISPER_BIN="$WHISPER_DIR/build/bin"
-WHISPER_MODEL_FILE="$WHISPER_DIR/models/ggml-$WHISPER_MODEL.bin"
-WHISPER_SAMPLE="$WHISPER_DIR/samples/jfk.wav"
 PIPER_MODEL_FILE="$PIPER_DIR/$PIPER_VOICE.onnx"
 LOG_DIR="$(mktemp -d)"
 
@@ -99,7 +96,7 @@ sudo apt-get update
 sudo apt-get install -y \
     git curl ca-certificates \
     python3 python3-venv python3-pip \
-    alsa-utils ffmpeg \
+    alsa-utils ffmpeg sox libsndfile1 \
     build-essential cmake
 
 python3 - <<'EOF' || die "Python 3.10+ is required (see docs/JETSON_HANDOFF.md)"
@@ -183,39 +180,27 @@ fi
 require_file "$PIPER_MODEL_FILE" 1000000 "Piper voice model"
 require_file "$PIPER_MODEL_FILE.json" 100 "Piper voice config"
 
-# --- 7. whisper.cpp + model --------------------------------------------------
+# --- 7. Qwen3-ASR speech-to-text ---------------------------------------------
 
-step "Building whisper.cpp $WHISPER_REF in $WHISPER_DIR"
-if [[ ! -d "$WHISPER_DIR/.git" ]]; then
-    git clone --depth 1 --branch "$WHISPER_REF" https://github.com/ggml-org/whisper.cpp.git "$WHISPER_DIR"
-fi
-
-cuda_flags=()
-if [[ -x /usr/local/cuda/bin/nvcc ]]; then
-    export PATH="/usr/local/cuda/bin:$PATH"
-    # 87 = Orin's GPU architecture.
-    cuda_flags=(-DGGML_CUDA=1 -DCMAKE_CUDA_ARCHITECTURES=87)
-    record PASS "whisper.cpp GPU build" "CUDA $(nvcc --version | sed -nE 's/.*release ([0-9.]+).*/\1/p')"
+step "Creating $ASR_VENV for Qwen3-ASR (Jetson torch + qwen-asr)"
+# A separate venv: torch and qwen-asr's pinned transformers are large, and the
+# app's own venv stays light. PyPI's aarch64 torch has no CUDA, so torch comes
+# from NVIDIA's Jetson index first, and that index stays available while
+# qwen-asr installs so pip cannot swap in a CPU-only build.
+[[ -x "$ASR_VENV/bin/python" ]] || python3 -m venv "$ASR_VENV"
+"$ASR_VENV/bin/python" -m pip install --upgrade pip
+"$ASR_VENV/bin/python" -m pip install torch --index-url "$TORCH_INDEX_URL"
+"$ASR_VENV/bin/python" -m pip install --extra-index-url "$TORCH_INDEX_URL" -r requirements-asr.txt
+"$ASR_VENV/bin/python" -c "import qwen_asr" || die "qwen_asr does not import from $ASR_VENV"
+if "$ASR_VENV/bin/python" -c "import sys, torch; sys.exit(not torch.cuda.is_available())"; then
+    record PASS "torch CUDA" "torch $("$ASR_VENV/bin/python" -c 'import torch; print(torch.__version__)')"
 else
-    record WARN "whisper.cpp GPU build" "nvcc missing; CPU-only build (sudo apt-get install nvidia-jetpack)"
+    die "torch in $ASR_VENV cannot see the GPU; delete $ASR_VENV and re-run with TORCH_INDEX_URL=https://pypi.jetson-ai-lab.io/jp6/cu129"
 fi
 
-if [[ -x "$WHISPER_BIN/whisper-cli" && -x "$WHISPER_BIN/whisper-server" ]]; then
-    echo "whisper.cpp already built (delete $WHISPER_DIR/build to rebuild)"
-else
-    echo "This can take 15+ minutes with CUDA."
-    cmake -S "$WHISPER_DIR" -B "$WHISPER_DIR/build" -DCMAKE_BUILD_TYPE=Release "${cuda_flags[@]}"
-    # Limit parallel jobs: CUDA compiles can exhaust the Orin Nano's shared 8 GB.
-    cmake --build "$WHISPER_DIR/build" --config Release -j 4 --target whisper-cli whisper-server
-fi
-for bin in whisper-cli whisper-server; do
-    [[ -x "$WHISPER_BIN/$bin" ]] || die "whisper.cpp build did not produce $WHISPER_BIN/$bin"
-done
-
-step "Downloading whisper.cpp model $WHISPER_MODEL"
-sh "$WHISPER_DIR/models/download-ggml-model.sh" "$WHISPER_MODEL" "$WHISPER_DIR/models"
-require_file "$WHISPER_MODEL_FILE" 10000000 "whisper.cpp model"
-require_file "$WHISPER_SAMPLE" 10000 "whisper.cpp sample audio"
+step "Downloading $ASR_MODEL"
+"$ASR_VENV/bin/python" -c "import sys; from huggingface_hub import snapshot_download; print(snapshot_download(sys.argv[1]))" \
+    "$ASR_MODEL" || die "could not download $ASR_MODEL from Hugging Face"
 
 # --- 8. Smoke checks: run each tool for real ---------------------------------
 
@@ -243,12 +228,13 @@ else
     record FAIL "Ollama generation" "$OLLAMA_MODEL gave no reply within 300 s; see $LOG_DIR/ollama.log"
 fi
 
-# The sample is JFK's "ask not what your country can do for you", so check the words.
-if transcript="$("$WHISPER_BIN/whisper-cli" -m "$WHISPER_MODEL_FILE" -f "$WHISPER_SAMPLE" -nt \
-        2>"$LOG_DIR/whisper.log")" && grep -qi "country" <<<"$transcript"; then
-    record PASS "whisper.cpp transcribe" "sample transcribed correctly"
+# Qwen transcribes the Piper clip above ("Setup complete."), so check the words.
+if [[ -s "$piper_wav" ]] && asr_out="$(timeout 600 "$ASR_VENV/bin/python" -m backend.asr_server \
+        --model "$ASR_MODEL" --self-test "$piper_wav" 2>"$LOG_DIR/asr.log")" \
+        && grep -Eqi "set ?up" <<<"$asr_out"; then
+    record PASS "Qwen ASR transcribe" "$(tail -n 1 <<<"$asr_out" | cut -c 1-60)"
 else
-    record FAIL "whisper.cpp transcribe" "wrong or empty transcript; see $LOG_DIR/whisper.log"
+    record FAIL "Qwen ASR transcribe" "wrong or empty transcript; see $LOG_DIR/asr.log"
 fi
 
 # --- Summary -----------------------------------------------------------------
@@ -258,10 +244,10 @@ printf '%s\n' "${RESULTS[@]}"
 echo
 echo "Ollama model: $OLLAMA_MODEL"
 echo "Piper voice:  $PIPER_MODEL_FILE"
-echo "Whisper:      $WHISPER_BIN/whisper-server -m $WHISPER_MODEL_FILE"
+echo "Qwen ASR:     $ASR_VENV/bin/python -m backend.asr_server --model $ASR_MODEL"
 echo
 echo "Not checked by this script: audible speaker output, microphone input,"
-echo "Nano USB acquisition, and the app using Ollama/Piper/whisper.cpp (not wired in yet)."
+echo "Nano USB acquisition, the ASR tunnel to the laptop, and the app using Piper (not wired in yet)."
 
 if [[ "$FAILED" -ne 0 ]]; then
     echo

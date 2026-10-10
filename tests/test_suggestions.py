@@ -186,6 +186,8 @@ class AppIntegrationTests(unittest.TestCase):
 
     def test_http_endpoint_audio_body_limit_and_unavailable(self):
         app = self.make_app()
+        app.transcriber.url = "http://jetson:8000"
+        app.transcriber.transport = lambda *args: dict(text="Do you want some tea?")
         app.token = "tok"
         server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(app))
         thread = threading.Thread(target=server.serve_forever, daemon=True)

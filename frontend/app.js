@@ -8,6 +8,7 @@ let token = sessionStorage.getItem('nuggies-token') || '';
 let queue = Promise.resolve(), audio = null, speechBusy = false, pollBusy = false;
 const PROVIDER_LABELS = {gemini: 'Gemini reply suggestions', ollama: 'Local AI suggestions (offline)'};
 const SETUP_HINT = 'Add GEMINI_API_KEY (or OLLAMA_MODEL for offline replies) to .env and restart to enable reply suggestions.';
+const LISTEN_HINT = 'Set ASR_URL to the Qwen speech-to-text service in .env and restart to enable listening.';
 let requestCounter = 0, recorder = null, recordTimer = null, suggesting = false;
 const clientID = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
 let lastConnected = null;
@@ -97,6 +98,7 @@ function render(next) {
     }
   }
   $('contact').value = state.contact; $('avatar').textContent = contact.initials;
+  $('avatar').dataset.tone = String(state.contacts.indexOf(contact) % 3);
   $('relationship').textContent = contact.relationship;
   $('phone-contact').textContent = `With ${contact.name}`;
   $('screen-name').textContent = state.screen === 'spell' ? 'SPELL YOUR WORDS' : state.screen === 'needs' ? 'EVERYDAY NEEDS' : 'CONVERSATION';
@@ -161,18 +163,21 @@ function toBase64(buffer) {
 
 async function suggest(payload) {
   if (isHUD || suggesting || !state) return false;
-  if (!state.suggest_available) { feedback(SETUP_HINT); return false; }
-  suggesting = true; $('listen').disabled = $('text-send').disabled = true; feedback('Thinking of replies…');
+  const listening = Boolean(payload.audio_b64);
+  if (!listening && !state.suggest_available) { feedback(SETUP_HINT); return false; }
+  suggesting = true; $('listen').disabled = $('text-send').disabled = true;
+  feedback(listening ? 'Transcribing with Qwen…' : 'Thinking of replies…');
   try {
     render(await (await api('/api/suggest', {session_id: state.session_id, ...payload})).json());
-    feedback('New reply suggestions. Nothing is spoken until you choose one.'); return true;
+    feedback(state.suggest_available ? 'New reply suggestions. Nothing is spoken until you choose one.'
+      : `Transcribed with Qwen: “${state.heard}”`); return true;
   } catch (error) { feedback(`${error.message} Sample phrases remain available.`); return false; }
   finally { suggesting = false; $('listen').disabled = $('text-send').disabled = false; }
 }
 
 async function toggleListen() {
   if (recorder) { recorder.stop(); return; }
-  if (!state?.suggest_available) { feedback(SETUP_HINT); return; }
+  if (!state?.transcribe_available) { feedback(LISTEN_HINT); return; }
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { feedback('Microphone recording is not available in this browser.'); return; }
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({audio: true}); }
