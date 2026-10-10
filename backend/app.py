@@ -9,6 +9,7 @@ import mimetypes
 import os
 from pathlib import Path
 import secrets
+import socket
 import statistics
 import threading
 import time
@@ -30,7 +31,7 @@ from .persona import (
 from .ring import RingState
 from .speech import ElevenLabsSpeech, SpeechUnavailable
 from .state_machine import DoubleBlinkGate, GestureGate
-from .suggestions import OllamaSuggestions, SuggestionBusy, SuggestionUnavailable
+from .suggestions import OllamaSuggestions, SuggestionBusy, SuggestionUnavailable, format_timing
 from .transcribe import RemoteTranscriber, TranscriptionUnavailable
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,6 +74,7 @@ class Application:
             if contact["id"] not in {known["id"] for known in self.ring.config["contacts"]}]
         self.suggest_lock = threading.Lock()
         self.last_suggest = 0.0
+        self.log_timing = False  # main() turns this on: one line per suggestion request.
         self.samples = deque(maxlen=300)
         self.event_ids = deque(maxlen=256)
         self.audio_claims = deque(maxlen=128)
@@ -383,6 +385,8 @@ class Application:
                 persona = self.personas.context(self.ring.contact, heard_text)
             result = self.suggester.suggest(contact=contact, recent=recent, avoid=avoid,
                                             heard_text=heard_text, style_examples=examples, persona=persona)
+            if self.log_timing:
+                print(f"Suggestions ({result.model}) {format_timing(result.timing)}", flush=True)
             with self.lock:
                 if self.ring.revision != context_revision:
                     raise SuggestionUnavailable("Conversation changed while replies were generated; request fresh suggestions")
@@ -492,6 +496,8 @@ class Application:
                     if Path(record_path).exists() or label_path.exists() or trial_path.exists():
                         raise ValueError("Recording or label file already exists; choose a new name")
                 connection = stack.enter_context(serial.Serial(port, 115200, timeout=0.5, exclusive=True))
+                with self.lock:
+                    self.error = ""
                 source = SerialADCSource(connection)
                 raw_stream = stack.enter_context(open(record_path, "x", newline="")) if record_path else None
                 recorder = ADCRecorder(raw_stream,include_device_metadata=True) if raw_stream else None
@@ -541,6 +547,12 @@ class Application:
                 if self.guided.status == "running":
                     self.guided.stop()
                 self.trial_label = "unlabeled"
+
+    def run_serial_forever(self, port, retry_s=2.0):
+        """Reopen the port after an unplug or a missing Nano, so a boot-time service recovers."""
+        while not self.stop.is_set():
+            self.run_serial(port)
+            self.stop.wait(retry_s)
 
     def run_replay(self, path):
         from .recording import CSVReplaySource
@@ -672,6 +684,16 @@ def make_handler(app):
     return Handler
 
 
+class DualStackServer(ThreadingHTTPServer):
+    """Binds an IPv6 host such as `::` while still accepting IPv4 clients."""
+
+    address_family = socket.AF_INET6
+
+    def server_bind(self):
+        self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        super().server_bind()
+
+
 def main():
     load_env()
     parser = argparse.ArgumentParser(description=__doc__)
@@ -708,7 +730,8 @@ def main():
             if calibration is None:
                 parser.error("--lowpass-hz requires --calibration")
             app.smoother = ExponentialSmoother(calibration.sample_rate_hz, args.lowpass_hz)
-        server = ThreadingHTTPServer((args.host, args.port), make_handler(app))
+        server_class = DualStackServer if ":" in args.host else ThreadingHTTPServer
+        server = server_class((args.host, args.port), make_handler(app))
         if args.eog_log:
             try:app.eog_log=DiagnosticLog(args.eog_log,app.wheel_detector)
             except OSError:
@@ -716,9 +739,13 @@ def main():
                 raise
     except (ValueError, OSError) as error:
         parser.error(str(error))
-    target, worker_args = (app.run_serial, (args.serial_port, args.record)) if args.serial_port else (app.run_replay, (args.replay,)) if args.replay else (app.run_demo, ())
+    serial_target = (app.run_serial, (args.serial_port, args.record)) if args.record else (app.run_serial_forever, (args.serial_port,))
+    target, worker_args = serial_target if args.serial_port else (app.run_replay, (args.replay,)) if args.replay else (app.run_demo, ())
     worker = threading.Thread(target=target, args=worker_args, daemon=True)
     worker.start()
+    app.log_timing = True
+    if app.suggester.available:  # Load the reply model now so the first suggestion skips the cold start.
+        threading.Thread(target=app.suggester.warm, daemon=True).start()
     print(f"Ring companion: http://{args.host}:{args.port}\nHUD: http://{args.host}:{args.port}/hud", flush=True)
     try:
         server.serve_forever()

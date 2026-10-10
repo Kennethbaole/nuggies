@@ -4,11 +4,12 @@ import tempfile
 import threading
 import unittest
 from http.server import ThreadingHTTPServer
+import unittest.mock
 from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from backend.app import Application, make_handler
+from backend.app import Application, DualStackServer, make_handler
 from backend.speech import ElevenLabsSpeech, SpeechUnavailable
 
 # Tests must not read a developer's real .env (keys, voice IDs).
@@ -31,6 +32,31 @@ class ApplicationTests(unittest.TestCase):
             app.command(dict(action="focus", value=99, event_id="two"))
         with self.assertRaises(ValueError):
             app.command(dict(action="demo", value="false", event_id="three"))
+
+    def test_serial_reconnects_after_missing_port(self):
+        from backend.serial_input import ADCSample
+        app = Application(source="serial")
+        def read_once():
+            app.stop.set()
+            return ADCSample(8000, 8100, 123456)
+        with patch("serial.Serial", side_effect=[OSError("no such port"), unittest.mock.DEFAULT]), \
+                patch("backend.serial_input.SerialADCSource") as source:
+            source.return_value.read_sample.side_effect = read_once
+            app.run_serial_forever("fake-port", retry_s=0)
+        self.assertEqual(app.error, "")
+        self.assertTrue(app.connected)
+
+    def test_ipv6_host_also_accepts_ipv4(self):
+        server = DualStackServer(("::", 0), make_handler(Application(source="demo")))
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            port = server.server_address[1]
+            for host in ("127.0.0.1", "[::1]"):
+                with urlopen(f"http://{host}:{port}/", timeout=5) as response:
+                    self.assertEqual(response.status, 200)
+        finally:
+            server.shutdown()
+            server.server_close()
 
     def test_raw_counts_cannot_drive_ring_without_opt_in(self):
         from backend.serial_input import ADCSample

@@ -130,7 +130,7 @@ class PromptTests(unittest.TestCase):
 
     def test_local_model_gets_the_persona(self):
         calls = []
-        local = OllamaSuggestions(transport=lambda *args: calls.append(args) or {"message": {"content": json.dumps(
+        local = OllamaSuggestions(mode="single", transport=lambda *args: calls.append(args) or {"message": {"content": json.dumps(
             {"suggestions": [{"label": "Yes", "text": "yesss im in"}]})}})
         local.model = "qwen3:4b"
         local.suggest(contact=self.CONTACT, heard_text="dinner tonight?", persona=self.context())

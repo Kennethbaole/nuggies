@@ -141,3 +141,46 @@ Then run `systemctl --user enable --now nuggies-asr` and `sudo loginctl enable-l
 
 - [ ] Record model load time, warm latency for a 5 s clip and memory (`tegrastats`)
   with Ollama loaded at the same time.
+
+## 5. Start the app at boot (headless demos)
+
+A user unit starts the companion at power-on with no monitor or login. It
+binds the LAN so phones can connect, which requires `APP_TOKEN` in `.env`.
+With `--serial-port` and no `--record`, the app reopens the port every 2 s,
+so the Nano can be plugged in after boot or reseated mid-demo. That
+reconnect is tested with a mocked port only; unplug/replug has not been
+tried on the Jetson.
+
+```ini
+# ~/.config/systemd/user/nuggies-app.service
+[Unit]
+Description=Nuggies companion app
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+WorkingDirectory=%h/nuggies
+ExecStart=%h/nuggies/.venv/bin/python -m backend.app --host :: --serial-port /dev/ttyACM0
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+```
+
+Run `systemctl --user enable --now nuggies-app` and `sudo loginctl enable-linger $USER`.
+Stop any manual `backend.app` first; only one process can hold port 8765 and
+the Nano. Logs: `journalctl --user -u nuggies-app -f`.
+
+Phones open `http://<hostname>.local:8765` (avahi mDNS) and enter the token.
+`--host ::` listens on IPv4 and IPv6, so a laptop that joins an iPhone
+hotspot without getting an IPv4 lease can still use `http://[<jetson-ipv6>]:8765`
+(the non-`temporary` address from `ip -6 addr show scope global`).
+For rooms whose Wi-Fi blocks device-to-device traffic, plug in Ethernet and
+run a hotspot on the Wi-Fi radio that comes up at boot; phones then use
+`http://10.42.0.1:8765`:
+
+```sh
+sudo nmcli device wifi hotspot ifname <wifi-device> ssid <ssid> password '<8+ chars>'
+sudo nmcli connection modify Hotspot connection.autoconnect yes
+```
