@@ -18,6 +18,7 @@ def main():
     args=p.parse_args();output=Path(args.output);output.mkdir(parents=True,exist_ok=True)
     with patch('backend.app.load_env'),patch('backend.speech.load_env'),patch('backend.suggestions.load_env'):
         app=Application(source='serial',eog_profile=args.profile)
+    app.speech.api_key=''  # Never call paid speech in this simulated browser check.
     app.token='';app.recording=True # UI harness only; no simulated recording is saved.
     stop=threading.Event()
     def neutral():
@@ -31,6 +32,7 @@ def main():
         with sync_playwright() as playwright:
             browser=playwright.chromium.launch(headless=True,executable_path=args.chrome)
             context=browser.new_context(viewport={'width':1440,'height':1000})
+            context.add_init_script("window.__spoken=[]; window.speechSynthesis.speak = utterance => window.__spoken.push(utterance.text);")
             page=context.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
             page.goto(f'http://127.0.0.1:{server.server_port}')
             expect(page.locator('#wheel-test-toggle')).to_be_enabled()
@@ -66,6 +68,28 @@ def main():
             expect(page.locator('#center-text')).to_have_text('Look straight ahead')
             expect(page.locator('#center-label')).to_have_text('LIVE EYE SIGNAL CHECK',timeout=10000)
             assert app.guided.mode=='speed'
+            page.click('#guided-stop')
+            assert app.ring.selection_id==0
+            page.click('#eog-communication-toggle')
+            expect(page.locator('#center-label')).to_have_text('GAZE + DOUBLE BLINK')
+            expect(page.locator('#audio-toggle')).to_be_enabled()
+            expect(page.locator('#eog-communication-status')).to_contain_text('Look center / Retry')
+            expect(page.locator('#wheel-test-status')).to_contain_text('Ready.',timeout=10000)
+            assert all(not app.ring.slots()[i]['enabled'] for i in (1,3,5,7))
+            page.click('#audio-toggle')
+            with app.lock:
+                d=app.wheel_detector
+                app.ring.action('focus','eog-communication',0)
+                app.eog_confirmation.focus(app.ring,d.raw_index)
+                app.eog_confirmation.update(app.ring,d)
+                # Simulated event tests HTTP/render/audio dispatch, not blink accuracy.
+                app.eog_confirmation.update(app.ring,d,dict(label='double_blink',reason='blink',
+                    onset_sample=d.raw_index,distance=.01,other_label_margin=3,horizontal_fraction=.01))
+            expect(page.locator('#feedback')).to_contain_text('Speaking with browser voice',timeout=5000)
+            assert page.evaluate('window.__spoken.length')==1
+            assert app.ring.selection_id==1
+            assert page.locator('.slot.selected').count()==0
+            page.screenshot(path=str(output/'communication.png'),full_page=True)
             stop.set();feeder.join(timeout=2)
             expect(page.locator('#wheel-test-status')).to_contain_text('Signal interrupted',timeout=5000)
             expect(page.locator('#eog-recenter')).to_be_disabled()
@@ -73,12 +97,12 @@ def main():
             page.click('#wheel-test-toggle')
             expect(page.locator('#wheel-test-status')).to_have_text('Eye wheel control off')
             expect(page.locator('#audio-toggle')).to_be_enabled()
-            assert app.ring.selection_id==0
+            assert app.ring.selection_id==1
             assert not errors,errors
             browser.close()
         report=dict(ok=True,mode='HTTP/browser UI state simulation; not sensor accuracy',checks=[
             'opt-in','center progress','ready','retry reason','prominent status','readiness-aware cues','recenter','stale signal',
-            'homepage speed check','speech disabled','gaze highlighting absent','HUD rendering','no automatic confirmation','no JS errors'])
+            'homepage speed check','opt-in communication','four reachable positions','confirmed browser speech once','diagnostic speech disabled','gaze highlighting absent','HUD rendering','diagnostic mode cannot confirm','no JS errors'])
         (output/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report))
     finally:
         stop.set();feeder.join(timeout=2);server.shutdown();server.server_close();worker.join(timeout=2)

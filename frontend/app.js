@@ -60,7 +60,7 @@ function browserSpeak(text) {
 }
 
 async function speakSelection(snapshot) {
-  if (!audioEnabled || isHUD || speechBusy || !snapshot.confirmed || snapshot.wheel_test || snapshot.source === 'eye-wheel-test') return;
+  if (!audioEnabled || isHUD || speechBusy || !snapshot.confirmed || (snapshot.wheel_test && !snapshot.eog_communication) || snapshot.source === 'eye-wheel-test') return;
   speechBusy = true;
   try {
     const response = await api('/api/speech', {selection_id: snapshot.selection_id, session_id: snapshot.session_id});
@@ -160,6 +160,20 @@ function render(next) {
   if (state.wheel_test && state.guided?.protocol === 'speed' && gaze?.direction && lastSpeed) {
     $('preview-text').textContent += ` · ${(lastSpeed.cue_to_detection_ms / 1000).toFixed(2)}s response`;
   }
+  $('eog-communication-toggle').textContent = state.eog_communication ? 'Stop gaze + double-blink communication' : 'Start gaze + double-blink communication';
+  $('eog-communication-toggle').setAttribute('aria-pressed', String(Boolean(state.eog_communication)));
+  $('eog-communication-toggle').disabled = !state.eog_communication && (!state.connected || !guidedEOG || state.input_mode !== 'serial' || state.guided?.status === 'running');
+  $('eog-communication-status').textContent = state.eog_communication ? state.eog_confirmation : 'Experimental: gaze chooses; return to center, then double blink confirms. Single blinks do nothing.';
+  if (state.eog_communication) {
+    $('center-label').textContent = 'GAZE + DOUBLE BLINK';
+    $('center-text').textContent = gaze?.phase === 'ready' ? state.eog_confirmation : gaze?.message;
+    $('center-footer').textContent = 'Up/right: replies · Left: More · Down: Back';
+    $('preview-label').textContent = 'CHOSEN ITEM';
+    const choice = state.slots[state.selected];
+    $('preview-text').textContent = choice.text || choice.label;
+    $('input-detail').textContent = 'Experimental gaze and double-blink communication. Enable speech to hear confirmed replies.';
+    $('page-info').textContent = 'Two replies · More · Back';
+  }
   $('eog-recenter').disabled = !state.wheel_test || !state.connected;
   $('eog-progress').value = state.wheel_test ? (gaze?.progress || 0) : 0;
   const lastEOG = gaze?.last_event;
@@ -167,13 +181,13 @@ function render(next) {
     ? `Last reading: ${lastEOG.label} · ${lastEOG.reason.replaceAll('_', ' ')}` : '';
   $('eog-quality').textContent = state.wheel_test && gaze?.totals
     ? `Directions ${gaze.totals.accepted} · Retries ${gaze.totals.rejected} · Blink events ${gaze.totals.blinks} · Signal interruptions ${gaze.totals.faults}${gaze.waiting_too_long ? ' · Check electrode contact or recenter' : ''}` : '';
-  if (state.wheel_test && audioEnabled) {
+  if (state.wheel_test && !state.eog_communication && audioEnabled) {
     audioEnabled = false; audio?.pause();
     if ('speechSynthesis' in window) speechSynthesis.cancel();
     $('audio-toggle').setAttribute('aria-pressed', 'false');
     $('audio-toggle').textContent = 'Enable speech';
   }
-  $('audio-toggle').disabled = Boolean(state.wheel_test);
+  $('audio-toggle').disabled = Boolean(state.wheel_test && !state.eog_communication);
   $('trial-label').value = state.trial_label || 'unlabeled';
   $('recording-status').textContent = state.recording ? 'Recording locally' : 'Monitoring only · not recording';
   $('record-stop').disabled = !state.recording;
@@ -355,6 +369,7 @@ $('guided-stop').onclick = () => command('guided_stop');
 $('record-stop').onclick = () => command('record_stop');
 
 $('speed-test-start').onclick = () => command('speed_test');
+$('eog-communication-toggle').onclick = () => command('eog_communication', !state?.eog_communication);
 $('wheel-test-toggle').onclick = () => command('wheel_test', !state?.wheel_test);
 $('eog-recenter').onclick = () => command('eog_recenter');
 $('wheel-test-stop').onclick = () => command('wheel_test', false);

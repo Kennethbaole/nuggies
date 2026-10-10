@@ -65,7 +65,8 @@ class WaveformProfile:
         label = self.labels[best];distance = distances[best]
         blink = min(d for d,l in zip(distances,self.labels) if l not in DIRECTIONS)
         competing = min((d for d,l in zip(distances,self.labels) if l in DIRECTIONS and l!=label),default=math.inf)
+        other = min((d for d,l in zip(distances,self.labels) if l != label), default=math.inf)
         energy=[sum(frame[i]**2 for frame in x) for i in (0,1)]
         horizontal_fraction=energy[0]/max(sum(energy),1e-9)
-        return dict(horizontal_fraction=horizontal_fraction,label=label, distance=distance, blink_margin=blink/max(distance,1e-9),
+        return dict(other_label_margin=other/max(distance,1e-9),horizontal_fraction=horizontal_fraction,label=label, distance=distance, blink_margin=blink/max(distance,1e-9),
                     direction_margin=competing/max(distance,1e-9))

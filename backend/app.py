@@ -21,6 +21,7 @@ from .classifier import ThresholdClassifier
 from .live_wheel import LiveWheelTest
 from .guided_eog import GuidedEOGTest
 from .eog_diagnostics import DiagnosticLog
+from .eog_communication import EOGConfirmation
 from .guided import GuidedTrial
 from .persona import (
     DEFAULT_ID, ContactBook, PersonaStore, build_persona, chat_text, save_persona, speaker_counts,
@@ -92,6 +93,8 @@ class Application:
         self.recording = False
         self.record_stop = threading.Event()
         self.wheel_test = False
+        self.eog_communication = False
+        self.eog_confirmation = EOGConfirmation()
         self.eog_log = None
         self.received_samples = 0
         self.pending_eog_check = None
@@ -107,9 +110,10 @@ class Application:
             age = None if self.last_received is None else round((time.monotonic() - self.last_received) * 1000)
             if self.wheel_test and isinstance(self.wheel_detector,GuidedEOGTest) and age is not None and age>=1000:
                 self.wheel_detector.fault("no_samples")
+                self.eog_confirmation.clear()
                 if self.eog_log:self.eog_log.record(self.wheel_detector)
             timing=[x["cue_to_detection_ms"] for x in self.speed_attempts.values() if x.get("correct") and not x.get("early_candidate")]
-            data.update(pending_eog_check=self.pending_eog_check,speed_results=list(self.speed_attempts.values()),speed_median_ms=statistics.median(timing) if timing else None,eog_engine="waveform" if isinstance(self.wheel_detector,GuidedEOGTest) else "legacy", session_id=self.session_id, input_mode=self.source,
+            data.update(eog_communication=self.eog_communication and self.wheel_test, eog_confirmation=self.eog_confirmation.message, pending_eog_check=self.pending_eog_check,speed_results=list(self.speed_attempts.values()),speed_median_ms=statistics.median(timing) if timing else None,eog_engine="waveform" if isinstance(self.wheel_detector,GuidedEOGTest) else "legacy", session_id=self.session_id, input_mode=self.source,
                         connected=self.connected and (self.source == "demo" or age is not None and age < 2000),
                         last_sample_age_ms=age, input_error=self.error,
                         calibrated=self.calibration is not None,
@@ -143,6 +147,8 @@ class Application:
                 self.demo_running = payload["value"]
                 self.gate = GestureGate()
             elif action == "blink":
+                if self.eog_communication and self.wheel_test:
+                    raise ValueError("Use biological double blinks in communication mode")
                 result = self.blinks.update(round(time.monotonic() * 1000))
                 if result:
                     self.ring.action(result, "simulated-blink")
@@ -152,9 +158,27 @@ class Application:
                     self.ring.revision += 1
             elif action == "suggestions_clear":
                 self.ring.clear_suggestions()
+            elif action == "eog_communication":
+                if type(payload.get("value")) is not bool:
+                    raise ValueError("eog_communication value must be boolean")
+                enabled = payload["value"]
+                if enabled and (not isinstance(self.wheel_detector,GuidedEOGTest) or self.source != "serial" or not self.state()["connected"] or self.sensor_actions or self.guided.status == "running"):
+                    raise ValueError("Communication requires connected waveform serial input and stopped cues")
+                self.eog_communication = enabled
+                self.wheel_test = enabled
+                self.ring.cardinal_layout = enabled
+                self.ring.screen = "home"; self.ring.selected = 0
+                self.ring.pages = {"home": 0, "needs": 0}
+                self.ring.revision += 1
+                self.pending_eog_check = None
+                self.eog_confirmation.clear()
+                self.wheel_detector.reset()
             elif action == "speed_test":
                 if not isinstance(self.wheel_detector,GuidedEOGTest) or self.source!="serial" or not self.state()["connected"] or not self.recording or self.sensor_actions or self.guided.status=="running":
                     raise ValueError("Speed check requires connected recorded waveform input and stopped cues")
+                if self.eog_communication:
+                    self.ring.pages={"home":0,"needs":0};self.ring.selected=0
+                self.eog_communication=False;self.ring.cardinal_layout=False;self.eog_confirmation.clear()
                 self.speed_attempts={};self.pending_eog_check="speed"
                 self.wheel_test=True;self.wheel_detector.reset()
             elif action == "wheel_test":
@@ -166,6 +190,10 @@ class Application:
                         raise ValueError("Wheel test requires connected serial, stopped guided cues, and disabled calibrated control")
                 if not payload["value"] and self.guided.mode in ("diagnostic","speed"):self.guided.stop()
                 self.pending_eog_check=None
+                if self.eog_communication:
+                    self.ring.pages={"home":0,"needs":0};self.ring.selected=0
+                self.eog_communication=False;self.ring.cardinal_layout=False;self.eog_confirmation.clear()
+                self.ring.revision += 1
                 self.wheel_test = payload["value"]
                 self.wheel_detector.reset()
                 if self.eog_log:self.eog_log.record(self.wheel_detector,enabled=self.wheel_test)
@@ -174,6 +202,7 @@ class Application:
                     raise ValueError("Recenter requires an active guided EOG test")
                 if self.guided.mode in ("diagnostic","speed"):self.guided.stop()
                 self.pending_eog_check=None
+                self.eog_confirmation.clear()
                 self.wheel_detector.reset()
                 if self.eog_log:self.eog_log.record(self.wheel_detector)
             elif action == "record_stop":
@@ -185,6 +214,8 @@ class Application:
                 self.guided.stop()
                 self.trial_label = "unlabeled"
             elif action == "guided_start":
+                if self.eog_communication:
+                    raise ValueError("Stop communication mode before guided testing")
                 mode=payload.get("value") or "horizontal"
                 diagnostic=mode in ("diagnostic","speed")
                 if self.source != "serial" or not self.recording or not self.connected or self.sensor_actions:
@@ -208,6 +239,7 @@ class Application:
                 self.guided = GuidedTrial()
                 self.trial_label = payload["value"]
             else:
+                self.eog_confirmation.clear()
                 self.ring.action(action, "manual-demo", payload.get("value"))
             self.event_ids.append(event_id)
             return self.state()
@@ -349,6 +381,7 @@ class Application:
                                      horizontal=sample.horizontal, vertical=sample.vertical,
                                      units=sample.units, source=sample.source))
             if self.wheel_test:
+                previous_event = self.wheel_detector.last_result if isinstance(self.wheel_detector,GuidedEOGTest) else None
                 if not isinstance(self.wheel_detector,GuidedEOGTest) and len(self.samples) > 1 and sample.timestamp_ms - self.samples[-2]["timestamp_ms"] > 500:
                     self.wheel_detector.reset()
                 slot = (self.wheel_detector.process(sample.horizontal, sample.vertical,sample.timestamp_ms)
@@ -369,7 +402,16 @@ class Application:
                             result.update(detected=event["label"],correct=event["label"]==cue["label"],cue_to_detection_ms=elapsed,candidate_to_detection_ms=window,early_candidate=elapsed<window)
                             event.update(speed_trial=cue["trial_id"],cue_to_detection_ms=elapsed,candidate_to_detection_ms=window,early_candidate=elapsed<window)
                 if slot is not None:
-                    self.ring.action("focus", "eye-wheel-test", slot)
+                    if self.eog_communication:self.eog_confirmation.clear()
+                    self.ring.action("focus", "eog-communication" if self.eog_communication else "eye-wheel-test", slot)
+                    if self.eog_communication and self.ring.selected == slot and self.ring.slots()[slot]["enabled"]:
+                        self.eog_confirmation.focus(self.ring,self.wheel_detector.raw_index)
+                if self.eog_communication:
+                    event=self.wheel_detector.last_result
+                    new_event=event if event is not previous_event else None
+                    if self.eog_confirmation.update(self.ring,self.wheel_detector,new_event) and event is not None:
+                        event['communication_selected']=True
+                        event['selection_id']=self.ring.selection_id
                 if self.guided.mode in ("diagnostic","speed") and self.guided.status=="running":
                     now=time.monotonic();cue=self.guided.snapshot(now)
                     self.guided.pause(now,cue["phase"]=="prepare" and self.wheel_detector.phase!="ready")
@@ -571,7 +613,7 @@ def make_handler(app):
                     # Only previously confirmed utterances may reach cloud TTS.
                     with app.lock:
                         selection_id = payload.get("selection_id")
-                        if app.wheel_test or selection_id in app.wheel_test_selections:
+                        if (app.wheel_test and not app.eog_communication) or selection_id in app.wheel_test_selections:
                             raise ValueError("Speech is disabled for experimental wheel-test selections")
                         if payload.get("session_id") != app.session_id:
                             raise ValueError("Speech session mismatch")
