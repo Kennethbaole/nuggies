@@ -9,7 +9,7 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from backend.app import Application, make_handler
+from backend.app import Application, DualStackServer, make_handler
 from backend.speech import ElevenLabsSpeech, SpeechUnavailable
 
 # Tests must not read a developer's real .env (keys, voice IDs).
@@ -45,6 +45,18 @@ class ApplicationTests(unittest.TestCase):
             app.run_serial_forever("fake-port", retry_s=0)
         self.assertEqual(app.error, "")
         self.assertTrue(app.connected)
+
+    def test_ipv6_host_also_accepts_ipv4(self):
+        server = DualStackServer(("::", 0), make_handler(Application(source="demo")))
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            port = server.server_address[1]
+            for host in ("127.0.0.1", "[::1]"):
+                with urlopen(f"http://{host}:{port}/", timeout=5) as response:
+                    self.assertEqual(response.status, 200)
+        finally:
+            server.shutdown()
+            server.server_close()
 
     def test_raw_counts_cannot_drive_ring_without_opt_in(self):
         from backend.serial_input import ADCSample

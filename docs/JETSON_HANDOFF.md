@@ -160,7 +160,7 @@ StartLimitIntervalSec=0
 
 [Service]
 WorkingDirectory=%h/nuggies
-ExecStart=%h/nuggies/.venv/bin/python -m backend.app --host 0.0.0.0 --serial-port /dev/ttyACM0
+ExecStart=%h/nuggies/.venv/bin/python -m backend.app --host :: --serial-port /dev/ttyACM0
 Restart=always
 RestartSec=5
 
@@ -173,6 +173,9 @@ Stop any manual `backend.app` first; only one process can hold port 8765 and
 the Nano. Logs: `journalctl --user -u nuggies-app -f`.
 
 Phones open `http://<hostname>.local:8765` (avahi mDNS) and enter the token.
+`--host ::` listens on IPv4 and IPv6, so a laptop that joins an iPhone
+hotspot without getting an IPv4 lease can still use `http://[<jetson-ipv6>]:8765`
+(the non-`temporary` address from `ip -6 addr show scope global`).
 For rooms whose Wi-Fi blocks device-to-device traffic, plug in Ethernet and
 run a hotspot on the Wi-Fi radio that comes up at boot; phones then use
 `http://10.42.0.1:8765`:

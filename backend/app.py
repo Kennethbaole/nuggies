@@ -9,6 +9,7 @@ import mimetypes
 import os
 from pathlib import Path
 import secrets
+import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -547,6 +548,16 @@ def make_handler(app):
     return Handler
 
 
+class DualStackServer(ThreadingHTTPServer):
+    """Binds an IPv6 host such as `::` while still accepting IPv4 clients."""
+
+    address_family = socket.AF_INET6
+
+    def server_bind(self):
+        self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        super().server_bind()
+
+
 def main():
     load_env()
     parser = argparse.ArgumentParser(description=__doc__)
@@ -573,7 +584,8 @@ def main():
             if calibration is None:
                 parser.error("--lowpass-hz requires --calibration")
             app.smoother = ExponentialSmoother(calibration.sample_rate_hz, args.lowpass_hz)
-        server = ThreadingHTTPServer((args.host, args.port), make_handler(app))
+        server_class = DualStackServer if ":" in args.host else ThreadingHTTPServer
+        server = server_class((args.host, args.port), make_handler(app))
     except (ValueError, OSError) as error:
         parser.error(str(error))
     serial_target = (app.run_serial, (args.serial_port, args.record)) if args.record else (app.run_serial_forever, (args.serial_port,))
