@@ -256,3 +256,24 @@ function transformHUD() {
 }
 for (const id of ['mirror-x', 'mirror-y', 'hud-scale']) $(id).oninput = transformHUD;
 poll(); setInterval(poll, 250);
+
+// Expand the existing workspace without opening another serial connection.
+const signalWorkspace = document.querySelector('.signal-details');
+function setSignalExpanded(expanded) {
+  signalWorkspace.classList.toggle('signal-expanded', expanded);
+  document.body.classList.toggle('signal-expanded-open', expanded);
+  $('expand-signal').setAttribute('aria-pressed', String(expanded));
+  $('expand-signal').textContent = expanded ? 'Close expanded view (Esc)' : 'Expand signal workspace';
+  if (expanded) signalWorkspace.open = true;
+  drawTrace();
+}
+$('expand-signal').addEventListener('click', () => setSignalExpanded(!signalWorkspace.classList.contains('signal-expanded')));
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && signalWorkspace.classList.contains('signal-expanded')) {
+    setSignalExpanded(false);
+    $('expand-signal').focus();
+  }
+});
+signalWorkspace.addEventListener('toggle', () => {
+  if (!signalWorkspace.open) setSignalExpanded(false);
+});

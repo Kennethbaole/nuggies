@@ -26,3 +26,14 @@
 .clear-suggestions{display:block;width:100%;margin-top:10px;font-size:11px;color:var(--muted)}
 .clear-suggestions[hidden]{display:none}
 #heard{display:block;margin-top:6px}
+
+/* Expanded bench view retains the same live connection and trial controls. */
+#expand-signal{margin:12px 0}
+.signal-details.signal-expanded{position:fixed;inset:18px;z-index:100;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:24px;overflow:auto;box-shadow:0 0 0 24px #000b;margin:0}
+.signal-expanded summary{font-size:22px}
+.signal-expanded #trace{display:block;width:100%;height:clamp(240px,58vh,700px);margin:20px 0}
+.signal-expanded .trial-control{font-size:16px;justify-content:flex-start}
+.signal-expanded .trial-control select{font-size:16px;padding:12px}
+.signal-expanded .muted,.signal-expanded .trace-legend{font-size:14px}
+body.signal-expanded-open{overflow:hidden}
+@media(max-width:600px){.signal-details.signal-expanded{inset:8px;padding:14px}.signal-expanded #trace{height:45vh}}

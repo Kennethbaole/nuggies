@@ -54,3 +54,7 @@ connectors and body-connected power arrangement against manufacturer guidance:
 https://docs.upsidedownlabs.tech/hardware/bioamp/bioamp-exg-pill/index.html
 Record placement, firmware, rate and power setup privately with each trial.
 No body-connected acquisition has been validated by software tests.
+
+For a larger live trace, open Signal workspace and choose **Expand signal
+workspace**. The view fills the window and retains trial labeling and the current
+recording. Choose **Close expanded view** or press Escape to return.
