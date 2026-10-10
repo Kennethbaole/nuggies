@@ -1,0 +1,113 @@
+/* Readable companion layout. Shared contacts and full-screen HUD keep their styles. */
+.homepage{--muted:#adc1b9;--line:#354c44;font-size:16px;line-height:1.6}
+.homepage .topbar{height:auto;min-height:92px;padding:20px 36px;gap:28px;background:#101c1cbb}
+.homepage .brand{font-size:38px;letter-spacing:-1.5px}
+.homepage .top-description{font-size:14px}
+.homepage .top-actions{gap:12px;flex-wrap:wrap}
+.homepage .status{font-size:13px}
+.homepage button,.homepage select,.homepage input{font-size:15px}
+.homepage button{min-height:46px;border-radius:10px}
+.homepage button:disabled{opacity:.5}
+.homepage .quiet-button{padding:10px 16px}
+.homepage .workspace{max-width:1740px;grid-template-columns:260px minmax(460px,1fr) 280px;gap:32px;padding:36px;align-items:start}
+.homepage .eyebrow{font-size:11px;letter-spacing:.14em}
+.homepage .muted{font-size:13px;line-height:1.7}
+.homepage h1{font-size:42px;margin:16px 0;line-height:1.15}
+.homepage .intro{font-size:16px;line-height:1.7;margin:0 0 24px;max-width:28ch}
+.homepage .context-card,.homepage .input-card{padding:22px;border:1px solid var(--line);border-radius:16px;background:#16282499}
+.homepage .context-panel{padding:0}
+.homepage .input-card{margin:20px 0 0}
+.homepage .source-name{font-size:17px;font-weight:500;margin-top:10px}
+.homepage .input-card p{font-size:14px;line-height:1.7}
+.homepage .outline-button{font-size:14px;padding:12px 16px;background:#192e28}
+.homepage .contact-row{gap:12px}
+.homepage .avatar{width:42px;height:42px;font-size:12px}
+.homepage .contact-row select{font-size:22px;min-height:46px}
+.homepage #relationship{font-size:10px;letter-spacing:.1em}
+.homepage .context-note{font-size:14px;line-height:1.7}
+.homepage .context-note span{font-size:13px}
+.homepage .listen-row{gap:10px;margin-top:20px}
+.homepage .listen-btn{font-size:15px}
+.homepage .listen-btn svg{width:19px;height:19px}
+.homepage .text-panel{padding:14px}
+.homepage .text-field input{font-size:16px}
+.homepage .text-field button{min-height:38px;min-width:38px}
+.homepage .wheel-panel{min-width:0;border:1px solid var(--line);border-radius:22px;padding:24px;background:linear-gradient(145deg,#20372e55,#15242077)}
+.homepage .communication-toolbar{display:grid;grid-template-columns:1fr;gap:14px;padding-bottom:20px;border-bottom:1px solid var(--line)}
+.homepage h2{font-family:Georgia,serif;font-size:28px;font-weight:400;line-height:1.25;margin:6px 0 0}
+.homepage #eog-communication-toggle{background:var(--green);border-color:var(--green);color:#182d24;font-size:16px;font-weight:600;width:100%;padding:14px 20px;min-height:54px}
+.homepage #eog-communication-toggle[aria-pressed=true]{background:#293e32;color:var(--green);border-color:#8eaf99}
+.homepage #eog-communication-status{margin:0;font-size:15px;line-height:1.6;color:var(--muted)}
+.homepage .wheel-heading{padding:20px 0 0;align-items:center;flex-wrap:wrap}
+.homepage .wheel-heading .muted{display:block;font-size:12px}
+.homepage .wheel{width:min(100%,680px);margin:12px auto 0}
+.homepage .wheel-center{width:43%;height:43%;padding:18px;border-color:#6c88705c}
+.homepage .wheel-center .eyebrow{font-size:10px;letter-spacing:.1em}
+.homepage .wheel-center p{font-size:clamp(22px,2.05vw,32px);line-height:1.28;margin:14px 0;max-height:170px}
+.homepage .center-footer{font-size:12px;line-height:1.5}
+.homepage .slot{font-size:17px;min-width:96px;max-width:130px;min-height:58px;padding:14px 16px;border-radius:14px;white-space:normal;text-align:center;line-height:1.3;overflow-wrap:anywhere}
+.homepage .slot.utility{font-size:15px;min-width:86px}
+.homepage.communication-active .slot:disabled{visibility:hidden}
+.homepage .preview{background:#101e1b99;border:1px solid var(--line);border-radius:14px;padding:18px 22px;min-height:100px;justify-content:center;gap:8px}
+.homepage .preview-label{font-size:11px;letter-spacing:.14em}
+.homepage #preview-text{font-size:21px;line-height:1.5;color:var(--text);overflow-wrap:anywhere}
+.homepage .gesture-controls{gap:10px;margin:20px 0 12px;display:grid;grid-template-columns:1fr 1.25fr 1fr}
+.homepage .gesture-controls button{font-size:14px;justify-content:center;padding:12px 10px;min-height:50px}
+.homepage .keyboard-help{font-size:12px;line-height:2;margin:10px 0}
+.homepage kbd{font-size:11px;padding:3px 6px}
+.homepage .feedback{font-size:15px;line-height:1.6;margin-top:14px;min-height:24px}
+.homepage .mirror-heading{padding:0 0 18px;display:block}
+.homepage .mirror-heading .muted{font-size:14px;display:block;margin-top:4px}
+.homepage .phone{width:100%;height:390px;border-width:3px;border-radius:25px}
+.homepage .phone-top{font-size:24px;padding:34px 20px 0}
+.homepage .phone-live{font-size:11px}
+.homepage .phone-content{padding:42px 22px 0}
+.homepage .phone-kicker{font-size:10px;letter-spacing:.12em}
+.homepage .phone-content p{font-size:29px;line-height:1.3;max-height:180px;margin:20px 0}
+.homepage .phone-contact{font-size:13px}
+.homepage .phone-bottom{font-size:11px;left:22px;bottom:30px}
+.homepage .hud-card{padding:18px;border-radius:14px;margin-top:24px}
+.homepage .hud-card a{font-size:12px}
+.homepage .hud-tools{flex-wrap:wrap;gap:6px}
+.homepage .hud-tools button{font-size:12px;min-height:36px;text-align:left}
+.homepage .hud-tools span{font-size:11px}
+.homepage summary{font-size:16px;font-weight:500;padding:14px 0;min-height:48px;color:var(--text);gap:12px}
+.homepage .history-details li{font-size:15px}
+.homepage #history-count{font-size:12px}
+.homepage .tools-panel{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:24px;border-top:1px solid var(--line);padding-top:30px;margin-top:4px;min-width:0}
+.homepage .tools-heading{grid-column:1/-1;display:flex;justify-content:space-between;gap:20px;align-items:end}
+.homepage .tools-heading p{color:var(--muted);font-size:15px;margin:0}
+.homepage .wheel-test-controls,.homepage .signal-details{margin:0;padding:24px;border:1px solid var(--line);border-radius:16px;background:#14241fee;min-width:0}
+.homepage .wheel-test-controls h3{font-size:22px;font-weight:500;margin:8px 0 20px}
+.homepage .wheel-test-controls p{font-size:15px;line-height:1.7;overflow-wrap:anywhere}
+.homepage .wheel-test-controls button{width:100%;margin:4px 0}
+.homepage #wheel-test-status{font-size:18px;font-weight:500}
+.homepage #speed-test-results:empty,.homepage #gaze-readings:empty,.homepage #eog-event:empty{display:none}
+.homepage progress{width:100%;height:12px;accent-color:var(--green)}
+.homepage .signal-details canvas{height:280px;margin:14px 0;border:1px solid var(--line);border-radius:10px}
+.homepage .trace-legend{font-size:14px;gap:22px;flex-wrap:wrap}
+.homepage .trial-control{font-size:15px;gap:14px;margin:20px 0 10px;flex-wrap:wrap}
+.homepage .trial-control select{font-size:15px;min-height:46px;max-width:100%;padding:10px}
+.homepage .recording-controls{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:20px;padding-top:20px;border-top:1px solid var(--line)}
+.homepage #input-error{font-size:15px;margin-top:18px}
+.homepage .guided-test{padding:20px;margin-top:24px}
+.homepage .guided-test h2{font-size:24px}
+.homepage #guided-cue{font-size:24px}
+.homepage .signal-details.signal-expanded{position:fixed;inset:20px;margin:0;padding:28px;background:var(--bg)}
+.homepage .signal-expanded #trace{height:clamp(260px,55vh,700px)}
+.homepage footer{max-width:1668px;margin:0 36px;padding:24px 0;font-size:11px;flex-wrap:wrap;gap:16px}
+.homepage footer button{font-size:13px}
+@media(min-width:1600px){.homepage .workspace{grid-template-columns:290px minmax(540px,1fr) 310px}.homepage .communication-toolbar{grid-template-columns:1fr 1fr;align-items:center}.homepage #eog-communication-status{grid-column:1/-1}}
+@media(max-width:1240px){.homepage .workspace{grid-template-columns:250px minmax(0,1fr);gap:26px;padding:28px}.homepage .mirror-panel{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;padding-top:24px;border-top:1px solid var(--line)}.homepage .mirror-heading{grid-column:1/-1;padding:0}.homepage .phone{max-width:360px;margin:0;height:340px}.homepage .phone-content{padding-top:24px}.homepage .phone-content p{max-height:145px}.homepage .hud-card,.homepage .history-details{margin:0;align-self:start}.homepage .history-details{grid-column:auto}.homepage .wheel-center p{font-size:27px}.homepage .top-description{display:none}}
+@media(max-width:760px){.homepage .topbar{padding:16px 20px;gap:14px;flex-wrap:wrap}.homepage .brand{font-size:34px}.homepage .top-actions{gap:8px}.homepage .status{font-size:12px}.homepage .workspace{display:flex;flex-direction:column;padding:20px;gap:24px}.homepage .wheel-panel{order:0;width:100%;padding:20px}.homepage .context-panel{order:1;display:grid;grid-template-columns:1fr 1fr;gap:18px;width:100%}.homepage .context-panel>h1,.homepage .context-panel>.intro,.homepage .context-panel>.eyebrow{display:none}.homepage .input-card{margin:0}.homepage .mirror-panel{order:2;width:100%;grid-template-columns:1fr 1fr}.homepage .history-details{grid-column:1/-1}.homepage .tools-panel{order:3;width:100%;grid-template-columns:1fr}.homepage .tools-heading{display:block}.homepage .tools-heading p{margin-top:12px}.homepage .wheel-center p{font-size:26px}.homepage .wheel{max-width:580px}.homepage .wheel-heading .muted{font-size:12px}.homepage footer{margin:0 20px}.homepage footer span:nth-child(2){display:block}.homepage .hud-card>div:first-child{display:flex}.homepage .hud-card a{margin:0}}
+@media(max-width:480px){.homepage .top-actions{width:100%;margin:0;justify-content:space-between}.homepage .topbar{padding:16px}.homepage .quiet-button{padding:9px 12px;font-size:13px}.homepage .workspace{padding:12px;gap:20px}.homepage .wheel-panel{padding:16px 12px;border-radius:18px}.homepage h2{font-size:25px}.homepage .communication-toolbar{padding:4px 4px 16px;gap:12px}.homepage #eog-communication-toggle{font-size:15px;padding:12px;min-height:54px}.homepage #eog-communication-status{font-size:14px}.homepage .wheel-heading{padding:16px 4px 0}.homepage .wheel-center{width:44%;height:44%;padding:10px}.homepage .wheel-center .eyebrow{font-size:8px}.homepage .wheel-center p{font-size:19px;line-height:1.25;max-height:92px;margin:8px 0}.homepage .center-footer{font-size:9px}.homepage .slot{font-size:14px;min-width:72px;max-width:86px;padding:10px 7px;min-height:48px;border-radius:10px}.homepage .slot.utility{font-size:12px;min-width:70px}.homepage .preview{padding:16px;min-height:100px}.homepage #preview-text{font-size:19px}.homepage .gesture-controls{gap:6px;grid-template-columns:1fr 1.15fr 1fr}.homepage .gesture-controls button{font-size:12px;padding:10px 6px;gap:5px}.homepage .select-button svg{display:none}.homepage .keyboard-help{font-size:11px}.homepage .context-panel{display:flex;flex-direction:column;gap:16px}.homepage .context-card,.homepage .input-card{padding:20px}.homepage .mirror-panel{grid-template-columns:1fr;gap:20px}.homepage .phone{max-width:none;height:340px}.homepage .phone-content p{font-size:29px;max-height:160px}.homepage .hud-card{width:100%}.homepage .wheel-test-controls,.homepage .signal-details{padding:20px}.homepage .signal-details canvas{height:260px}.homepage .signal-details.signal-expanded{inset:8px;padding:16px}.homepage .signal-expanded #trace{height:45vh}.homepage .guided-test{padding:14px}.homepage .trial-control select{width:100%}.homepage footer{margin:0 16px}}
+.homepage .signal-details{align-self:start}
+@media(min-width:1241px){.homepage .communication-toolbar{grid-template-columns:1fr 1.35fr;align-items:center}.homepage #eog-communication-status{grid-column:1/-1}.homepage .wheel{width:min(100%,clamp(420px,52vh,600px))}}
+
+/* Fixed confirmation feedback stays near the wheel, rather than following a slot. */
+.homepage .preview{margin-top:20px;text-align:left;align-items:flex-start}
+.homepage .preview.confirmation-ready{border-color:#9bb8a6;background:#1d342b}
+.homepage .preview.confirmation-ready .preview-label{color:var(--green)}
+.homepage .center-footer{max-width:100%}
+
+.homepage .wheel-test-controls{align-self:start}

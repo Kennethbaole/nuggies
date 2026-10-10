@@ -163,14 +163,20 @@ function render(next) {
   $('eog-communication-toggle').textContent = state.eog_communication ? 'Stop gaze + double-blink communication' : 'Start gaze + double-blink communication';
   $('eog-communication-toggle').setAttribute('aria-pressed', String(Boolean(state.eog_communication)));
   $('eog-communication-toggle').disabled = !state.eog_communication && (!state.connected || !guidedEOG || state.input_mode !== 'serial' || state.guided?.status === 'running');
+  document.body.classList.toggle('communication-active', Boolean(state.eog_communication));
+  if (!state.eog_communication) document.querySelector('.preview').classList.remove('confirmation-ready');
+  $('eog-mode-help').textContent = state.eog_communication ? 'Communication is on: choose a reply, return to Ready, then double blink to confirm.' : 'In navigation checks, blinks are observed without selection or speech.';
   $('eog-communication-status').textContent = state.eog_communication ? state.eog_confirmation : 'Experimental: gaze chooses; return to center, then double blink confirms. Single blinks do nothing.';
   if (state.eog_communication) {
     $('center-label').textContent = 'GAZE + DOUBLE BLINK';
-    $('center-text').textContent = gaze?.phase === 'ready' ? state.eog_confirmation : gaze?.message;
-    $('center-footer').textContent = 'Up/right: replies · Left: More · Down: Back';
-    $('preview-label').textContent = 'CHOSEN ITEM';
     const choice = state.slots[state.selected];
-    $('preview-text').textContent = choice.text || choice.label;
+    const pending = Boolean(state.eog_choice_pending);
+    $('center-text').textContent = pending ? choice.label : gaze?.phase === 'ready' ? 'Choose a reply' : gaze?.needs_retry ? 'Look center / Retry' : 'Look straight ahead';
+    $('center-footer').textContent = state.eog_confirmation_ready ? 'Ready to confirm · double blink' : pending ? 'Detected · return to center' : gaze?.phase === 'ready' ? 'Look up or right for a reply' : `${Math.round((gaze?.progress || 0) * 100)}% clean rest`;
+    $('preview-label').textContent = pending ? 'DETECTED CHOICE · NOT YET SELECTED' : 'NO PENDING CHOICE';
+    $('preview-text').textContent = pending ? choice.text || choice.label : 'Look at an option. Your detected choice will appear here before you confirm.';
+    document.querySelector('.preview').classList.toggle('confirmation-ready', Boolean(state.eog_confirmation_ready));
+    $('wheel-test-status').textContent = gaze?.phase === 'ready' ? state.eog_confirmation : gaze?.message;
     $('input-detail').textContent = 'Experimental gaze and double-blink communication. Enable speech to hear confirmed replies.';
     $('page-info').textContent = 'Two replies · More · Back';
   }

@@ -74,7 +74,7 @@ def main():
             expect(page.locator('#center-label')).to_have_text('GAZE + DOUBLE BLINK')
             expect(page.locator('#audio-toggle')).to_be_enabled()
             expect(page.locator('#eog-communication-status')).to_contain_text('Look center / Retry')
-            expect(page.locator('#wheel-test-status')).to_contain_text('Ready.',timeout=10000)
+            expect(page.locator('#center-text')).to_have_text('Choose a reply',timeout=10000)
             assert all(not app.ring.slots()[i]['enabled'] for i in (1,3,5,7))
             page.click('#audio-toggle')
             with app.lock:
@@ -82,6 +82,12 @@ def main():
                 app.ring.action('focus','eog-communication',0)
                 app.eog_confirmation.focus(app.ring,d.raw_index)
                 app.eog_confirmation.update(app.ring,d)
+            expect(page.locator('#preview-label')).to_have_text('DETECTED CHOICE · NOT YET SELECTED')
+            expect(page.locator('#center-footer')).to_have_text('Ready to confirm · double blink')
+            assert page.locator('#preview-text').inner_text()==app.ring.slots()[0]['text']
+            assert page.locator('.preview').bounding_box()['y'] < page.locator('#wheel').bounding_box()['y']
+            page.screenshot(path=str(output/'detected-choice.png'),full_page=True)
+            with app.lock:
                 # Simulated event tests HTTP/render/audio dispatch, not blink accuracy.
                 app.eog_confirmation.update(app.ring,d,dict(label='double_blink',reason='blink',
                     onset_sample=d.raw_index,distance=.01,other_label_margin=3,horizontal_fraction=.01))
@@ -102,7 +108,7 @@ def main():
             browser.close()
         report=dict(ok=True,mode='HTTP/browser UI state simulation; not sensor accuracy',checks=[
             'opt-in','center progress','ready','retry reason','prominent status','readiness-aware cues','recenter','stale signal',
-            'homepage speed check','opt-in communication','four reachable positions','confirmed browser speech once','diagnostic speech disabled','gaze highlighting absent','HUD rendering','diagnostic mode cannot confirm','no JS errors'])
+            'homepage speed check','opt-in communication','four reachable positions','fixed detected-choice preview','explicit confirmation readiness','confirmed browser speech once','diagnostic speech disabled','gaze highlighting absent','HUD rendering','diagnostic mode cannot confirm','no JS errors'])
         (output/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report))
     finally:
         stop.set();feeder.join(timeout=2);server.shutdown();server.server_close();worker.join(timeout=2)

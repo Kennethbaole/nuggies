@@ -8,6 +8,7 @@ export function drawHUD(canvas, state, monochrome = true) {
   ctx.strokeStyle = '#303030'; ctx.lineWidth = Math.max(1, w / 512);
   ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
   state.slots.forEach((slot, index) => {
+    if (state.eog_communication && !slot.enabled) return;
     const angle = index * Math.PI / 4 - Math.PI / 2;
     const x = cx + Math.cos(angle) * rx, y = cy + Math.sin(angle) * ry;
     ctx.font = `${Math.max(5, Math.round(w / 32))}px monospace`;
@@ -20,7 +21,8 @@ export function drawHUD(canvas, state, monochrome = true) {
     ctx.fillText(label, x, y);
   });
   ctx.fillStyle = '#fff'; ctx.font = `${Math.max(5, Math.round(w / 38))}px monospace`;
-  const testText = state.wheel_test ? (state.gaze_hover?.message || state.wheel_message || 'Eye test') : null;
+  const communicationText = state.eog_communication ? (state.eog_choice_pending ? `${state.slots[state.selected].label}. ${state.eog_confirmation_ready ? 'Double blink' : 'Return center'}` : state.gaze_hover?.phase === 'ready' ? 'Choose a reply' : 'Look center') : null;
+  const testText = communicationText || (state.wheel_test ? (state.gaze_hover?.message || state.wheel_message || 'Eye test') : null);
   const text = testText || (state.screen === 'spell' ? state.draft || 'Choose letters' : state.confirmed || 'Your words, at your pace.');
   const limit = w * .4, lines = [];
   let current = '';
