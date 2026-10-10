@@ -43,7 +43,7 @@ Jetson yet.
 Why Ollama and Piper: both let the Jetson work without the internet or a
 cloud account.
 
-- **Ollama** runs a small Qwen model (default `qwen3.5:4b`) on the Jetson. It
+- **Ollama** runs a small Qwen model (default `qwen3:1.7b`) on the Jetson. It
   writes the AI reply suggestions from typed text; set `OLLAMA_MODEL` in `.env`
   to enable them. The curated phrase bank stays as the fallback.
 - **Piper** is local text-to-speech. It is meant as an offline voice when

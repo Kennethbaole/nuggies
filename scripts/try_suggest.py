@@ -1,7 +1,7 @@
 """Try local Qwen reply suggestions from the terminal, without the web app.
 
     python -m scripts.try_suggest --text "Do you want some tea?"
-    python -m scripts.try_suggest --text "Hi" --model qwen3.5:2b
+    python -m scripts.try_suggest --text "Hi" --model qwen3.5:4b
 
 Sends the text to the Ollama model on this machine; prints the latency and
 the five previews. Nothing is spoken.
