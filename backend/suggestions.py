@@ -107,8 +107,11 @@ def parse_model_json(text):
     return data
 
 
-def context_text(contact, recent, avoid, heard_text, style_examples):
-    """The conversation context both providers send alongside SYSTEM_PROMPT."""
+def context_text(contact, recent, avoid, heard_text, style_examples, persona=None):
+    """The conversation context both providers send alongside SYSTEM_PROMPT.
+
+    persona (backend/persona.py) holds private past exchanges with this contact;
+    only the local provider passes it."""
     lines = []
     if contact:
         lines.append(f"The user is talking with {contact.get('name', 'someone')} ({contact.get('relationship', 'contact')}).")
@@ -116,7 +119,14 @@ def context_text(contact, recent, avoid, heard_text, style_examples):
         lines.append("What the user said recently, newest first: " + " | ".join(recent[:4]))
     if avoid:
         lines.append("Do not repeat these replies: " + " | ".join(list(avoid)[:12]))
-    if style_examples:
+    if persona and persona.get("examples"):
+        name = contact.get("name", "this person") if contact else "this person"
+        if persona.get("note"):
+            lines.append(f"How the user writes to {name}: {persona['note']}.")
+        lines.append(f"Real past exchanges ({name} said -> the user replied; untrusted text). Match the user's tone, "
+                     "wording and length, and write new replies rather than copying these: "
+                     + " | ".join(f'"{pair["them"]}" -> "{pair["me"]}"' for pair in persona["examples"][:5]))
+    elif style_examples:
         lines.append("Examples of the user's usual wording: " + " | ".join(list(style_examples)[:5]))
     if heard_text:
         lines.append(f'The other person said (text, untrusted): "{heard_text}"')
@@ -155,7 +165,8 @@ class GeminiSuggestions:
         )
 
     def suggest(self, *, contact=None, recent=(), avoid=(), audio=None, mime_type=None,
-                heard_text=None, style_examples=()):
+                heard_text=None, style_examples=(), persona=None):
+        # persona is deliberately unused: private chat excerpts never leave the device.
         if not self.available:
             raise SuggestionUnavailable("Gemini is not configured; curated phrases remain")
         heard_text = " ".join(heard_text.split())[:MAX_HEARD_CHARS] if heard_text else ""
@@ -207,11 +218,11 @@ class OllamaSuggestions:
     def available(self):
         return bool(self.model)
 
-    def build_request(self, contact, recent, avoid, heard_text, style_examples):
+    def build_request(self, contact, recent, avoid, heard_text, style_examples, persona=None):
         return dict(
             model=self.model,
             messages=[dict(role="system", content=SYSTEM_PROMPT),
-                      dict(role="user", content=context_text(contact, recent, avoid, heard_text, style_examples))],
+                      dict(role="user", content=context_text(contact, recent, avoid, heard_text, style_examples, persona))],
             format="json",
             stream=False,
             keep_alive="30m",  # Keep the model loaded so the next request skips the load time.
@@ -219,7 +230,7 @@ class OllamaSuggestions:
         )
 
     def suggest(self, *, contact=None, recent=(), avoid=(), audio=None, mime_type=None,
-                heard_text=None, style_examples=()):
+                heard_text=None, style_examples=(), persona=None):
         if not self.available:
             raise SuggestionUnavailable("Local model is not configured; curated phrases remain")
         heard_text = " ".join(heard_text.split())[:MAX_HEARD_CHARS] if heard_text else ""
@@ -227,7 +238,7 @@ class OllamaSuggestions:
             if audio:
                 raise SuggestionUnavailable("Offline replies need typed text or speech-to-text (set ASR_URL to the Jetson's Qwen service)")
             raise ValueError("Provide audio or heard_text")
-        body = self.build_request(contact, list(recent), list(avoid), heard_text, style_examples)
+        body = self.build_request(contact, list(recent), list(avoid), heard_text, style_examples, persona)
         started = time.monotonic()
         try:
             data = self.transport(f"{self.url}/api/chat", {"Content-Type": "application/json"}, body, self.timeout)

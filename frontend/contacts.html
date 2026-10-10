@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101c1c">
+  <title>People · Nuggies</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="contacts.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Nuggies companion home"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12"/><circle cx="16" cy="4" r="3"/></svg><span>Nuggies</span></a>
+    <span class="top-description">A little movement. A world of words.</span>
+    <div class="top-actions"><a class="quiet-button nav-link" href="/">Back to companion</a></div>
+  </header>
+  <main class="people">
+    <section class="people-intro">
+      <div class="eyebrow">YOUR PEOPLE</div>
+      <h1>Sound like yourself<br>with each of them.</h1>
+      <p class="intro">Add a past conversation with someone and reply suggestions will follow how you really talk to them. People without a conversation use your default personality, or the sample phrases if there is none.</p>
+      <p class="privacy-note">Conversations stay on this device. Only the on-device model sees them.</p>
+      <div id="page-status" class="page-status" role="status"></div>
+    </section>
+    <section>
+      <div id="people-list" class="people-grid" aria-live="polite"></div>
+      <form id="add-form" class="person-card add-card">
+        <div class="eyebrow">ADD A PERSON</div>
+        <div class="add-row">
+          <input id="add-name" type="text" maxlength="40" placeholder="Name" aria-label="Name" autocomplete="off" required>
+          <input id="add-relationship" type="text" maxlength="30" placeholder="Relationship, e.g. Sister" aria-label="Relationship" autocomplete="off">
+          <button class="outline-button" type="submit">Add</button>
+        </div>
+      </form>
+    </section>
+  </main>
+  <template id="person-template">
+    <article class="person-card">
+      <div class="person-head"><div class="avatar"></div><div><div class="person-name"></div><div class="muted person-relationship"></div></div><span class="person-badge"></span></div>
+      <p class="person-detail"></p>
+      <div class="person-actions">
+        <label class="outline-button upload-button"><span class="upload-label">Add a conversation</span><input class="upload-input" type="file" accept=".txt,.zip,text/plain,application/zip" hidden></label>
+        <button class="quiet-button remove-button" type="button" hidden>Remove</button>
+      </div>
+      <form class="who-form" hidden>
+        <div class="eyebrow">WHICH NAME IS YOURS?</div>
+        <div class="who-options"></div>
+        <div class="who-actions"><button class="outline-button" type="submit">Save</button><button class="quiet-button who-cancel" type="button">Cancel</button></div>
+      </form>
+      <form class="try-form" hidden>
+        <label class="eyebrow">TRY IT: WHAT MIGHT THEY SAY?</label>
+        <div class="text-field"><input class="try-input" type="text" maxlength="280" placeholder="Do you want to get dinner?" autocomplete="off"><button type="submit" aria-label="Show matching past replies"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+        <ul class="try-results"></ul>
+      </form>
+      <div class="card-status" role="status"></div>
+    </article>
+  </template>
+  <script type="module" src="contacts.js"></script>
+</body>
+</html>

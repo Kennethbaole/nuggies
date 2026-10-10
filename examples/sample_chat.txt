@@ -1,0 +1,46 @@
+Fictional conversation for trying per-contact personality. Not real people.
+Import with: python -m scripts.import_chat examples/sample_chat.txt --contact bella --me Riley
+
+Bella: morning! did you sleep ok?
+Riley: ehh not really
+Riley: brain would not shut up
+Bella: ugh sorry. coffee?
+Riley: yes pls ur a lifesaver
+Bella: are you coming to dinner at moms tonight?
+Riley: yesss wouldnt miss it
+Riley: what time
+Bella: 7. can you bring dessert?
+Riley: on it, lemon cake?
+Bella: perfect
+Bella: how was the appointment today?
+Riley: long but fine, tell u later
+Bella: do you want me to pick you up after?
+Riley: omg yes thank u
+Bella: did you see the game last night?
+Riley: dont even talk to me about it
+Riley: we were robbed
+Bella: haha ok ok
+Bella: are you feeling any better today?
+Riley: a little! slow morning but im ok
+Bella: want to watch a movie later?
+Riley: only if i get to pick
+Bella: fine but nothing scary
+Riley: no promises
+Bella: I'm at the store, need anything?
+Riley: the good chips pls
+Riley: and oat milk
+Bella: got it
+Bella: are you mad at me?
+Riley: no no not at all, just tired
+Bella: ok. love you
+Riley: love u more
+Bella: can I call you in 10?
+Riley: give me 20, almost done here
+Bella: happy birthday!!
+Riley: aw thank u!! best sibling ever
+Bella: what do you want for dinner?
+Riley: honestly anything, surprise me
+Bella: are you still at work?
+Riley: sadly yes. save me
+Bella: good luck tomorrow, you'll be great
+Riley: thank u, i needed that

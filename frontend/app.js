@@ -91,7 +91,8 @@ function render(next) {
     speakSelection({...state});
   }
   const contact = state.contacts.find(contact => contact.id === state.contact);
-  if (!$('contact').options.length) {
+  if ($('contact').options.length !== state.contacts.length) {  // People can be added on /contacts.
+    $('contact').textContent = '';
     for (const item of state.contacts) {
       const option = document.createElement('option'); option.value = item.id; option.textContent = item.name;
       $('contact').append(option);
@@ -99,7 +100,7 @@ function render(next) {
   }
   $('contact').value = state.contact; $('avatar').textContent = contact.initials;
   $('avatar').dataset.tone = String(state.contacts.indexOf(contact) % 3);
-  $('relationship').textContent = contact.relationship;
+  $('relationship').textContent = contact.relationship + (state.persona ? ' · personalised' : '');
   $('phone-contact').textContent = `With ${contact.name}`;
   $('screen-name').textContent = state.screen === 'spell' ? 'SPELL YOUR WORDS' : state.screen === 'needs' ? 'EVERYDAY NEEDS' : 'CONVERSATION';
   $('page-info').textContent = state.screen === 'spell' ? 'Two groups, one letter at a time' : `Phrase set ${state.page + 1} · ${PROVIDER_LABELS[state.suggestions_provider] || 'curated demo'}`;
