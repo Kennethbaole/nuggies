@@ -177,3 +177,34 @@ one blink-related up); median cue-to-emission1.51s. Existing main behavior
 without the profile flag is unchanged. Physical OLED status adapter is untested.
 See [live-check guide](EOG_LIVE_CHECK.md) for evidence, launch instructions and remaining
 limitations. Earlier statements that no integration exists are historical.
+
+
+## 2026-10-10 comprehensive comparison
+
+Reused-data leave-one-repetition-out development replay; five folds, 20 cardinal trials, 275 s scored negative exposure. No independent wearer accuracy claim. False confirmations below mean selections outside double-blink movement cues in scored phases. Acquisition protocols did not instruct gaze-confirm sequences, so intended confirmation misses are N/A. Full frozen-profile phase counts and the identified failed interaction are separately reported in EOG_COMMUNICATION.md.
+
+| Variant | Hits / 20 | Misses | Wrong | Duplicates | False directions | False/min | Negative-phase confirmations | Median cue→emit (s) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| baseline | 16 | 4 | 0 | 0 | 3 | 0.655 | 2 | 1.51 |
+| lp10-notch60 | 16 | 4 | 0 | 0 | 2 | 0.436 | 2 | 1.51 |
+| lp15-notch60 | 16 | 4 | 0 | 0 | 2 | 0.436 | 2 | 1.5 |
+| lp20-notch60 | 15 | 5 | 0 | 0 | 2 | 0.436 | 1 | 1.52 |
+| median3 | 16 | 4 | 0 | 0 | 3 | 0.655 | 3 | 1.51 |
+| stable3 | 0 | 20 | 0 | 0 | 0 | 0.000 | 0 | N/A |
+| haar0.1 | 16 | 4 | 0 | 0 | 4 | 0.873 | 3 | 1.51 |
+| haar0.25 | 15 | 5 | 0 | 0 | 3 | 0.655 | 3 | 1.52 |
+| haar-multiscale | 16 | 4 | 0 | 0 | 4 | 0.873 | 4 | 1.51 |
+| second-half | 14 | 6 | 0 | 0 | 2 | 0.436 | 1 | 1.554 |
+| nearest2 | 11 | 9 | 0 | 0 | 3 | 0.655 | 0 | 1.608 |
+| lda | 10 | 10 | 0 | 0 | 3 | 0.655 | 0 | 1.624 |
+| crosstalk | 16 | 4 | 0 | 0 | 3 | 0.655 | 2 | 1.51 |
+| bounded-scale | 16 | 4 | 0 | 0 | 3 | 0.655 | 2 | 1.51 |
+| dtw4 | 16 | 4 | 0 | 0 | 2 | 0.436 | 4 | 1.51 |
+| extend1.6 | 15 | 5 | 0 | 0 | 2 | 0.436 | 2 | 1.52 |
+| pulse-confirmation | 16 | 4 | 0 | 0 | 3 | 0.655 | 0 | 1.51 |
+
+Only the independent pulse-confirmation path is offered as a new live opt-in: it fixes the exactly identified missed confirmation and suppresses the two negative-phase confirmations here, with direction misses unchanged. Other alternatives remain offline. Low-pass/notch improves false-direction count but not misses; DTW increases false confirmations. No filter/profile replacement was silently adopted.
+
+Leave-one-session-out: N/A for all three folds because the held-out class labels are absent from the remaining sessions. This is a dataset coverage failure, not a hidden good result. The optional LDA export uses training-only features and is not loaded live.
+
+Run `python -m scripts.eog_signal_comparison --output recordings/signal-comparison-new` with the optional analysis environment. Reports include fold scores, selections by cue phase, missing-class coverage, spectra, morphology and model exports. See [research assessment](EOG_SIGNAL_RESEARCH.md) for sources, analog passband limits, rejected alternatives, and normalization/crosstalk findings.
