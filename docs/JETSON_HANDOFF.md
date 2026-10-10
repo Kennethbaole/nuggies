@@ -32,8 +32,9 @@ python3 -m venv .venv
 `scripts/setup_jetson.sh` is the code for the Jetson's first-time setup. Run it
 once after NVIDIA provisioning and cloning; it does the steps above and more:
 installs packages, the venv and requirements, adds the dialout group, sets MAXN
-SUPER, and installs Ollama and Piper with a model and voice (`OLLAMA_MODEL` and
-`PIPER_VOICE` override the defaults). It has not been run on a Jetson yet.
+SUPER, installs Ollama and Piper with a model and voice, and builds whisper.cpp
+for the GPU with a speech-to-text model (`OLLAMA_MODEL`, `PIPER_VOICE` and
+`WHISPER_MODEL` override the defaults). It has not been run on a Jetson yet.
 
 Why Ollama and Piper: both let the Jetson work without the internet or a
 cloud account.
@@ -44,8 +45,12 @@ cloud account.
 - **Piper** is local text-to-speech. It is meant as an offline voice when
   ElevenLabs is unconfigured or unreachable, and to avoid relying on whatever
   browser voices the Jetson happens to have.
+- **whisper.cpp** turns the other person's speech into text on the Jetson.
+  Ollama's models only read text, so this is what lets offline suggestions
+  respond to what was said. Default model `small.en` (~470 MB); `base.en` is
+  faster but less accurate.
 
-Neither is wired into the app yet; the script only installs them so that
+None of these is wired into the app yet; the script only installs them so that
 integration can be built and measured on the device.
 
 ## 3. Verify the host-only app

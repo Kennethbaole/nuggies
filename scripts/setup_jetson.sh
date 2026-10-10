@@ -6,24 +6,31 @@
 #   bash scripts/setup_jetson.sh
 #
 # Steps: apt packages, project venv + requirements.txt, dialout group for the
-# Nano's USB serial port, MAXN SUPER power mode, Ollama + model, Piper + voice.
+# Nano's USB serial port, MAXN SUPER power mode, Ollama + model, Piper + voice,
+# whisper.cpp (built for the GPU) + speech-to-text model.
 # Re-running is safe; finished steps are skipped or repeated harmlessly.
 #
 # Overrides (environment variables):
 #   OLLAMA_MODEL   Ollama model to pull       (default: llama3.2:3b)
 #   PIPER_VOICE    Piper voice to download    (default: en_US-lessac-medium)
 #   PIPER_DIR      Where Piper voices go      (default: .cache/piper, Git-ignored)
+#   WHISPER_MODEL  whisper.cpp model          (default: small.en; base.en is faster)
+#   WHISPER_REF    whisper.cpp release tag    (default: v1.9.5)
+#   WHISPER_DIR    whisper.cpp checkout       (default: .cache/whisper.cpp, Git-ignored)
 #   SKIP_POWER=1   Leave the current nvpmodel power mode alone
 #
 # NVIDIA firmware/OS/JetPack provisioning comes first and is not done here;
-# see docs/JETSON_HANDOFF.md. The app does not call Ollama or Piper yet; this
-# only installs them so they can be integrated and tested on the device.
+# see docs/JETSON_HANDOFF.md. The app does not call Ollama, Piper or whisper.cpp
+# yet; this only installs them so they can be integrated and tested on the device.
 
 set -euo pipefail
 
 OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.2:3b}"
 PIPER_VOICE="${PIPER_VOICE:-en_US-lessac-medium}"
 PIPER_DIR="${PIPER_DIR:-.cache/piper}"
+WHISPER_MODEL="${WHISPER_MODEL:-small.en}"
+WHISPER_REF="${WHISPER_REF:-v1.9.5}"
+WHISPER_DIR="${WHISPER_DIR:-.cache/whisper.cpp}"
 VENV=".venv"
 REBOOT_NEEDED=0
 RELOGIN_NEEDED=0
@@ -51,7 +58,8 @@ sudo apt-get update
 sudo apt-get install -y \
     git curl ca-certificates \
     python3 python3-venv python3-pip \
-    alsa-utils
+    alsa-utils ffmpeg \
+    build-essential cmake
 
 python3 - <<'EOF' || die "Python 3.10+ is required (see docs/JETSON_HANDOFF.md)"
 import sys
@@ -140,7 +148,36 @@ else
     "$VENV/bin/python" -m piper.download_voices "$PIPER_VOICE" --download-dir "$PIPER_DIR"
 fi
 
-# --- 7. Smoke checks ---------------------------------------------------------
+# --- 7. whisper.cpp + model --------------------------------------------------
+
+step "Building whisper.cpp $WHISPER_REF in $WHISPER_DIR"
+if [[ ! -d "$WHISPER_DIR/.git" ]]; then
+    git clone --depth 1 --branch "$WHISPER_REF" https://github.com/ggml-org/whisper.cpp.git "$WHISPER_DIR"
+fi
+
+cuda_flags=()
+if [[ -x /usr/local/cuda/bin/nvcc ]]; then
+    export PATH="/usr/local/cuda/bin:$PATH"
+    # 87 = Orin's GPU architecture.
+    cuda_flags=(-DGGML_CUDA=1 -DCMAKE_CUDA_ARCHITECTURES=87)
+    echo "Building with CUDA ($(nvcc --version | tail -n 1))"
+else
+    warn "CUDA compiler not found; building CPU-only (slower). Install with: sudo apt-get install nvidia-jetpack"
+fi
+
+if [[ -x "$WHISPER_DIR/build/bin/whisper-cli" && -x "$WHISPER_DIR/build/bin/whisper-server" ]]; then
+    echo "whisper.cpp already built (delete $WHISPER_DIR/build to rebuild)"
+else
+    echo "This can take 15+ minutes with CUDA."
+    cmake -S "$WHISPER_DIR" -B "$WHISPER_DIR/build" -DCMAKE_BUILD_TYPE=Release "${cuda_flags[@]}"
+    # Limit parallel jobs: CUDA compiles can exhaust the Orin Nano's shared 8 GB.
+    cmake --build "$WHISPER_DIR/build" --config Release -j 4 --target whisper-cli whisper-server
+fi
+
+step "Downloading whisper.cpp model $WHISPER_MODEL"
+sh "$WHISPER_DIR/models/download-ggml-model.sh" "$WHISPER_MODEL" "$WHISPER_DIR/models"
+
+# --- 8. Smoke checks ---------------------------------------------------------
 
 step "Smoke checks"
 "$VENV/bin/python" -m scripts.doctor || warn "doctor reported a problem"
@@ -160,12 +197,20 @@ else
     warn "Ollama model $OLLAMA_MODEL did not answer"
 fi
 
+if transcript="$("$WHISPER_DIR/build/bin/whisper-cli" -m "$WHISPER_DIR/models/ggml-$WHISPER_MODEL.bin" \
+        -f "$WHISPER_DIR/samples/jfk.wav" -nt 2>/dev/null)" && [[ -n "${transcript//[[:space:]]/}" ]]; then
+    echo "whisper.cpp transcribed the sample:$(echo "$transcript" | tr -s '[:space:]' ' ')"
+else
+    warn "whisper.cpp did not transcribe the sample"
+fi
+
 # --- Summary -----------------------------------------------------------------
 
 step "Done"
 sudo nvpmodel -q 2>/dev/null || true
 echo "Ollama model: $OLLAMA_MODEL"
 echo "Piper voice:  $PIPER_DIR/$PIPER_VOICE.onnx"
+echo "Whisper:      $WHISPER_DIR/build/bin/whisper-server -m $WHISPER_DIR/models/ggml-$WHISPER_MODEL.bin"
 [[ "$RELOGIN_NEEDED" -eq 0 ]] || echo "* Log out and back in so the dialout group applies."
 [[ "$REBOOT_NEEDED" -eq 0 ]] || echo "* Reboot to finish switching to MAXN SUPER."
 echo "Next: follow docs/JETSON_HANDOFF.md section 3 (verify the host-only app)."
