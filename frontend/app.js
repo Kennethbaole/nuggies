@@ -13,15 +13,9 @@ let requestCounter = 0, recorder = null, recordTimer = null, suggesting = false;
 const clientID = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
 let lastConnected = null;
 const slotButtons = [];
-const gazeSectors = [];
 for (let i = 0; i < 8; i++) {
   const button = document.createElement('button'); button.className = 'slot'; button.dataset.slot = String(i);
   const angle = i * Math.PI / 4;
-  const sector = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-  const edge = offset => `${50 + Math.sin(angle + offset) * 49},${50 - Math.cos(angle + offset) * 49}`;
-  sector.setAttribute('points', `50,50 ${edge(-Math.PI / 8)} ${edge(Math.PI / 8)}`);
-  sector.classList.add('gaze-sector'); sector.dataset.direction = String(i);
-  $('gaze-sectors').append(sector); gazeSectors.push(sector);
   button.style.left = `${50 + Math.sin(angle) * 38}%`;
   button.style.top = `${50 - Math.cos(angle) * 38}%`;
   button.addEventListener('click', () => command('focus', i));
@@ -112,10 +106,9 @@ function render(next) {
   state.slots.forEach((slot, index) => {
     const button = slotButtons[index];
     button.textContent = slot.label; button.disabled = !slot.enabled;
-    button.classList.toggle('selected', state.selected === index);
+    button.classList.toggle('selected', !state.wheel_test && state.selected === index);
     const hovered = Boolean(state.wheel_test && state.connected && state.gaze_hover?.slot === index);
     button.classList.toggle('gaze-hover', hovered);
-    gazeSectors[index].classList.toggle('lit', hovered);
     button.classList.toggle('utility', ['more', 'spell', 'back', 'space', 'delete', 'speak'].includes(slot.action));
     button.setAttribute('aria-pressed', String(state.selected === index));
     button.setAttribute('aria-label', `${slot.label}${slot.text ? ': ' + slot.text : ''}${state.selected === index ? ', highlighted' : ''}`);

@@ -228,10 +228,8 @@ navigation must be off. Rest at center for one second before looking toward a sl
 | Left (negative A0) | Slot 6 |
 | Up-left | Slot 7 |
 
-Eight triangular direction sectors stay invisible until gaze hover is detected.
-The corresponding sector lights up turquoise behind its slot, and the slot gets
-a matching highlight. Sectors clear when hover releases, the mode stops, or the
-serial connection becomes stale. No phrase, Back action, navigation, or
+During the test, only the currently detected slot label is underlined. The
+underline clears when hover releases, the mode stops, or serial becomes stale. No phrase, Back action, navigation, or
 speech is activated by gaze. Confirm with existing mouse/keyboard controls when
 needed. Speech remains disabled while this test is on. The page shows smoothed
 horizontal/vertical deviations in ADC counts and the detector phase.
