@@ -81,13 +81,13 @@ def main():
             expect(page.locator('#audio-toggle')).to_have_attribute('aria-pressed','true')
             with app.lock:
                 d=app.wheel_detector
-                app.ring.action('focus','eog-communication',0)
+                app.ring.action('focus','eog-communication',6)
                 app.eog_confirmation.focus(app.ring,d.raw_index)
                 app.eog_confirmation.update(app.ring,d)
             expect(page.locator('#preview-label')).to_have_text('DETECTED CHOICE · NOT YET SELECTED')
             expect(page.locator('#center-footer')).to_have_text('Ready to confirm · double blink')
             expect(page.locator('body')).to_have_attribute('data-eog-cue','confirm')
-            assert page.locator('#preview-text').inner_text()==app.ring.slots()[0]['text']
+            assert page.locator('#preview-text').inner_text()==app.ring.slots()[6]['text']
             assert page.locator('.preview').bounding_box()['y'] < page.locator('#wheel').bounding_box()['y']
             page.screenshot(path=str(output/'detected-choice.png'),full_page=True)
             with app.lock:

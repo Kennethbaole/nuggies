@@ -192,7 +192,7 @@ class Application:
                 self.eog_communication = enabled
                 self.wheel_test = enabled
                 self.ring.cardinal_layout = enabled
-                self.ring.screen = "home"; self.ring.selected = 0
+                self.ring.screen = "home"; self.ring.selected = 6 if enabled else 0
                 self.ring.pages = {"home": 0, "needs": 0}
                 self.ring.revision += 1
                 self.pending_eog_check = None

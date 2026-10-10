@@ -61,7 +61,7 @@ class PulseConfirmationSafetyTests(unittest.TestCase):
         from backend.ring import RingState
         from types import SimpleNamespace
         self.gate=EOGConfirmation(pulse_mode=True)
-        self.ring=RingState();self.ring.cardinal_layout=True
+        self.ring=RingState();self.ring.cardinal_layout=True;self.ring.selected=6  # left = first reply
         self.detector=SimpleNamespace(phase='ready',raw_index=1000)
 
     def arm(self):

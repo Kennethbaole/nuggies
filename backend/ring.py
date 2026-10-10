@@ -80,10 +80,11 @@ class RingState:
             pool = (self.suggested or self.config["phrases"]) if self.screen == "home" else self.config["needs"]
             page = self.pages[self.screen]
             page_size = 2 if self.cardinal_layout else 5
-            phrase_slots = (0, 2) if self.cardinal_layout else PHRASE_SLOTS
+            # Eye control: replies sit on left/right, the reliably detected axis; More/Back use up/down.
+            phrase_slots = (6, 2) if self.cardinal_layout else PHRASE_SLOTS
             for index, phrase in zip(phrase_slots, pool[page * page_size:page * page_size + page_size]):
                 slots[index] = self._slot(phrase["label"], "phrase", phrase["text"], value=phrase["id"])
-            slots[6] = self._slot("More", "more", enabled=(page + 1) * page_size < len(pool))
+            slots[0 if self.cardinal_layout else 6] = self._slot("More", "more", enabled=(page + 1) * page_size < len(pool))
             if not self.cardinal_layout:
                 slots[7] = self._slot("Spell", "spell")
         return slots

@@ -174,7 +174,7 @@ function render(next) {
     const choice = state.slots[state.selected];
     const pending = Boolean(state.eog_choice_pending);
     $('center-text').textContent = pending ? choice.label : gaze?.phase === 'ready' ? 'Choose a reply' : gaze?.needs_retry ? 'Look center / Retry' : 'Look straight ahead';
-    $('center-footer').textContent = state.eog_confirmation_ready ? 'Ready to confirm · double blink' : pending ? 'Detected · return to center' : gaze?.phase === 'ready' ? 'Look up or right for a reply' : `${Math.round((gaze?.progress || 0) * 100)}% clean rest`;
+    $('center-footer').textContent = state.eog_confirmation_ready ? 'Ready to confirm · double blink' : pending ? 'Detected · return to center' : gaze?.phase === 'ready' ? 'Look left or right for a reply' : `${Math.round((gaze?.progress || 0) * 100)}% clean rest`;
     $('preview-label').textContent = pending ? 'DETECTED CHOICE · NOT YET SELECTED' : 'NO PENDING CHOICE';
     $('preview-text').textContent = pending ? choice.text || choice.label : 'Look at an option. Your detected choice will appear here before you confirm.';
     document.querySelector('.preview').classList.toggle('confirmation-ready', Boolean(state.eog_confirmation_ready));

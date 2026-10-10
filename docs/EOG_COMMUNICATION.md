@@ -25,10 +25,14 @@ The communication wheel exposes only four positions:
 
 | Gaze | Item |
 | --- | --- |
-| Up | First reply on this page |
+| Left | First reply on this page |
 | Right | Second reply on this page |
-| Left | More replies, disabled on the final page |
+| Up | More replies, disabled on the final page |
 | Down | Back, using the existing application's navigation behavior |
+
+Changed 2026-10-10 evening (was up/right replies, left More). In live use left/right
+were accepted reliably while up/down were often rejected or confused with blinks,
+which share the vertical channel. Replies now need only the horizontal axis.
 
 Two replies per page make all phrase options reachable without diagonal
 classification. Diagonal slots and spelling are unavailable in this temporary
