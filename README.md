@@ -11,3 +11,12 @@ Private recordings, voice samples, local profiles, credentials and environments
 are excluded from Git. Never commit real API keys or participant recordings.
 
 Implementation and usage documentation will grow with each working component.
+
+## Raw acquisition
+
+Two-channel parsing, lossless recording/replay, a voltage bench fixture and
+firmware are implemented. See [Acquisition](docs/ACQUISITION.md).
+
+```sh
+python3 -m unittest discover -s tests -v
+```
