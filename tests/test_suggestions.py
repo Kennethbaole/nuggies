@@ -110,9 +110,9 @@ class ProviderTests(unittest.TestCase):
 
 
 class ParallelTests(unittest.TestCase):
-    LINES = {"direct answer": "Yes, tea would be lovely.", "polite no": "1. No thank you, I am fine.",
-             "question back": '"What kind of tea is it?"', "warm": "That is so kind of you.\nExtra line.",
-             "request": "Could I have some water too?"}
+    LINES = {"yes or agreement": "Yes, tea would be lovely.", "polite no": "1. No thank you, I am fine.",
+             "follow-up question": '"What kind of tea is it?"', "warm or caring": "That is so kind of you.\nExtra line.",
+             "simple need": "Could I have some water too?"}
 
     def parallel(self, fail=()):
         calls = []
@@ -149,7 +149,7 @@ class ParallelTests(unittest.TestCase):
         self.assertIn("parallel x5", format_timing(result.timing))
 
     def test_partial_failure_keeps_the_rest_and_total_failure_raises(self):
-        suggester, _ = self.parallel(fail=("polite no", "warm"))
+        suggester, _ = self.parallel(fail=("polite no", "warm or caring"))
         self.assertEqual(len(suggester.suggest(heard_text="Tea?").suggestions), 3)
         suggester, _ = self.parallel(fail=tuple(self.LINES))
         with self.assertRaises(SuggestionUnavailable):
