@@ -231,3 +231,23 @@ class GuidedEOGTests(unittest.TestCase):
             self.assertEqual(app.ring.selection_id,0)
             app.command(dict(action='wheel_test',value=False,event_id='stop-speed'))
             self.assertEqual(app.guided.status,'stopped')
+
+    def test_ready_immediately_listens_after_center_and_recovery(self):
+        d=self.detector()
+        for _ in range(2000):
+            d.process(8192,8192)
+            if d.phase=='ready':break
+        self.assertEqual(d.phase,'ready')
+        # The first deliberate movement after Ready must start a capture within
+        # 120 ms, not disappear during a second, hidden one-second warmup.
+        self.feed(d,30,h=11192)
+        self.assertIsNotNone(d.detector.candidate)
+        self.assertGreater(max(h for h,v in d.detector.candidate['samples']),800)
+        self.candidate(d,self.result('right'))
+        for _ in range(3000):
+            d.process(8192,8192)
+            if d.phase=='ready':break
+        self.assertEqual(d.phase,'ready')
+        self.feed(d,30,h=5192)
+        self.assertIsNotNone(d.detector.candidate)
+        self.assertLess(min(h for h,v in d.detector.candidate['samples']),-800)

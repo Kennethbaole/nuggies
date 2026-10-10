@@ -46,10 +46,10 @@ class EventSegmenter:
         self.config=config
         self.reset()
 
-    def reset(self):
+    def reset(self, *, warmed_up=False):
         self.index=-1;self.history=deque(maxlen=5)
         self.candidate=None;self.active=0;self.sign=None
-        self.ready_at=round(self.config.warmup_s*self.config.rate)
+        self.ready_at=0 if warmed_up else round(self.config.warmup_s*self.config.rate)
 
     def process(self, h, v):
         self.index+=1

@@ -128,7 +128,7 @@ class GuidedEOGTest:
                 self.rest_offset=tuple(statistics.median(x[1][i] for x in self.clean) for i in (0,1))
                 self.noise=tuple(1.4826*statistics.median(abs(x[1][i]-self.rest_offset[i]) for x in self.clean) for i in (0,1))
                 self.phase='ready';self.reason='ready';self.slot=None;self.direction=None
-                self.detector.reset();self.clean.clear();self.progress=1
+                self.detector.reset(warmed_up=True);self.clean.clear();self.progress=1
                 self._audit('component_reset',component='segmenter',cause='center_ready',origin='sample')
                 self.message='Ready. Look left, right, up or down, then return to center. Speech stays off.'
             elif self.frame-self.wait_started>15*50:
@@ -163,7 +163,7 @@ class GuidedEOGTest:
             recent=[x for x in self.clean if x[0]>=self.frame-20]
             if len(recent)>=15:
                 self.phase='ready';self.reason='ready';self.slot=None;self.direction=None
-                self.detector.reset();self.clean.clear()
+                self.detector.reset(warmed_up=True);self.clean.clear()
                 self._audit('component_reset',component='segmenter',cause='recovery_ready',origin='sample')
                 self.message='Ready for the next direction.'
                 return None

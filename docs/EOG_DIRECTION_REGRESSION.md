@@ -50,3 +50,29 @@ acceptance check; correct and false confirmation totals remain unscored by inten
 Retry .6/1/2/3 s retains 16 hits and four misses but increases false directions from three to five/four/four/four over 275 s; all have zero negative-phase confirmations in this replay. Recovery 1 s falls to 11 hits/nine misses with two false directions; recovery 2 s keeps 16/four and three false directions, with zero negative-phase confirmations. No timing variant is enabled. The full table separates actual blocked time from scored negative exposure.
 
 The next algorithm experiment should track an uncertain excursion and its return explicitly while preserving the pending-choice rules, rather than discarding the whole temporal context and demanding another long clean-rest buffer. Fit and compare that state change on existing recordings before another live deployment. Shorter retry alone has now been checked and does not solve this tradeoff.
+
+## Fixed: Ready concealed a second warmup
+
+Both center-ready and recovery-ready called `EventSegmenter.reset()`, which imposed
+one more second of warmup even though filtering and guided settling were complete.
+The UI already said Ready. The outgoing gaze could be ignored while its later,
+opposite return became the first eligible candidate. Guided resets now explicitly
+mark the segmenter warmed up; standalone segmentation retains its original warmup.
+
+In the preserved live record, center-ready was sample 3500 and segmentation remained
+blind through 3750. Horizontal activity peaked +2429 at 3740 inside that gap; the
+next horizontal negative pulse was accepted Left at 4400. A second instance followed
+recovery-ready at 81976, with positive activity inside the hidden warmup followed by
+Left at 82816. These are temporal mechanism observations consistent with the wearer's
+report, not independently annotated physical eye directions.
+
+Held-out repetition replay after this change keeps 16 hits, four misses, zero wrong
+or duplicate directions, three false directions / 275 s and zero negative-phase
+confirmations under the pulse policy; median cue-to-emission remains 1.51 s. Across
+whole streams retry time increased by about 30.9 s because previously hidden inputs
+can now be rejected. This fixes truthful readiness, not all retry/return behavior.
+Private report: `recordings/signal-comparison-ready-warmup/report.json`. A synthetic
+regression moves immediately after actual center/recovery transitions and verifies
+capture starts within 120 ms. No new wearer recording was requested.
+
+Frozen-profile pulse-confirmation replay also retains two selections in session-6 double-blink cues, zero in negative cue phases across sessions 4–6, and one selection in the exactly reconstructed failed interaction. Pulse-pair misses remain two of five reviewed cues; acquisition-only confirmation misses are not identifiable. Private report: `recordings/pulse-confirmation-ready-fix.json`.
