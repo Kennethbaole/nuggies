@@ -108,8 +108,6 @@ function render(next) {
     const button = slotButtons[index];
     button.textContent = slot.label; button.disabled = !slot.enabled;
     button.classList.toggle('selected', !state.wheel_test && state.selected === index);
-    const hovered = Boolean(state.wheel_test && state.connected && state.gaze_hover?.slot === index);
-    button.classList.toggle('gaze-hover', hovered);
     button.classList.toggle('utility', ['more', 'spell', 'back', 'space', 'delete', 'speak'].includes(slot.action));
     button.setAttribute('aria-pressed', String(state.selected === index));
     button.setAttribute('aria-label', `${slot.label}${slot.text ? ': ' + slot.text : ''}${state.selected === index ? ', highlighted' : ''}`);
