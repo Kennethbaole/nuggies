@@ -33,4 +33,4 @@
 .add-card{margin-top:18px}
 .add-row input{background:var(--bg);border:1px solid var(--line);border-radius:8px;flex:1 1 160px}
 @media(max-width:900px){.people{grid-template-columns:1fr;gap:24px;padding:28px 20px}.people-intro h1{font-size:30px;margin-top:12px}}
-@media(max-width:600px){.people-grid{grid-template-columns:1fr}.person-card{padding:16px}.person-card .eyebrow,.people-intro .eyebrow{font-size:9px}.person-relationship,.people .muted{display:block;font-size:11px}}
+@media(max-width:600px){.people-grid{grid-template-columns:1fr}.topbar .quiet-button{min-height:44px;display:inline-flex;align-items:center}.person-card{padding:16px}.people .eyebrow{font-size:11px}.person-relationship,.people .muted{display:block;font-size:11px}}

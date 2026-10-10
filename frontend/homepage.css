@@ -111,3 +111,54 @@
 .homepage .center-footer{max-width:100%}
 
 .homepage .wheel-test-controls{align-self:start}
+
+/* Phones: a caregiver taps phrases, so the wheel, confirm bar, contact and recent words come first.
+   Lens preview, companion mirror, connection and signal tools sit behind "More tools". */
+.homepage .mobile-tools-toggle{display:none}
+.homepage.hud-body #companion{display:none}
+@media(hover:none) and (pointer:coarse){.homepage .keyboard-help{display:none}}
+@media(max-width:760px){
+.homepage .context-panel,.homepage .mirror-panel{display:contents}
+.homepage :is(.context-card,.input-card,.history-details){width:100%}
+.homepage .context-card{order:1}.homepage .history-details{order:2;padding:0 4px}.homepage .mobile-tools-toggle{display:block;order:3;width:100%;min-height:50px}
+.homepage .input-card,.homepage .mirror-heading,.homepage .phone,.homepage .hud-card{order:4}.homepage .tools-panel{order:5}
+.homepage:not(.mobile-tools-open) :is(.input-card,.mirror-heading,.phone,.hud-card,.tools-panel){display:none}
+.homepage .gesture-controls{position:sticky;bottom:0;z-index:5;margin:16px -20px 0;padding:10px 20px calc(10px + env(safe-area-inset-bottom));background:#132320;border-top:1px solid var(--line)}
+.homepage .gesture-controls button{min-height:52px}
+.homepage .hud-card a{display:inline-flex;align-items:center;min-height:44px}
+.homepage #relationship{font-size:11px}
+}
+@media(max-width:480px){
+.homepage .topbar{min-height:0;padding:12px 16px;gap:8px}.homepage .brand{font-size:28px}.homepage .brand svg{width:24px;height:24px}
+.homepage .quiet-button{min-height:44px}
+.homepage .communication-toolbar>div:first-child{display:none}
+.homepage .preview{min-height:0;padding:12px 16px;margin-top:16px}
+.homepage .gesture-controls{margin:12px -12px 0;padding-left:12px;padding-right:12px}
+.homepage .wheel-center .eyebrow{font-size:10px}.homepage .center-footer{font-size:11px}
+}
+
+/* Center text takes whatever height the label and footer leave; app.js shrinks it to fit. */
+.homepage .wheel-center>span{flex-shrink:0}
+.homepage .wheel-center p{min-height:0;flex:0 1 auto}
+@media(max-width:480px){.homepage .wheel-center{width:50%;height:50%;padding:12px 14px}.homepage .wheel-center p{max-height:none;margin:6px 0}.homepage .wheel-center .eyebrow{letter-spacing:.06em;line-height:1.3}.homepage .center-footer{line-height:1.3}}
+@media(max-width:359px){.homepage .wheel-center{width:44%;height:44%;padding:10px}}
+.homepage .wheel.center-compact #center-label{display:none}
+
+/* Full-screen wheel (#wheel-focus). The wheel shrinks to leave room for the preview and confirm bar. */
+.homepage .wheel-heading #page-info{margin-left:auto}
+.homepage .wheel-focus{display:grid;place-items:center;width:44px;height:44px;min-height:44px;padding:0;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--muted)}
+.homepage .wheel-focus svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6}
+.homepage .wheel-focus .focus-exit,.homepage.wheel-focus-open .wheel-focus .focus-enter{display:none}
+.homepage.wheel-focus-open .wheel-focus .focus-exit{display:inline}
+.homepage.wheel-focus-open .wheel-focus{color:var(--accent);border-color:var(--accent)}
+body.wheel-focus-open{overflow:hidden}
+.homepage.wheel-focus-open .wheel-panel{display:flex;flex-direction:column;position:fixed;inset:0;z-index:50;margin:0;border:0;border-radius:0;overflow-y:auto;background:var(--bg);padding:max(16px,env(safe-area-inset-top)) max(20px,calc((100vw - 760px)/2)) 16px}
+.homepage.wheel-focus-open .communication-toolbar{padding:0;border:0}
+.homepage.wheel-focus-open .communication-toolbar>:not(#eog-communication-status){display:none}
+.homepage.wheel-focus-open:not(.communication-active) #eog-communication-status,.homepage.wheel-focus-open #eog-communication-status:empty{display:none}
+.homepage.wheel-focus-open .preview{margin-top:0}
+.homepage.wheel-focus-open .wheel{width:min(100%,max(260px,calc(100dvh - 350px)));margin:auto;flex-shrink:0}
+.homepage.wheel-focus-open .feedback{order:1;margin:8px 0 0}.homepage.wheel-focus-open .gesture-controls{order:2}.homepage.wheel-focus-open .keyboard-help{order:3}
+.homepage.wheel-focus-open .gesture-controls{width:100%;max-width:560px;margin-left:auto;margin-right:auto}
+@media(max-width:760px){.homepage.wheel-focus-open .gesture-controls{width:auto;max-width:none;margin:12px -20px 0}}
+@media(max-width:480px){.homepage .wheel-heading{flex-wrap:nowrap}.homepage .wheel-heading #page-info{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.homepage .wheel-focus{flex-shrink:0}.homepage.wheel-focus-open .wheel-panel{padding:max(12px,env(safe-area-inset-top)) 12px 0}.homepage.wheel-focus-open .gesture-controls{margin:12px -12px 0}}
