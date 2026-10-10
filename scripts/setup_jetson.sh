@@ -10,6 +10,14 @@
 # whisper.cpp (built for the GPU) + speech-to-text model.
 # Re-running is safe; finished steps are skipped or repeated harmlessly.
 #
+# Failure policy:
+#   - Unsupported hardware (not a Jetson, no MAXN SUPER mode) stops the script
+#     before anything is installed.
+#   - Every install/download/build is checked for its expected files right
+#     away; a missing or empty artifact stops the script.
+#   - Smoke checks then run each tool for real. All of them run, the summary
+#     lists PASS / FAIL / PENDING per item, and any FAIL exits with status 1.
+#
 # Overrides (environment variables):
 #   OLLAMA_MODEL   Ollama model to pull       (default: llama3.2:3b)
 #   PIPER_VOICE    Piper voice to download    (default: en_US-lessac-medium)
@@ -17,7 +25,7 @@
 #   WHISPER_MODEL  whisper.cpp model          (default: small.en; base.en is faster)
 #   WHISPER_REF    whisper.cpp release tag    (default: v1.9.5)
 #   WHISPER_DIR    whisper.cpp checkout       (default: .cache/whisper.cpp, Git-ignored)
-#   SKIP_POWER=1   Leave the current nvpmodel power mode alone
+#   SKIP_POWER=1   Leave the power mode alone; the summary reports it as SKIPPED
 #
 # NVIDIA firmware/OS/JetPack provisioning comes first and is not done here;
 # see docs/JETSON_HANDOFF.md. The app does not call Ollama, Piper or whisper.cpp
@@ -31,25 +39,58 @@ PIPER_DIR="${PIPER_DIR:-.cache/piper}"
 WHISPER_MODEL="${WHISPER_MODEL:-small.en}"
 WHISPER_REF="${WHISPER_REF:-v1.9.5}"
 WHISPER_DIR="${WHISPER_DIR:-.cache/whisper.cpp}"
+SKIP_POWER="${SKIP_POWER:-0}"
 VENV=".venv"
-REBOOT_NEEDED=0
-RELOGIN_NEEDED=0
+
+WHISPER_BIN="$WHISPER_DIR/build/bin"
+WHISPER_MODEL_FILE="$WHISPER_DIR/models/ggml-$WHISPER_MODEL.bin"
+WHISPER_SAMPLE="$WHISPER_DIR/samples/jfk.wav"
+PIPER_MODEL_FILE="$PIPER_DIR/$PIPER_VOICE.onnx"
+LOG_DIR="$(mktemp -d)"
+
+RESULTS=()
+FAILED=0
 
 step() { printf '\n==> %s\n' "$*"; }
 warn() { printf 'WARNING: %s\n' "$*" >&2; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
-# --- Preflight ---------------------------------------------------------------
+# record STATUS NAME DETAIL: STATUS is PASS, FAIL, PENDING, WARN or SKIPPED.
+record() {
+    RESULTS+=("$(printf '%-8s %-22s %s' "$1" "$2" "$3")")
+    [[ "$1" != "FAIL" ]] || FAILED=1
+    printf '%s: %s (%s)\n' "$1" "$2" "$3"
+}
+
+# require_file PATH MIN_BYTES WHAT: stop unless PATH exists and is big enough.
+require_file() {
+    local size
+    [[ -f "$1" ]] || die "$3 is missing: $1"
+    size="$(stat -c %s "$1")"
+    [[ "$size" -ge "$2" ]] || die "$3 looks incomplete ($size bytes): $1"
+}
+
+in_maxn_super() { sudo nvpmodel -q 2>/dev/null | grep -q 'MAXN_SUPER'; }
+
+# --- Preflight: stop on unsupported hardware before installing anything -------
 
 [[ -f requirements.txt && -d backend ]] || die "run from the repository root"
 [[ "$(id -u)" -ne 0 ]] || die "run as your normal user; the script uses sudo where needed"
 [[ "$(uname -m)" == "aarch64" ]] || die "expected an aarch64 Jetson, found $(uname -m)"
-if [[ -f /etc/nv_tegra_release ]]; then
-    echo "L4T: $(head -n 1 /etc/nv_tegra_release)"
-else
-    warn "/etc/nv_tegra_release not found; this may not be a JetPack install"
-fi
+[[ -f /etc/nv_tegra_release ]] || die "/etc/nv_tegra_release not found; flash JetPack first (docs/JETSON_HANDOFF.md)"
+echo "L4T: $(head -n 1 /etc/nv_tegra_release)"
 sudo -v
+
+MAXN_ID=""
+if [[ "$SKIP_POWER" != "1" ]]; then
+    command -v nvpmodel >/dev/null \
+        || die "nvpmodel not found; this is not a supported JetPack install (SKIP_POWER=1 to bypass)"
+    # Mode IDs differ between modules/JetPack releases, so look up the ID by name.
+    MAXN_ID="$(sed -nE 's/.*POWER_MODEL[[:space:]]+ID=([0-9]+)[[:space:]]+NAME=MAXN_SUPER.*/\1/p' \
+        /etc/nvpmodel.conf 2>/dev/null | head -n 1)"
+    [[ -n "$MAXN_ID" ]] \
+        || die "no MAXN_SUPER mode in /etc/nvpmodel.conf; needs an Orin Nano Super on JetPack 6.2+ (SKIP_POWER=1 to bypass)"
+fi
 
 # --- 1. System packages ------------------------------------------------------
 
@@ -78,50 +119,40 @@ step "Creating $VENV and installing requirements.txt"
 
 step "Granting $USER access to USB serial devices (dialout)"
 if id -nG "$USER" | tr ' ' '\n' | grep -qx dialout; then
-    echo "$USER is already in dialout"
+    record PASS "dialout group" "$USER is a member"
 else
     sudo usermod -aG dialout "$USER"
-    RELOGIN_NEEDED=1
-    echo "Added $USER to dialout; takes effect after logging out and back in"
+    getent group dialout | grep -qw "$USER" || die "failed to add $USER to dialout"
+    record PENDING "dialout group" "added; log out and back in to apply"
 fi
 
 # --- 4. MAXN SUPER power mode -----------------------------------------------
 
 step "Setting MAXN SUPER power mode"
-if [[ "${SKIP_POWER:-0}" == "1" ]]; then
-    echo "Skipped (SKIP_POWER=1)"
-elif ! command -v nvpmodel >/dev/null; then
-    warn "nvpmodel not found; skipping power mode"
+if [[ "$SKIP_POWER" == "1" ]]; then
+    record SKIPPED "power mode" "SKIP_POWER=1; current: $(sudo nvpmodel -q 2>/dev/null | head -n 1 || echo unknown)"
+elif in_maxn_super; then
+    record PASS "power mode" "MAXN_SUPER (mode $MAXN_ID) active"
 else
-    # Mode IDs differ between modules/JetPack releases, so look up the ID by name.
-    maxn_id="$(sed -nE 's/.*POWER_MODEL[[:space:]]+ID=([0-9]+)[[:space:]]+NAME=MAXN_SUPER.*/\1/p' \
-        /etc/nvpmodel.conf 2>/dev/null | head -n 1)"
-    if [[ -z "$maxn_id" ]]; then
-        warn "no MAXN_SUPER mode in /etc/nvpmodel.conf; JetPack 6.2+ is required for Super modes"
-        sudo nvpmodel -q || true
-    elif sudo nvpmodel -q 2>/dev/null | grep -q 'MAXN_SUPER'; then
-        echo "Already in MAXN_SUPER (mode $maxn_id)"
+    # nvpmodel may ask to reboot; answer "no" so the script can finish, then
+    # check the actual state instead of trusting the exit code.
+    echo no | sudo nvpmodel -m "$MAXN_ID" || true
+    if in_maxn_super; then
+        record PASS "power mode" "MAXN_SUPER (mode $MAXN_ID) active"
     else
-        # nvpmodel may ask to reboot; answer "no" here and report it at the end.
-        echo no | sudo nvpmodel -m "$maxn_id" || true
-        if sudo nvpmodel -q 2>/dev/null | grep -q 'MAXN_SUPER'; then
-            echo "Now in MAXN_SUPER (mode $maxn_id)"
-        else
-            REBOOT_NEEDED=1
-            echo "MAXN_SUPER (mode $maxn_id) applies after reboot"
-        fi
+        record PENDING "power mode" "MAXN_SUPER requested, not active; reboot and re-run to confirm"
     fi
 fi
 
 # --- 5. Ollama + model -------------------------------------------------------
 
 step "Installing Ollama"
-if command -v ollama >/dev/null; then
-    echo "Ollama already installed: $(ollama --version 2>/dev/null | tail -n 1)"
-else
+if ! command -v ollama >/dev/null; then
     # The official installer detects JetPack and installs the matching GPU build.
     curl -fsSL https://ollama.com/install.sh | sh
 fi
+command -v ollama >/dev/null || die "ollama is not on PATH after install"
+echo "Ollama $(ollama --version 2>/dev/null | tail -n 1)"
 
 echo "Waiting for the Ollama server"
 if ! curl -fsS --retry 15 --retry-delay 2 --retry-connrefused \
@@ -134,19 +165,23 @@ fi
 
 step "Pulling Ollama model $OLLAMA_MODEL"
 ollama pull "$OLLAMA_MODEL"
+ollama show "$OLLAMA_MODEL" >/dev/null 2>&1 || die "Ollama does not list $OLLAMA_MODEL after pulling"
 
 # --- 6. Piper + voice --------------------------------------------------------
 
 step "Installing Piper into $VENV"
 "$VENV/bin/python" -m pip install piper-tts
+"$VENV/bin/python" -c "import piper" || die "piper does not import from $VENV"
 
 step "Downloading Piper voice $PIPER_VOICE into $PIPER_DIR"
 mkdir -p "$PIPER_DIR"
-if [[ -f "$PIPER_DIR/$PIPER_VOICE.onnx" && -f "$PIPER_DIR/$PIPER_VOICE.onnx.json" ]]; then
+if [[ -s "$PIPER_MODEL_FILE" && -s "$PIPER_MODEL_FILE.json" ]]; then
     echo "Voice already present"
 else
     "$VENV/bin/python" -m piper.download_voices "$PIPER_VOICE" --download-dir "$PIPER_DIR"
 fi
+require_file "$PIPER_MODEL_FILE" 1000000 "Piper voice model"
+require_file "$PIPER_MODEL_FILE.json" 100 "Piper voice config"
 
 # --- 7. whisper.cpp + model --------------------------------------------------
 
@@ -160,12 +195,12 @@ if [[ -x /usr/local/cuda/bin/nvcc ]]; then
     export PATH="/usr/local/cuda/bin:$PATH"
     # 87 = Orin's GPU architecture.
     cuda_flags=(-DGGML_CUDA=1 -DCMAKE_CUDA_ARCHITECTURES=87)
-    echo "Building with CUDA ($(nvcc --version | tail -n 1))"
+    record PASS "whisper.cpp GPU build" "CUDA $(nvcc --version | sed -nE 's/.*release ([0-9.]+).*/\1/p')"
 else
-    warn "CUDA compiler not found; building CPU-only (slower). Install with: sudo apt-get install nvidia-jetpack"
+    record WARN "whisper.cpp GPU build" "nvcc missing; CPU-only build (sudo apt-get install nvidia-jetpack)"
 fi
 
-if [[ -x "$WHISPER_DIR/build/bin/whisper-cli" && -x "$WHISPER_DIR/build/bin/whisper-server" ]]; then
+if [[ -x "$WHISPER_BIN/whisper-cli" && -x "$WHISPER_BIN/whisper-server" ]]; then
     echo "whisper.cpp already built (delete $WHISPER_DIR/build to rebuild)"
 else
     echo "This can take 15+ minutes with CUDA."
@@ -173,44 +208,69 @@ else
     # Limit parallel jobs: CUDA compiles can exhaust the Orin Nano's shared 8 GB.
     cmake --build "$WHISPER_DIR/build" --config Release -j 4 --target whisper-cli whisper-server
 fi
+for bin in whisper-cli whisper-server; do
+    [[ -x "$WHISPER_BIN/$bin" ]] || die "whisper.cpp build did not produce $WHISPER_BIN/$bin"
+done
 
 step "Downloading whisper.cpp model $WHISPER_MODEL"
 sh "$WHISPER_DIR/models/download-ggml-model.sh" "$WHISPER_MODEL" "$WHISPER_DIR/models"
+require_file "$WHISPER_MODEL_FILE" 10000000 "whisper.cpp model"
+require_file "$WHISPER_SAMPLE" 10000 "whisper.cpp sample audio"
 
-# --- 8. Smoke checks ---------------------------------------------------------
+# --- 8. Smoke checks: run each tool for real ---------------------------------
 
-step "Smoke checks"
-"$VENV/bin/python" -m scripts.doctor || warn "doctor reported a problem"
+step "Smoke checks (logs in $LOG_DIR)"
 
-tmp_wav="$(mktemp --suffix=.wav)"
-if echo "Setup complete." | "$VENV/bin/python" -m piper \
-        -m "$PIPER_DIR/$PIPER_VOICE.onnx" -f "$tmp_wav" >/dev/null 2>&1 \
-        && [[ -s "$tmp_wav" ]]; then
-    echo "Piper synthesized a test clip; play it with: aplay $tmp_wav"
+if "$VENV/bin/python" -m scripts.doctor >"$LOG_DIR/doctor.log" 2>&1; then
+    record PASS "doctor" "dependencies and serial ports listed"
 else
-    warn "Piper did not produce audio"
+    record FAIL "doctor" "see $LOG_DIR/doctor.log"
 fi
 
-if ollama run "$OLLAMA_MODEL" "Reply with the single word: ready" >/dev/null 2>&1; then
-    echo "Ollama model $OLLAMA_MODEL answered"
+piper_wav="$LOG_DIR/piper.wav"
+if echo "Setup complete." | "$VENV/bin/python" -m piper -m "$PIPER_MODEL_FILE" -f "$piper_wav" \
+        >"$LOG_DIR/piper.log" 2>&1 \
+        && [[ -s "$piper_wav" && "$(head -c 4 "$piper_wav")" == "RIFF" ]]; then
+    record PASS "Piper synthesis" "WAV written; listen with: aplay $piper_wav"
 else
-    warn "Ollama model $OLLAMA_MODEL did not answer"
+    record FAIL "Piper synthesis" "no valid WAV; see $LOG_DIR/piper.log"
 fi
 
-if transcript="$("$WHISPER_DIR/build/bin/whisper-cli" -m "$WHISPER_DIR/models/ggml-$WHISPER_MODEL.bin" \
-        -f "$WHISPER_DIR/samples/jfk.wav" -nt 2>/dev/null)" && [[ -n "${transcript//[[:space:]]/}" ]]; then
-    echo "whisper.cpp transcribed the sample:$(echo "$transcript" | tr -s '[:space:]' ' ')"
+if reply="$(timeout 300 ollama run "$OLLAMA_MODEL" "Reply with the single word: ready" 2>"$LOG_DIR/ollama.log")" \
+        && [[ -n "${reply//[[:space:]]/}" ]]; then
+    record PASS "Ollama generation" "$OLLAMA_MODEL replied: $(echo "$reply" | tr -s '[:space:]' ' ' | cut -c 1-40)"
 else
-    warn "whisper.cpp did not transcribe the sample"
+    record FAIL "Ollama generation" "$OLLAMA_MODEL gave no reply within 300 s; see $LOG_DIR/ollama.log"
+fi
+
+# The sample is JFK's "ask not what your country can do for you", so check the words.
+if transcript="$("$WHISPER_BIN/whisper-cli" -m "$WHISPER_MODEL_FILE" -f "$WHISPER_SAMPLE" -nt \
+        2>"$LOG_DIR/whisper.log")" && grep -qi "country" <<<"$transcript"; then
+    record PASS "whisper.cpp transcribe" "sample transcribed correctly"
+else
+    record FAIL "whisper.cpp transcribe" "wrong or empty transcript; see $LOG_DIR/whisper.log"
 fi
 
 # --- Summary -----------------------------------------------------------------
 
-step "Done"
-sudo nvpmodel -q 2>/dev/null || true
+step "Summary"
+printf '%s\n' "${RESULTS[@]}"
+echo
 echo "Ollama model: $OLLAMA_MODEL"
-echo "Piper voice:  $PIPER_DIR/$PIPER_VOICE.onnx"
-echo "Whisper:      $WHISPER_DIR/build/bin/whisper-server -m $WHISPER_DIR/models/ggml-$WHISPER_MODEL.bin"
-[[ "$RELOGIN_NEEDED" -eq 0 ]] || echo "* Log out and back in so the dialout group applies."
-[[ "$REBOOT_NEEDED" -eq 0 ]] || echo "* Reboot to finish switching to MAXN SUPER."
-echo "Next: follow docs/JETSON_HANDOFF.md section 3 (verify the host-only app)."
+echo "Piper voice:  $PIPER_MODEL_FILE"
+echo "Whisper:      $WHISPER_BIN/whisper-server -m $WHISPER_MODEL_FILE"
+echo
+echo "Not checked by this script: audible speaker output, microphone input,"
+echo "Nano USB acquisition, and the app using Ollama/Piper/whisper.cpp (not wired in yet)."
+
+if [[ "$FAILED" -ne 0 ]]; then
+    echo
+    die "setup incomplete: fix the FAIL items above and re-run"
+fi
+if printf '%s\n' "${RESULTS[@]}" | grep -q '^PENDING'; then
+    echo
+    echo "Installed and checked, with PENDING items: reboot (or log out and back in), then re-run to confirm."
+else
+    echo
+    echo "Setup complete. Next: docs/JETSON_HANDOFF.md section 3 (verify the host-only app)."
+fi

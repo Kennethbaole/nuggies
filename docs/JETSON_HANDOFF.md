@@ -34,7 +34,11 @@ once after NVIDIA provisioning and cloning; it does the steps above and more:
 installs packages, the venv and requirements, adds the dialout group, sets MAXN
 SUPER, installs Ollama and Piper with a model and voice, and builds whisper.cpp
 for the GPU with a speech-to-text model (`OLLAMA_MODEL`, `PIPER_VOICE` and
-`WHISPER_MODEL` override the defaults). It has not been run on a Jetson yet.
+`WHISPER_MODEL` override the defaults). It stops before installing anything on
+unsupported hardware, checks each download and build, then runs each tool and
+ends with a PASS/FAIL/PENDING summary; any FAIL exits non-zero. PENDING means a
+reboot or re-login is needed, then re-run to confirm. It has not been run on a
+Jetson yet.
 
 Why Ollama and Piper: both let the Jetson work without the internet or a
 cloud account.
