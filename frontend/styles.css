@@ -37,3 +37,5 @@
 .signal-expanded .muted,.signal-expanded .trace-legend{font-size:14px}
 body.signal-expanded-open{overflow:hidden}
 @media(max-width:600px){.signal-details.signal-expanded{inset:8px;padding:14px}.signal-expanded #trace{height:45vh}}
+
+.guided-test{margin-top:22px;padding:18px;border:1px solid var(--line);border-radius:10px}.guided-test h2{font-size:18px}#guided-cue{font-size:24px;line-height:1.4;color:var(--text)}#guided-progress{font-size:15px;color:var(--green);min-height:24px}

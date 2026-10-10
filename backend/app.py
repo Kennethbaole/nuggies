@@ -17,6 +17,7 @@ from urllib.parse import urlsplit
 from .envfile import load_env
 from .calibration import Calibration, ExponentialSmoother
 from .classifier import ThresholdClassifier
+from .guided import GuidedTrial
 from .ring import RingState
 from .speech import ElevenLabsSpeech, SpeechUnavailable
 from .state_machine import DoubleBlinkGate, GestureGate
@@ -64,6 +65,8 @@ class Application:
         self.stop = threading.Event()
         self.started = time.monotonic()
         self.trial_label = "unlabeled"
+        self.guided = GuidedTrial()
+        self.recording = False
 
     def state(self):
         with self.lock:
@@ -77,6 +80,7 @@ class Application:
                         speech_provider="elevenlabs" if self.speech.available else "browser",
                         suggest_available=self.suggester.available,
                         trial_label=self.trial_label,
+                        recording=self.recording, guided=self.guided.snapshot(time.monotonic()),
                         samples=list(self.samples))
             return data
 
@@ -107,9 +111,19 @@ class Application:
                     self.ring.revision += 1
             elif action == "suggestions_clear":
                 self.ring.clear_suggestions()
+            elif action == "guided_start":
+                if self.source != "serial" or not self.recording or not self.connected or self.sensor_actions:
+                    raise ValueError("Guided testing requires live recording with sensor navigation disabled")
+                self.guided.start(time.monotonic())
+            elif action == "guided_stop":
+                self.guided.stop()
+                self.trial_label = "unlabeled"
             elif action == "label":
+                if self.guided.status == "running":
+                    raise ValueError("Stop the guided test before labeling manually")
                 if payload.get("value") not in {"unlabeled", "neutral", "left", "right", "up", "down", "blink", "held_gaze"}:
                     raise ValueError("Unknown trial label")
+                self.guided = GuidedTrial()
                 self.trial_label = payload["value"]
             else:
                 self.ring.action(action, "manual-demo", payload.get("value"))
@@ -207,9 +221,11 @@ class Application:
             from .serial_input import SerialADCSource
             with ExitStack() as stack:
                 label_writer = None
+                trial_writer = None
                 if record_path:
                     label_path = Path(record_path).with_suffix(".labels.csv")
-                    if Path(record_path).exists() or label_path.exists():
+                    trial_path = Path(record_path).with_suffix(".trials.csv")
+                    if Path(record_path).exists() or label_path.exists() or trial_path.exists():
                         raise ValueError("Recording or label file already exists; choose a new name")
                 connection = stack.enter_context(serial.Serial(port, 115200, timeout=0.5, exclusive=True))
                 source = SerialADCSource(connection)
@@ -218,19 +234,38 @@ class Application:
                     label_stream = stack.enter_context(open(label_path, "x", newline=""))
                     label_writer = csv.writer(label_stream)
                     label_writer.writerow(("timestamp_ms", "intended_label"))
+                    trial_stream = stack.enter_context(open(trial_path, "x", newline=""))
+                    trial_writer = csv.writer(trial_stream)
+                    trial_writer.writerow(("timestamp_ms", "intended_label", "trial_id", "phase", "cue"))
+                    with self.lock:
+                        self.recording = True
                 while not self.stop.is_set():
                     sample = source.read_sample()
                     if recorder:
                         recorder.write(sample)
                         with self.lock:
+                            guided = self.guided.snapshot(time.monotonic())
+                            if guided["status"] == "running":
+                                self.trial_label = guided["label"]
+                            elif guided["status"] == "complete":
+                                self.trial_label = "unlabeled"
                             label = self.trial_label
                         label_writer.writerow((sample.timestamp_ms, label))
                         label_stream.flush()
+                        trial_writer.writerow((sample.timestamp_ms, label, guided["trial_id"], guided["phase"], guided["cue"]))
+                        trial_stream.flush()
                     self.ingest(sample)
         except Exception as error:
             with self.lock:
                 self.connected = False
                 self.error = f"{type(error).__name__}: {error}"
+
+        finally:
+            with self.lock:
+                self.recording = False
+                if self.guided.status == "running":
+                    self.guided.stop()
+                self.trial_label = "unlabeled"
 
     def run_replay(self, path):
         from .recording import CSVReplaySource

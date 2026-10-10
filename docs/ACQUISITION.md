@@ -58,3 +58,26 @@ No body-connected acquisition has been validated by software tests.
 For a larger live trace, open Signal workspace and choose **Expand signal
 workspace**. The view fills the window and retains trial labeling and the current
 recording. Choose **Close expanded view** or press Escape to return.
+
+## Guided acquisition
+
+With live serial recording running and sensor navigation disabled, expand the
+signal workspace and choose **Start guided test**. Follow the on-screen cues;
+manual labeling is locked until completion or Stop test. The server schedules a
+5-second preparation, 20-second neutral baseline, five alternating left/right
+trials (3-second center preparation, 2-second sideways hold, 4-second return),
+five blink trials, and a final 20-second neutral baseline. Total: 170 seconds.
+Keep the page visible; timing does not pause when the browser is hidden.
+
+Recording now also writes `<name>.trials.csv` with receipt timestamp, intended
+label, trial ID, phase, and cue for every sample. The raw CSV and two-column
+labels CSV remain compatible with existing tools. Return phases are explicitly
+separate from movement phases. All sidecars stay local in recordings/. Cue times
+are server instructions, not measured human reaction times or exact event onsets;
+browser polling and USB buffering introduce timing uncertainty. Do not infer
+classifier accuracy from cue labels alone. A single horizontal Pill cannot
+validate the disconnected vertical channel or the two-channel blink detector.
+
+The start button requires active recording and a connected input. Stop test ends
+cues and restores Unlabeled, while raw recording continues. A disconnect ends
+recording and stops the protocol; restart acquisition before a new test.

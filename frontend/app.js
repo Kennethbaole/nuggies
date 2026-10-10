@@ -125,6 +125,14 @@ function render(next) {
   $('phone-live').textContent = state.connected ? '● Connected' : '○ Input paused';
   $('input-error').textContent = state.input_error;
   $('trial-label').value = state.trial_label || 'unlabeled';
+  const guided = state.guided || {status: 'idle'};
+  const guidedRunning = guided.status === 'running';
+  $('trial-label').disabled = guidedRunning;
+  $('guided-start').disabled = guidedRunning || !state.recording || !state.connected || state.sensor_actions;
+  $('guided-stop').disabled = !guidedRunning;
+  $('guided-cue').textContent = guided.cue || 'Live recording required to start a guided test.';
+  $('guided-progress').textContent = guidedRunning ? `${guided.remaining_s}s · Step ${guided.step}/${guided.total_steps} · ${guided.trial_id}` : guided.status;
+
   $('signal-info').textContent = `${state.samples.length} recent samples · raw ADC counts${state.calibrated ? ' · calibration loaded' : ''}`;
   $('suggest-source').textContent = PROVIDER_LABELS[state.suggestions_provider] || 'Local sample phrases';
   $('heard').textContent = state.heard ? `Heard: “${state.heard}”` : '';
@@ -277,3 +285,6 @@ document.addEventListener('keydown', event => {
 signalWorkspace.addEventListener('toggle', () => {
   if (!signalWorkspace.open) setSignalExpanded(false);
 });
+
+$('guided-start').onclick = () => command('guided_start');
+$('guided-stop').onclick = () => command('guided_stop');
