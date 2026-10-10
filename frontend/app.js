@@ -6,8 +6,8 @@ if (isHUD) { document.body.classList.add('hud-body'); $('hud-only').hidden = fal
 let state = null, seenSelection = null, session = null, audioEnabled = false;
 let token = sessionStorage.getItem('nuggies-token') || '';
 let queue = Promise.resolve(), audio = null, speechBusy = false, pollBusy = false;
-const PROVIDER_LABELS = {gemini: 'Gemini reply suggestions', ollama: 'Local AI suggestions (offline)'};
-const SETUP_HINT = 'Add GEMINI_API_KEY (or OLLAMA_MODEL for offline replies) to .env and restart to enable reply suggestions.';
+const PROVIDER_LABELS = {ollama: 'On-device AI reply suggestions'};
+const SETUP_HINT = 'Set OLLAMA_MODEL in .env (with Ollama running) and restart to enable reply suggestions.';
 let requestCounter = 0, recorder = null, recordTimer = null, suggesting = false;
 const clientID = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
 let lastConnected = null;

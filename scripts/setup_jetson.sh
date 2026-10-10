@@ -19,7 +19,7 @@
 #     lists PASS / FAIL / PENDING per item, and any FAIL exits with status 1.
 #
 # Overrides (environment variables):
-#   OLLAMA_MODEL   Ollama model to pull       (default: llama3.2:3b)
+#   OLLAMA_MODEL   Ollama model to pull       (default: qwen3.5:4b)
 #   PIPER_VOICE    Piper voice to download    (default: en_US-lessac-medium)
 #   PIPER_DIR      Where Piper voices go      (default: .cache/piper, Git-ignored)
 #   WHISPER_MODEL  whisper.cpp model          (default: small.en; base.en is faster)
@@ -28,12 +28,12 @@
 #   SKIP_POWER=1   Leave the power mode alone; the summary reports it as SKIPPED
 #
 # NVIDIA firmware/OS/JetPack provisioning comes first and is not done here;
-# see docs/JETSON_HANDOFF.md. The app does not call Ollama, Piper or whisper.cpp
-# yet; this only installs them so they can be integrated and tested on the device.
+# see docs/JETSON_HANDOFF.md. The app calls Ollama for reply suggestions; Piper
+# and whisper.cpp are installed so they can be integrated and tested on the device.
 
 set -euo pipefail
 
-OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.2:3b}"
+OLLAMA_MODEL="${OLLAMA_MODEL:-qwen3.5:4b}"
 PIPER_VOICE="${PIPER_VOICE:-en_US-lessac-medium}"
 PIPER_DIR="${PIPER_DIR:-.cache/piper}"
 WHISPER_MODEL="${WHISPER_MODEL:-small.en}"

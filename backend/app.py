@@ -21,10 +21,7 @@ from .guided import GuidedTrial
 from .ring import RingState
 from .speech import ElevenLabsSpeech, SpeechUnavailable
 from .state_machine import DoubleBlinkGate, GestureGate
-from .suggestions import (
-    DEFAULT_DEADLINE_S, FallbackSuggestions, GeminiSuggestions, OllamaSuggestions, SuggestionBusy,
-    SuggestionUnavailable,
-)
+from .suggestions import OllamaSuggestions, SuggestionBusy, SuggestionUnavailable
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
@@ -42,10 +39,7 @@ class Application:
         self.token = os.environ.get("APP_TOKEN", "")
         self.session_id = secrets.token_hex(12)
         self.speech = ElevenLabsSpeech(ROOT / ".cache" / "tts")
-        # Gemini first; the local Ollama model answers when Gemini fails or is slow.
-        self.suggester = FallbackSuggestions(
-            GeminiSuggestions(), OllamaSuggestions(),
-            deadline_s=float(os.environ.get("SUGGEST_DEADLINE_S", DEFAULT_DEADLINE_S)))
+        self.suggester = OllamaSuggestions()  # Local Qwen model; works offline.
         self.suggest_lock = threading.Lock()
         self.last_suggest = 0.0
         self.samples = deque(maxlen=300)
@@ -139,7 +133,7 @@ class Application:
             return self.state()
 
     def suggest(self, payload):
-        """Ask Gemini (or the local model) for reply previews; the ring keeps its fallback on failure."""
+        """Ask the local model for reply previews; the ring keeps its fallback on failure."""
         if payload.get("session_id") != self.session_id:
             raise ValueError("Suggestion session mismatch")
         heard_text, audio_b64 = payload.get("heard_text"), payload.get("audio_b64")
@@ -154,7 +148,7 @@ class Application:
             except ValueError as error:
                 raise ValueError("audio_b64 is not valid base64") from error
         if not self.suggester.available:
-            raise SuggestionUnavailable("Reply suggestions are not configured (GEMINI_API_KEY or OLLAMA_MODEL); curated phrases remain")
+            raise SuggestionUnavailable("Reply suggestions are not configured (OLLAMA_MODEL); curated phrases remain")
         if not self.suggest_lock.acquire(blocking=False):
             raise SuggestionBusy("A suggestion request is already running")
         try:
