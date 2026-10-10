@@ -44,3 +44,12 @@ There's no horizontal overflow, the full wheel and confirm bar fit on the first
 390x844 screen, and home-page controls are at least 40 px tall. "More tools"
 expands and collapses. The /hud page on a phone no longer renders the companion
 page underneath. Not yet checked on a physical phone.
+
+## Peripheral colour cues for eye control (2026-10-10)
+
+While guided eye control is active, `body[data-eog-cue]` colours the viewport frame,
+wheel panel and wheel centre so the state is readable without looking at the text:
+amber = wait / look center, green = choose, blue = detected, return to center,
+purple (pulsing) = double blink to confirm, red = retry, white flash = selected.
+A legend sits under the communication toggle. No slot is highlighted; gaze
+highlighting stays removed. Checked in the simulated browser run only.

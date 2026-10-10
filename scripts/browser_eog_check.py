@@ -75,6 +75,7 @@ def main():
             expect(page.locator('#audio-toggle')).to_be_enabled()
             expect(page.locator('#eog-communication-status')).to_contain_text('Look center / Retry')
             expect(page.locator('#center-text')).to_have_text('Choose a reply',timeout=10000)
+            expect(page.locator('body')).to_have_attribute('data-eog-cue','ready')
             assert all(not app.ring.slots()[i]['enabled'] for i in (1,3,5,7))
             # Starting communication is the audio gesture; speech must already be on.
             expect(page.locator('#audio-toggle')).to_have_attribute('aria-pressed','true')
@@ -85,6 +86,7 @@ def main():
                 app.eog_confirmation.update(app.ring,d)
             expect(page.locator('#preview-label')).to_have_text('DETECTED CHOICE · NOT YET SELECTED')
             expect(page.locator('#center-footer')).to_have_text('Ready to confirm · double blink')
+            expect(page.locator('body')).to_have_attribute('data-eog-cue','confirm')
             assert page.locator('#preview-text').inner_text()==app.ring.slots()[0]['text']
             assert page.locator('.preview').bounding_box()['y'] < page.locator('#wheel').bounding_box()['y']
             page.screenshot(path=str(output/'detected-choice.png'),full_page=True)
@@ -93,6 +95,7 @@ def main():
                 app.eog_confirmation.update(app.ring,d,dict(label='double_blink',reason='blink',
                     onset_sample=d.raw_index,distance=.01,other_label_margin=3,horizontal_fraction=.01,
                     source='pulse_stream',pulse_pair_valid=True,waveform_label='double_blink',direction_margin=4))
+            expect(page.locator('body')).to_have_attribute('data-eog-cue','selected',timeout=3000)
             expect(page.locator('#feedback')).to_contain_text('Speaking with browser voice',timeout=5000)
             assert page.evaluate('window.__spoken.length')==1
             assert app.ring.selection_id==1
@@ -110,7 +113,7 @@ def main():
             browser.close()
         report=dict(ok=True,mode='HTTP/browser UI state simulation; not sensor accuracy',checks=[
             'opt-in','center progress','ready','retry reason','prominent status','readiness-aware cues','recenter','stale signal',
-            'homepage speed check','opt-in communication','four reachable positions','fixed detected-choice preview','explicit confirmation readiness','speech auto-enabled with communication','confirmed browser speech once','diagnostic speech disabled','gaze highlighting absent','HUD rendering','diagnostic mode cannot confirm','no JS errors'])
+            'homepage speed check','opt-in communication','four reachable positions','fixed detected-choice preview','explicit confirmation readiness','speech auto-enabled with communication','peripheral colour cues','confirmed browser speech once','diagnostic speech disabled','gaze highlighting absent','HUD rendering','diagnostic mode cannot confirm','no JS errors'])
         (output/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report))
     finally:
         stop.set();feeder.join(timeout=2);server.shutdown();server.server_close();worker.join(timeout=2)

@@ -4,6 +4,7 @@ const $ = id => document.getElementById(id);
 const isHUD = location.pathname === '/hud';
 if (isHUD) { document.body.classList.add('hud-body'); $('hud-only').hidden = false; }
 let state = null, seenSelection = null, session = null, audioEnabled = false;
+let selectedFlashUntil = 0;
 let token = sessionStorage.getItem('nuggies-token') || '';
 let queue = Promise.resolve(), audio = null, speechBusy = false, pollBusy = false;
 const PROVIDER_LABELS = {ollama: 'On-device AI reply suggestions'};
@@ -88,6 +89,7 @@ function render(next) {
   if (state.selection_id > seenSelection) {
     seenSelection = state.selection_id;
     feedback(`Selected: ${state.confirmed}`);
+    selectedFlashUntil = Date.now() + 1500;
     speakSelection({...state});
   }
   const contact = state.contacts.find(contact => contact.id === state.contact);
@@ -180,6 +182,15 @@ function render(next) {
     $('input-detail').textContent = audioEnabled ? 'Experimental gaze and double-blink communication. Confirmed replies are spoken.' : 'Experimental gaze and double-blink communication. Speech is off; Enable speech to hear confirmed replies.';
     $('page-info').textContent = 'Two replies · More · Back';
   }
+  // One peripheral-vision colour per interaction state; text alone is unreadable while gazing elsewhere.
+  const eogCue = !state.wheel_test || !guidedEOG || !state.connected ? ''
+    : Date.now() < selectedFlashUntil ? 'selected'
+    : gaze?.phase === 'retry' ? 'retry'
+    : gaze?.phase !== 'ready' && gaze?.phase !== 'recovery' ? 'wait'
+    : state.eog_confirmation_ready ? 'confirm'
+    : state.eog_choice_pending || gaze?.phase === 'recovery' ? 'detected' : 'ready';
+  if (eogCue) document.body.dataset.eogCue = eogCue; else delete document.body.dataset.eogCue;
+  $('eog-cue-legend').hidden = !eogCue;
   $('eog-recenter').disabled = !state.wheel_test || !state.connected;
   $('eog-progress').value = state.wheel_test ? (gaze?.progress || 0) : 0;
   const lastEOG = gaze?.last_event;
