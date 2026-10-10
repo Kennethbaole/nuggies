@@ -48,6 +48,50 @@ class ConfirmationTests(unittest.TestCase):
             self.assertFalse(self.gate.update(self.ring,self.detector,event))
             self.assertEqual(event['confirmation_result'],'uncertain_blink_match')
 
+    def test_horizontal_return_can_arm_despite_vertical_blink_recovery(self):
+        d=self.detector;d.direction='right';d.return_sample=1200;d.horizontal=20
+        d.raw_index=1300;self.gate.update(self.ring,d)
+        self.assertIsNone(self.gate.ready_sample)
+        d.raw_index=1363;self.gate.update(self.ring,d)
+        self.assertEqual(self.gate.ready_sample,1363)
+        d.raw_index=1850;event=self.event()
+        self.assertTrue(self.gate.update(self.ring,d,event))
+        self.assertEqual(self.ring.selection_id,1)
+
+    def test_buffered_return_settling_avoids_second_wait_for_classifier_latency(self):
+        d=self.detector;d.direction='right';d.return_sample=1200;d.horizontal=20
+        d.recent_frames=[(i,20,0) for i in range(1200,1401,5)]
+        d.raw_index=1500
+        self.gate.update(self.ring,d)
+        self.assertEqual(self.gate.ready_sample,1260)
+        event=self.event();event['onset_sample']=1400
+        self.assertTrue(self.gate.update(self.ring,d,event))
+
+    def test_new_movement_after_arming_cancels_old_choice(self):
+        self.ready()
+        self.assertFalse(self.gate.update(self.ring,self.detector,
+            dict(label='return',reason='recovering',onset_sample=1600)))
+        self.assertIsNone(self.gate.target)
+
+    def test_no_return_or_horizontal_activity_cannot_arm_recovery(self):
+        d=self.detector;d.direction='right';d.horizontal=20;d.return_sample=None
+        d.raw_index=1500
+        self.assertFalse(self.gate.update(self.ring,d,self.event()))
+        d.return_sample=1200;d.horizontal=900
+        self.assertFalse(self.gate.update(self.ring,d,self.event()))
+        self.assertIsNone(self.gate.ready_sample)
+
+    def test_vertical_return_requires_quiet_before_arming_not_during_blink(self):
+        d=self.detector;d.direction='up';d.horizontal=20;d.vertical=900;d.return_sample=1200
+        d.raw_index=1400
+        self.assertFalse(self.gate.update(self.ring,d,self.event()))
+        self.assertIsNone(self.gate.ready_sample)
+        d.vertical=20;d.raw_index=1500;self.gate.update(self.ring,d)
+        d.raw_index=1563;self.gate.update(self.ring,d)
+        self.assertEqual(self.gate.ready_sample,1563)
+        d.vertical=2000;d.raw_index=1850
+        self.assertTrue(self.gate.update(self.ring,d,self.event()))
+
     def test_natural_blink_does_not_select(self):
         self.ready();event=self.event();event['label']='blink'
         self.assertFalse(self.gate.update(self.ring,self.detector,event))

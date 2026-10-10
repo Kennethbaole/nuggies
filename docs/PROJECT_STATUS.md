@@ -1,3 +1,9 @@
+> Latest live follow-up: recognized double blinks were blocked by navigation
+> recovery. Buffered return settling now arms confirmation separately; the
+> direction classifier is unchanged. Raw replay improves activation delivery but
+> remains unlabeled. Five clipping resets were also logged. See
+> [recovery bug and limits](EOG_COMMUNICATION.md#recovery-blocking-bug-found-in-the-next-live-session).
+
 # Current status and next session
 
 Updated 2026-10-10.
@@ -11,7 +17,7 @@ accuracy or biological blink-confirmation result is claimed. Homepage readabilit
 preview with confirmation readiness. Deliberate double-blink rejections prompted
 a constrained match-gate adjustment; see EOG_COMMUNICATION.md for reused-data
 comparison and limits. Latest software
-suite: 177 tests, 176 passed, one optional skip. Prior exact-runtime development
+suite: 182 tests, 181 passed, one optional skip. Prior exact-runtime development
 replay: 16/20 correct, three false candidates/275 s. See
 [the diagnostic live-check guide](EOG_LIVE_CHECK.md).
 The following main-baseline description predates this branch integration.

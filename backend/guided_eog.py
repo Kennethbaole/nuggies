@@ -47,7 +47,8 @@ class GuidedEOGTest:
         self.frame=0;self.previous_timestamp=None
         self.clean=deque(maxlen=max(1,round(max(self.config.center_s,self.config.retry_s)*50)))
         self.rest_offset=(0.,0.);self.noise=(0.,0.)
-        self.previous_frame=None;self.mask_until=0;self.recovery_started=0;self.return_seen=False
+        self.recent_frames=deque(maxlen=100)
+        self.previous_frame=None;self.mask_until=0;self.recovery_started=0;self.return_seen=False;self.return_sample=None
         self.progress=0;self.wait_started=0
         if clear_events:self.events.clear()
 
@@ -107,6 +108,7 @@ class GuidedEOGTest:
         if value is None:return None
         self.frame+=1
         self.horizontal,self.vertical=value
+        self.recent_frames.append((self.raw_index,*value))
         settled=self._clean_frame(value)
         if self.phase in ('centering','retry'):
             if settled:
@@ -144,7 +146,9 @@ class GuidedEOGTest:
             return None
         if self.phase=='recovery':
             opposite={'left':'right','right':'left','up':'down','down':'up'}
-            if label==opposite.get(self.direction):self.return_seen=True
+            if label==opposite.get(self.direction):
+                self.return_seen=True
+                if self.return_sample is None:self.return_sample=self.raw_index-(segment['emitted']-segment['onset'])*5
             self.totals['returns']+=1
             self._event('return','recovering',segment,result)
             return None
@@ -155,7 +159,7 @@ class GuidedEOGTest:
             self._retry(reason,segment,result)
             return None
         self.phase='recovery';self.reason='return_center';self.direction=label;self.slot=DIRECTIONS[label]
-        self.recovery_started=self.frame;self.return_seen=False;self.clean.clear()
+        self.recovery_started=self.frame;self.return_seen=False;self.return_sample=None;self.clean.clear()
         self.totals['accepted']+=1
         self.message=f'{label.capitalize()} detected. Return to center before the next direction.'
         self._event(label,'accepted',segment,result)

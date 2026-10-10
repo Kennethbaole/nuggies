@@ -41,9 +41,16 @@ companion phone continues to show confirmed speech, not pending choices. A short
 ## Confirmation rules
 
 - A newly accepted gaze at an enabled item creates a pending choice.
-- The detector must finish recovery and become Ready before confirmation arms.
-- A double-blink waveform must begin after arming. Blinks beginning during
-  recovery cannot confirm the item later.
+- Confirmation arms after navigation becomes Ready, or after a classified
+  opposite return and about 250 ms of buffered settling. This separates blink
+  readiness from the longer navigation recovery. Horizontal returns require
+  horizontal settling; vertical returns require both axes to settle first.
+  Once armed, vertical blink activity does not disarm the choice. A later
+  classified movement cancels it. This is electrical return evidence, not an
+  absolute eye-position measurement.
+- A double-blink waveform must begin after the signal-based arming time.
+  Buffered settling can precede the delayed return classification; blinks before
+  that settling time still cannot confirm.
 - The frozen profile must label it double_blink, with distance <= .08,
   competing-label distance ratio >= 1.5, and horizontal energy fraction <= .25.
   A second, narrower allowance accepts distance <= .2 only with ratio >= 2.5
@@ -140,7 +147,7 @@ doesn't force a retry. No speculative next-word model or model switch was added.
 
 ## Verification
 
-177 unit/integration tests: 176 passed, one optional NumPy test skipped.
+182 unit/integration tests: 181 passed, one optional NumPy test skipped.
 New tests cover recovery, single blinks, ambiguous/early double blinks, expiry,
 changed content/contact, one-shot activation, four-position paging and ingest
 integration. HTTP/browser simulation passed, including one confirmed browser utterance with
@@ -168,3 +175,38 @@ Private report: recordings/blink-policy-review.json.
 Double-blink events now log confirmation_result: selected, no_pending_choice,
 return_to_center_first, early_blink, or uncertain_blink_match. No new live wearer
 result is claimed after this adjustment.
+
+## Recovery-blocking bug found in the next live session
+
+The wearer reported worse usability and double blinks still not selecting. The
+next session logged recognized, strongly matched double blinks rejected as
+return_to_center_first. Vertical blink masks repeatedly cleared the full quiet
+period, and the app started a further settling wait after the one-second return
+classifier had already buffered the return. The prior distance allowance did not
+address this interaction defect.
+
+GuidedEOGTest now retains the last two seconds of filtered frames and the
+opposite-return onset. Confirmation can arm from a contiguous ~250 ms settling
+interval after that return, independently of navigation recovery. Once armed,
+a blink's own vertical activity does not restart settling. Subsequent classified
+movement, uncertainty, faults, changed content and expiry still cancel it.
+Direction matching, its thresholds, profile and single-blink behavior are unchanged.
+
+Raw-only old/new replay of the first enabled interval in the latest recording
+produced two versus six activations, one versus five phrase confirmations, and
+16 versus six double blinks blocked waiting for return. UI actions are not in
+the replay and intended actions are unlabeled; these are behavior differences,
+not accuracy estimates or proof of correct activations. Private report:
+recordings/recovery-confirmation-review.json.
+
+A simulated communication replay of the three reviewed recordings produced
+unchanged selection counts: two in prepare intervals for session4, none in
+session5, two in double-blink cues for session6. Existing prepare selections are
+a false-confirmation risk and are not dismissed. Frozen all-data profile and
+reused data limit this check. Private report: recordings/confirmation-regression-review.json.
+
+The live diagnostic session also logged five clipping resets and thirteen
+rejected movements. These counts do not establish direction accuracy; rails and
+contact/movement artifacts can interrupt operation. No new wearer result is
+claimed for the recovery fix. Next checkpoint: one known reply, return, confirm
+with speech off, then natural blinks/no-choice checks.
