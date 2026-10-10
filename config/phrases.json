@@ -1,0 +1,38 @@
+{
+  "contacts": [
+    {"id": "alex", "name": "Alex", "relationship": "Family", "initials": "AL"},
+    {"id": "sam", "name": "Sam", "relationship": "Friend", "initials": "SA"},
+    {"id": "care", "name": "Care team", "relationship": "Support", "initials": "CT"}
+  ],
+  "phrases": [
+    {"id": "hello", "label": "Hello", "text": "Hi, it is good to see you."},
+    {"id": "thanks", "label": "Thanks", "text": "Thank you for being here with me."},
+    {"id": "listen", "label": "Listen", "text": "I have something I would like to tell you."},
+    {"id": "stay", "label": "Stay", "text": "Could you stay with me for a little while?"},
+    {"id": "love", "label": "Love", "text": "I love you."},
+    {"id": "day", "label": "Day", "text": "How has your day been?"},
+    {"id": "music", "label": "Music", "text": "Could we listen to some music?"},
+    {"id": "outside", "label": "Outside", "text": "I would like to spend some time outside."},
+    {"id": "quiet", "label": "Quiet", "text": "I would like some quiet time, please."},
+    {"id": "story", "label": "Story", "text": "Tell me something that made you smile today."},
+    {"id": "later", "label": "Later", "text": "Could we talk about this later?"},
+    {"id": "yes", "label": "Yes", "text": "Yes, that is what I mean."},
+    {"id": "no", "label": "No", "text": "No, that is not what I mean."},
+    {"id": "repeat", "label": "Repeat", "text": "Could you repeat that more slowly?"},
+    {"id": "moment", "label": "Moment", "text": "Give me a moment."}
+  ],
+  "needs": [
+    {"id": "water", "label": "Water", "text": "I would like some water, please."},
+    {"id": "help", "label": "Help", "text": "I need your help, please."},
+    {"id": "pain", "label": "Pain", "text": "I am uncomfortable. Please help me adjust."},
+    {"id": "rest", "label": "Rest", "text": "I would like to rest for a while."},
+    {"id": "toilet", "label": "Toilet", "text": "I need to use the bathroom, please."},
+    {"id": "food", "label": "Food", "text": "I would like something to eat."},
+    {"id": "warm", "label": "Warm", "text": "I feel cold. Could I have a blanket?"},
+    {"id": "cool", "label": "Cool", "text": "I feel too warm. Could you help me cool down?"},
+    {"id": "position", "label": "Move", "text": "Please help me change position."},
+    {"id": "light", "label": "Light", "text": "Could you adjust the lighting, please?"}
+  ],
+  "words": ["water", "please", "help", "hello", "thank", "thanks", "you", "yes", "no", "love", "need", "rest", "food", "feel", "cold", "warm", "family", "friend", "today", "tomorrow", "good", "morning", "music", "outside"],
+  "completions": ["I need some water, please.", "I would like to rest.", "Thank you for your help.", "I love you.", "Give me a moment."]
+}

@@ -26,3 +26,8 @@ python3 -m unittest discover -s tests -v
 The terminal CLI supports raw USB capture, replay and keyboard simulation.
 Calibration, seeded scenarios and temporal gates are implemented and tested
 with software fixtures. See [Signals and capture](docs/SIGNALS.md).
+
+## Phrase selection
+
+The authoritative eight-slot ring supports Needs, More, spelling and explicit
+confirmation. See [Interaction](docs/INTERACTION.md).
