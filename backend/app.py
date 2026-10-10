@@ -14,6 +14,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
+from .envfile import load_env
 from .calibration import Calibration, ExponentialSmoother
 from .classifier import ThresholdClassifier
 from .ring import RingState
@@ -30,6 +31,7 @@ MIN_SUGGEST_INTERVAL = 1.0
 
 class Application:
     def __init__(self, source="demo", calibration=None, sensor_actions=False):
+        load_env()
         self.lock = threading.RLock()
         self.speech_lock = threading.Lock()
         self.ring = RingState()
@@ -133,6 +135,7 @@ class Application:
             self.last_suggest = time.monotonic()
             with self.lock:
                 contact = next((c for c in self.ring.config["contacts"] if c["id"] == self.ring.contact), None)
+                context_revision = self.ring.revision
                 recent = [item["text"] for item in self.ring.history[:4]]
                 avoid = self.ring.shown + recent
                 examples = [p["text"] for p in self.ring.config["phrases"][:4]]
@@ -140,6 +143,8 @@ class Application:
                                             mime_type=payload.get("mime_type"), heard_text=heard_text,
                                             style_examples=examples)
             with self.lock:
+                if self.ring.revision != context_revision:
+                    raise SuggestionUnavailable("Conversation changed while replies were generated; request fresh suggestions")
                 self.ring.set_suggestions(result.suggestions, result.heard, "gemini")
                 return self.state()
         finally:
@@ -339,6 +344,7 @@ def make_handler(app):
 
 
 def main():
+    load_env()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)

@@ -138,6 +138,19 @@ class AppIntegrationTests(unittest.TestCase):
         selected = app.command(dict(action="select", event_id="pick"))
         self.assertEqual(selected["confirmed"], "Yes, tea would be lovely.")
 
+    def test_inflight_suggestions_do_not_override_new_context(self):
+        app = self.make_app()
+        other = app.ring.config["contacts"][1]["id"]
+        def change_context(*args):
+            app.command(dict(action="contact", value=other, event_id="during-generation"))
+            return reply(GOOD)
+        app.suggester.transport = change_context
+        with self.assertRaisesRegex(SuggestionUnavailable, "Conversation changed"):
+            app.suggest(dict(session_id=app.session_id, heard_text="hi"))
+        self.assertEqual(app.state()["contact"], other)
+        self.assertEqual(app.state()["suggestions_provider"], "curated-demo")
+        self.assertEqual(app.state()["selection_id"], 0)
+
     def test_clear_contact_change_and_session_check(self):
         app = self.make_app()
         app.suggest(dict(session_id=app.session_id, heard_text="hi"))
