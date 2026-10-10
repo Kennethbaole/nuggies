@@ -101,6 +101,16 @@ def main():
             assert app.ring.selection_id==1
             assert page.locator('.slot.selected').count()==0
             page.screenshot(path=str(output/'communication.png'),full_page=True)
+            # A recording protocol must be startable while eye control is on: it stops control first.
+            page.evaluate("document.querySelector('.signal-details').open=true")
+            page.select_option('#guided-protocol','vertical')
+            expect(page.locator('#guided-start')).to_be_enabled()
+            page.click('#guided-start')
+            expect(page.locator('#center-label')).to_have_text('GUIDED RECORDING',timeout=5000)
+            assert app.guided.mode=='vertical' and app.guided.status=='running' and not app.wheel_test
+            page.click('#guided-stop')
+            page.click('#wheel-test-toggle')
+            expect(page.locator('#wheel-test-toggle')).to_have_attribute('aria-pressed','true')
             stop.set();feeder.join(timeout=2)
             expect(page.locator('#wheel-test-status')).to_contain_text('Signal interrupted',timeout=5000)
             expect(page.locator('#eog-recenter')).to_be_disabled()
@@ -113,7 +123,7 @@ def main():
             browser.close()
         report=dict(ok=True,mode='HTTP/browser UI state simulation; not sensor accuracy',checks=[
             'opt-in','center progress','ready','retry reason','prominent status','readiness-aware cues','recenter','stale signal',
-            'homepage speed check','opt-in communication','four reachable positions','fixed detected-choice preview','explicit confirmation readiness','speech auto-enabled with communication','peripheral colour cues','confirmed browser speech once','diagnostic speech disabled','gaze highlighting absent','HUD rendering','diagnostic mode cannot confirm','no JS errors'])
+            'homepage speed check','opt-in communication','four reachable positions','fixed detected-choice preview','explicit confirmation readiness','speech auto-enabled with communication','peripheral colour cues','recording protocol startable from eye control','confirmed browser speech once','diagnostic speech disabled','gaze highlighting absent','HUD rendering','diagnostic mode cannot confirm','no JS errors'])
         (output/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report))
     finally:
         stop.set();feeder.join(timeout=2);server.shutdown();server.server_close();worker.join(timeout=2)

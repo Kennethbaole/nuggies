@@ -220,7 +220,17 @@ function render(next) {
   $('guided-start').disabled = guidedRunning || !state.recording || !state.connected || (diagnosticCheck
     ? !guidedEOG || !state.wheel_test || gaze?.phase !== 'ready' : state.sensor_actions);
   $('guided-stop').disabled = !guidedRunning;
+  $('guided-why').textContent = guidedRunning ? '' : !state.connected ? 'Start is off: the Nano is not connected.'
+    : !state.recording ? 'Start is off: recording has stopped. Restart the server to record again.'
+    : diagnosticCheck && (!state.wheel_test || gaze?.phase !== 'ready') ? 'This check needs eye control on and showing Ready. For up/down or left/right recordings, pick one of the recording tests instead.'
+    : !diagnosticCheck && state.wheel_test ? 'Starting this recording will switch eye control off first.' : '';
   $('guided-cue').textContent = guided.cue || 'Live recording required to start a guided test.';
+  if (guidedRunning && !state.wheel_test) {  // Acquisition cues must be readable from the wheel, not a side panel.
+    $('center-label').textContent = 'GUIDED RECORDING';
+    $('center-text').textContent = guided.cue;
+    $('center-footer').textContent = `${guided.remaining_s}s · step ${guided.step}/${guided.total_steps}`;
+    fitCenterText();
+  }
   $('guided-progress').textContent = guidedRunning ? `${guided.remaining_s}s · Step ${guided.step}/${guided.total_steps} · ${guided.trial_id}` : guided.status;
 
   $('signal-info').textContent = `${state.samples.length} recent samples · raw ADC counts${state.calibrated ? ' · calibration loaded' : ''}`;
@@ -416,7 +426,12 @@ signalWorkspace.addEventListener('toggle', () => {
   if (!signalWorkspace.open) setSignalExpanded(false);
 });
 
-$('guided-start').onclick = () => command('guided_start', $('guided-protocol').value);
+$('guided-start').onclick = () => {
+  const protocol = $('guided-protocol').value;
+  // Recording protocols are refused while eye control runs; stop it rather than leave a dead button.
+  if (!['diagnostic', 'speed'].includes(protocol) && state?.wheel_test) command('wheel_test', false);
+  command('guided_start', protocol);
+};
 $('guided-stop').onclick = () => command('guided_stop');
 
 $('record-stop').onclick = () => command('record_stop');

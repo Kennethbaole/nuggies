@@ -180,3 +180,4 @@ body[data-eog-cue=confirm]::after,body[data-eog-cue=confirm] .wheel-center{anima
 .eog-cue-legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin:0;padding:0;list-style:none;font-size:13px;color:var(--muted)}
 .eog-cue-legend li::before{content:"";display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:-1px;background:var(--dot)}
 .eog-cue-legend [data-cue=wait]{--dot:#e0a030}.eog-cue-legend [data-cue=ready]{--dot:#35d07f}.eog-cue-legend [data-cue=detected]{--dot:#4aa3ff}.eog-cue-legend [data-cue=confirm]{--dot:#d86bff}.eog-cue-legend [data-cue=retry]{--dot:#ff4d4f}.eog-cue-legend [data-cue=selected]{--dot:#fff}
+.guided-why{margin:10px 0 0;font-size:14px;color:var(--accent)}
