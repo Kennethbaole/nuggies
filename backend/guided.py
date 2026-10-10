@@ -3,11 +3,13 @@ import math
 import secrets
 
 
-def protocol():
+def protocol(mode="horizontal"):
+    if mode not in ("horizontal", "vertical"):
+        raise ValueError("Unknown guided protocol")
     steps = [(5, 'unlabeled', 'prepare', 'prepare', 'Get ready. Keep your head still and cables resting.')]
     steps.append((20, 'neutral', 'baseline', 'baseline', 'Look straight ahead. Blink naturally.'))
     for repeat in range(1, 6):
-        for direction in ('left', 'right'):
+        for direction in (('left', 'right') if mode == 'horizontal' else ('up', 'down')):
             trial = f'{direction}-{repeat}'
             steps.extend([(3, 'neutral', trial, 'prepare', 'Look at the center. Get ready.'),
                           (2, direction, trial, 'movement', f'Look {direction.upper()} now and hold.'),
@@ -17,6 +19,12 @@ def protocol():
         steps.extend([(3, 'neutral', trial, 'prepare', 'Look at the center. Get ready.'),
                       (2, 'blink', trial, 'movement', 'BLINK once naturally. Do not squeeze.'),
                       (3, 'neutral', trial, 'rest', 'Look at the center and rest.')])
+    if mode == 'vertical':
+        for repeat in range(1, 6):
+            trial = f'double-blink-{repeat}'
+            steps.extend([(3, 'neutral', trial, 'prepare', 'Look at the center. Get ready.'),
+                          (3, 'double_blink', trial, 'movement', 'BLINK TWICE naturally, about half a second apart.'),
+                          (4, 'neutral', trial, 'rest', 'Look at the center and rest.')])
     steps.append((20, 'neutral', 'final-baseline', 'baseline', 'Look straight ahead. Blink naturally.'))
     return steps
 
@@ -26,11 +34,14 @@ class GuidedTrial:
         self.started = None
         self.status = 'idle'
         self.run_id = ''
+        self.mode = 'horizontal'
         self.steps = protocol()
 
-    def start(self, now):
+    def start(self, now, mode="horizontal"):
         if self.status == 'running':
             raise ValueError('A guided test is already running')
+        steps = protocol(mode)
+        self.mode, self.steps = mode, steps
         self.started = now
         self.run_id = secrets.token_hex(8)
         self.status = 'running'
@@ -39,7 +50,7 @@ class GuidedTrial:
         self.status = 'stopped'
 
     def snapshot(self, now):
-        result = dict(status=self.status, run_id=self.run_id, label='unlabeled', trial_id='', phase='',
+        result = dict(status=self.status, run_id=self.run_id, protocol=self.mode, label='unlabeled', trial_id='', phase='',
                       cue='Start a guided test when ready.', remaining_s=0)
         if self.status != 'running':
             if self.status == 'complete': result['cue'] = 'Test complete. Recording continues until stopped.'

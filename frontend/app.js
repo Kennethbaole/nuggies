@@ -130,6 +130,8 @@ function render(next) {
   const guided = state.guided || {status: 'idle'};
   const guidedRunning = guided.status === 'running';
   $('trial-label').disabled = guidedRunning;
+  $('guided-protocol').disabled = guidedRunning;
+  if (guidedRunning) $('guided-protocol').value = guided.protocol;
   $('guided-start').disabled = guidedRunning || !state.recording || !state.connected || state.sensor_actions;
   $('guided-stop').disabled = !guidedRunning;
   $('guided-cue').textContent = guided.cue || 'Live recording required to start a guided test.';
@@ -289,7 +291,7 @@ signalWorkspace.addEventListener('toggle', () => {
   if (!signalWorkspace.open) setSignalExpanded(false);
 });
 
-$('guided-start').onclick = () => command('guided_start');
+$('guided-start').onclick = () => command('guided_start', $('guided-protocol').value);
 $('guided-stop').onclick = () => command('guided_stop');
 
 $('record-stop').onclick = () => command('record_stop');

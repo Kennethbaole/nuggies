@@ -122,14 +122,14 @@ class Application:
             elif action == "guided_start":
                 if self.source != "serial" or not self.recording or not self.connected or self.sensor_actions:
                     raise ValueError("Guided testing requires live recording with sensor navigation disabled")
-                self.guided.start(time.monotonic())
+                self.guided.start(time.monotonic(), payload.get("value") or "horizontal")
             elif action == "guided_stop":
                 self.guided.stop()
                 self.trial_label = "unlabeled"
             elif action == "label":
                 if self.guided.status == "running":
                     raise ValueError("Stop the guided test before labeling manually")
-                if payload.get("value") not in {"unlabeled", "neutral", "left", "right", "up", "down", "blink", "held_gaze"}:
+                if payload.get("value") not in {"unlabeled", "neutral", "left", "right", "up", "down", "blink", "double_blink", "held_gaze"}:
                     raise ValueError("Unknown trial label")
                 self.guided = GuidedTrial()
                 self.trial_label = payload["value"]

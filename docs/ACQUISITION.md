@@ -115,3 +115,39 @@ The recording indicator distinguishes monitoring-only from local recording.
 **Stop test** ends cues but keeps recording; **Stop recording** finalizes capture
 and ends cues while keeping the server and live trace available. Escape in the
 expanded workspace closes that view without navigating the phrase ring.
+
+## Vertical gaze versus blink comparison
+
+Choose **Up/down, single and double blinks** in the guided Test selector for a
+225-second protocol. It has initial/final 20-second baselines and five trials
+each of Up, Down, single Blink, and Double blink. Center returns have their own
+phase. Double-blink cues ask for two natural blinks about half a second apart.
+This records intended trials; no blink action or selection is enabled. Keep the
+page visible and allow an uncertain or mistimed run to be excluded during review.
+
+Compare local waveforms with:
+
+```sh
+python3 -m backend.vertical_features recordings/eog-trial.csv > recordings/vertical-features.json
+```
+
+This offline tool reports positive/negative peak sizes, negative-to-positive
+ratio, signed time between extrema, positive half-height width, positive peak
+candidates, horizontal-to-vertical amplitude ratio, and clipping. Guided windows
+include movement plus its return/rest; manual windows cover entire label blocks
+and can contain several events. A run ID distinguishes repeated protocols. Do
+not interpret extrema from different events as the rebound of one blink. Cues
+are not exact onset annotations. Features use a 100 ms causal moving mean and
+the median of the preceding second as baseline; this filtering changes measured
+widths and amplitude ratios and needs checking against raw waveforms.
+
+Hypothesis: gaze and recentering may yield a delayed, more balanced opposite
+lobe, whereas a blink may be shorter and asymmetric. This is a feature hypothesis,
+not a guaranteed distinction. Quick gaze returns, stronger blinks, drift, changes
+in electrode placement, and simultaneous gaze/blink activity can confound it.
+Natural single blinks must remain noncommands; a double-blink pattern also needs
+validation against ordinary successive blinks and vertical gaze before SELECT.
+No universal amplitude-ratio cutoff or double-blink classifier is implemented.
+Research measures blink amplitude, duration, and shape rather than relying only
+on amplitude: [BLINKER](https://pmc.ncbi.nlm.nih.gov/articles/PMC5289990/) and
+[blink-type comparison](https://pubmed.ncbi.nlm.nih.gov/10407913/).
