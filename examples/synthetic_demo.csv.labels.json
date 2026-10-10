@@ -1,0 +1,52 @@
+{
+  "scenario": "demo",
+  "seed": 0,
+  "fs": 250,
+  "labels": [
+    {
+      "time_s": 3.0,
+      "kind": "glance_right",
+      "expected": "NEXT"
+    },
+    {
+      "time_s": 5.0,
+      "kind": "glance_right",
+      "expected": "NEXT"
+    },
+    {
+      "time_s": 7.0,
+      "kind": "blink",
+      "expected": null
+    },
+    {
+      "time_s": 9.0,
+      "kind": "glance_left",
+      "expected": "PREV"
+    },
+    {
+      "time_s": 12.0,
+      "kind": "double_blink",
+      "expected": "SELECT"
+    },
+    {
+      "time_s": 16.0,
+      "kind": "glance_right",
+      "expected": "NEXT"
+    },
+    {
+      "time_s": 19.0,
+      "kind": "blink",
+      "expected": null
+    },
+    {
+      "time_s": 22.0,
+      "kind": "long_blink",
+      "expected": "BACK"
+    },
+    {
+      "time_s": 26.0,
+      "kind": "double_blink",
+      "expected": "SELECT"
+    }
+  ]
+}
