@@ -8,7 +8,7 @@ class DiagnosticLog:
         self.stream=open(path,'x',encoding='utf-8')
         self.last=None
         self.write(dict(kind='session',engine=detector.engine,profile_sha256=detector.profile.digest,settings=asdict(detector.config),
-                        note='Development diagnostic session; no automatic confirmation or speech.'))
+                        note='Development EOG session; confirmation requires explicit application communication mode.'))
 
     def write(self,value):
         self.stream.write(json.dumps(value,allow_nan=False)+'\n');self.stream.flush()
