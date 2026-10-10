@@ -65,7 +65,7 @@ class GuidedEOGTest:
     def fault(self, reason, *, origin="external"):
         if self.phase == 'signal_lost' and self.reason == reason:return
         self.reset(clear_events=False,cause='fault:'+reason,origin=origin);self.totals['faults']+=1
-        self.phase='signal_lost';self.reason=reason
+        self.phase='signal_lost';self.reason=reason;self.last_fault_reason=reason
         self.message='Signal interrupted. Check the connection, then look straight ahead to recenter.'
 
     def snapshot(self):

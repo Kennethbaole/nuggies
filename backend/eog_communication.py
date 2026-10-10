@@ -22,7 +22,10 @@ class EOGConfirmation:
         return (ring.screen, ring.contact, ring.selected, item['action'], item['value'], item['text'], item['enabled'])
 
     def focus(self, ring, sample):
-        self.target = (self.identity(ring), sample)
+        self.focus_choice(self.identity(ring),sample)
+
+    def focus_choice(self, identity, sample):
+        self.target = (identity, sample)
         self.ready_sample = None
         self.confirmation_quiet_since = None
         self.settle_after_sample = -1
@@ -51,6 +54,11 @@ class EOGConfirmation:
                 and event.get('horizontal_fraction',1)<=.15)
 
     def update(self, ring, detector, event=None):
+        selected=self.update_choice(self.identity(ring),ring.slots()[ring.selected]['label'],detector,event)
+        if selected:ring.action('select', 'eog-communication')
+        return selected
+
+    def update_choice(self, current_identity, label, detector, event=None):
         if self.pulse_mode and event and event.get('label')=='double_blink' and event.get('source')!='pulse_stream':
             event=None  # Legacy window labels cannot confirm while pulse mode is active.
         double = event and event.get('label') == 'double_blink' and event.get('reason') == 'blink'
@@ -64,7 +72,7 @@ class EOGConfirmation:
                 self.message = "Ready. Look at a choice, then return to center."
             return False
         identity, sample = self.target
-        if identity != self.identity(ring) or detector.raw_index - sample > 2500:
+        if identity != current_identity or detector.raw_index - sample > 2500:
             self.clear()
             self.message = 'Choice expired or changed. Look at a choice again.'
             return False
@@ -112,7 +120,7 @@ class EOGConfirmation:
         if self.ready_sample is None:
             self.ready_sample = detector.raw_index
         self.message = ('Blink unclear. Keep looking center and double blink again.' if self.retry_pending
-                        else f"Double blink to choose {ring.slots()[ring.selected]['label']}.")
+                        else f"Double blink to choose {label}.")
         if not event or event.get('label') != 'double_blink' or event.get('reason') != 'blink':
             return False
         event['confirmation_armed_sample']=self.ready_sample
@@ -128,6 +136,5 @@ class EOGConfirmation:
             return False
         event['confirmation_result']='selected'
         self.clear()  # Consume before dispatch: never repeat on the same choice.
-        ring.action('select', 'eog-communication')
         self.message = 'Selected. Look at another choice to continue.'
         return True

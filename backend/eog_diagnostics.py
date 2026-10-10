@@ -16,7 +16,7 @@ def code_identity():
     try:
         commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True,stderr=subprocess.DEVNULL,timeout=2).strip()
     except (OSError,subprocess.SubprocessError):commit='unknown'
-    files=('guided_eog.py','temporal_eog.py','eog_waveform.py','blink_shape.py','eog_communication.py','app.py','blink_stream.py')
+    files=('guided_eog.py','temporal_eog.py','eog_waveform.py','blink_shape.py','eog_communication.py','app.py','blink_stream.py','eog_pipeline.py')
     source=hashlib.sha256()
     for name in files:
         source.update(name.encode());source.update((root/'backend'/name).read_bytes())

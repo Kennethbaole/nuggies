@@ -22,6 +22,7 @@ from .live_wheel import LiveWheelTest
 from .guided_eog import GuidedConfig, GuidedEOGTest
 from .eog_diagnostics import DiagnosticLog
 from .eog_communication import EOGConfirmation
+from .eog_pipeline import EOGPipeline, SCHEMA_VERSION as EOG_SCHEMA_VERSION
 from .guided import GuidedTrial
 from .persona import (
     DEFAULT_ID, ContactBook, PersonaStore, build_persona, chat_text, save_persona, speaker_counts,
@@ -102,6 +103,8 @@ class Application:
         if eog_profile and (source not in ("serial","replay") or sensor_actions):
             raise ValueError("Guided EOG requires serial/replay input with calibrated actions disabled")
         self.wheel_detector = GuidedEOGTest(eog_profile,GuidedConfig(pulse_confirmation=eog_pulse_confirmation)) if eog_profile else LiveWheelTest()
+        self.eog_pipeline=EOGPipeline(self.wheel_detector.profile,self.wheel_detector.config,detector=self.wheel_detector,confirmation=self.eog_confirmation) if eog_profile else None
+        self.eog_events=deque(maxlen=64)
         self.wheel_test_selections = deque(maxlen=128)
 
     def _eog_boundary(self):
@@ -111,7 +114,11 @@ class Application:
 
     def _reset_eog(self,cause):
         self._eog_boundary()
-        if isinstance(self.wheel_detector,GuidedEOGTest):self.wheel_detector.reset(cause=cause)
+        if self.eog_pipeline:
+            self.eog_pipeline.input_index=self.received_samples-1
+            self.eog_pipeline.reset(cause)
+            self.eog_events.extend(self.eog_pipeline.pending_events);self.eog_pipeline.pending_events=[]
+        elif isinstance(self.wheel_detector,GuidedEOGTest):self.wheel_detector.reset(cause=cause)
         else:self.wheel_detector.reset()
         if self.eog_log:self.eog_log.record(self.wheel_detector,enabled=self.wheel_test)
 
@@ -121,11 +128,14 @@ class Application:
             age = None if self.last_received is None else round((time.monotonic() - self.last_received) * 1000)
             if self.wheel_test and isinstance(self.wheel_detector,GuidedEOGTest) and age is not None and age>=1000:
                 self._eog_boundary()
-                self.wheel_detector.fault("no_samples")
+                if self.eog_pipeline and self.wheel_detector.phase!='signal_lost':
+                    self.eog_pipeline.fault('no_samples')
+                    self.eog_events.extend(self.eog_pipeline.pending_events);self.eog_pipeline.pending_events=[]
+                else:self.wheel_detector.fault("no_samples")
                 self.eog_confirmation.clear()
                 if self.eog_log:self.eog_log.record(self.wheel_detector)
             timing=[x["cue_to_detection_ms"] for x in self.speed_attempts.values() if x.get("correct") and not x.get("early_candidate")]
-            data.update(eog_choice_pending=self.eog_confirmation.target is not None and self.eog_communication and self.wheel_test, eog_confirmation_ready=self.eog_confirmation.ready_sample is not None and self.wheel_detector.phase in ("ready","recovery") and self.eog_communication and self.wheel_test, eog_communication=self.eog_communication and self.wheel_test, eog_confirmation=self.eog_confirmation.message, pending_eog_check=self.pending_eog_check,speed_results=list(self.speed_attempts.values()),speed_median_ms=statistics.median(timing) if timing else None,eog_engine="waveform" if isinstance(self.wheel_detector,GuidedEOGTest) else "legacy", session_id=self.session_id, input_mode=self.source,
+            data.update(eog_schema_version=EOG_SCHEMA_VERSION,eog_events=list(self.eog_events),eog_choice_pending=self.eog_confirmation.target is not None and self.eog_communication and self.wheel_test, eog_confirmation_ready=self.eog_confirmation.ready_sample is not None and self.wheel_detector.phase in ("ready","recovery") and self.eog_communication and self.wheel_test, eog_communication=self.eog_communication and self.wheel_test, eog_confirmation=self.eog_confirmation.message, pending_eog_check=self.pending_eog_check,speed_results=list(self.speed_attempts.values()),speed_median_ms=statistics.median(timing) if timing else None,eog_engine="waveform" if isinstance(self.wheel_detector,GuidedEOGTest) else "legacy", session_id=self.session_id, input_mode=self.source,
                         connected=self.connected and (self.source == "demo" or age is not None and age < 2000),
                         last_sample_age_ms=age, input_error=self.error,
                         calibrated=self.calibration is not None,
@@ -393,13 +403,17 @@ class Application:
                                      units=sample.units, source=sample.source))
             if self.eog_log:self.eog_log.before_sample(self.wheel_detector,self.received_samples-1,sample.timestamp_ms,self.wheel_test)
             if self.wheel_test:
-                previous_blink = getattr(self.wheel_detector,"last_blink_result",None)
-                previous_event = self.wheel_detector.last_result if isinstance(self.wheel_detector,GuidedEOGTest) else None
-                if not isinstance(self.wheel_detector,GuidedEOGTest) and len(self.samples) > 1 and sample.timestamp_ms - self.samples[-2]["timestamp_ms"] > 500:
-                    self.wheel_detector.reset()
-                slot = (self.wheel_detector.process(sample.horizontal, sample.vertical,sample.timestamp_ms)
-                        if isinstance(self.wheel_detector,GuidedEOGTest) else
-                        self.wheel_detector.process(sample.horizontal, sample.vertical))
+                pipeline_result=None
+                if self.eog_pipeline:
+                    choices={i:dict(id=(self.ring.screen,self.ring.contact,i,item['action'],item['value'],item['text'],item['enabled']),label=item['label'],enabled=item['enabled']) for i,item in enumerate(self.ring.slots())}
+                    self.eog_pipeline.set_choices(choices,self.ring.selected)
+                    pipeline_result=self.eog_pipeline.process(sample.horizontal,sample.vertical,sample.timestamp_ms,
+                        sample_index=self.received_samples-1,communication=self.eog_communication)
+                    self.eog_events.extend(pipeline_result['events'])
+                    slot=next((e['slot'] for e in pipeline_result['events'] if e['type']=='gaze_accepted'),None)
+                else:
+                    if len(self.samples)>1 and sample.timestamp_ms-self.samples[-2]['timestamp_ms']>500:self.wheel_detector.reset()
+                    slot=self.wheel_detector.process(sample.horizontal,sample.vertical)
                 if self.pending_eog_check and self.wheel_detector.phase=="ready":
                     self.guided.start(time.monotonic(),self.pending_eog_check);self.pending_eog_check=None
                 if self.guided.mode=="speed" and self.guided.status=="running":
@@ -415,22 +429,15 @@ class Application:
                             result.update(detected=event["label"],correct=event["label"]==cue["label"],cue_to_detection_ms=elapsed,candidate_to_detection_ms=window,early_candidate=elapsed<window)
                             event.update(speed_trial=cue["trial_id"],cue_to_detection_ms=elapsed,candidate_to_detection_ms=window,early_candidate=elapsed<window)
                 if slot is not None:
-                    if self.eog_communication:self.eog_confirmation.clear()
                     self.ring.action("focus", "eog-communication" if self.eog_communication else "eye-wheel-test", slot)
-                    if self.eog_communication and self.ring.selected == slot and self.ring.slots()[slot]["enabled"]:
-                        self.eog_confirmation.focus(self.ring,self.wheel_detector.raw_index)
-                if self.eog_communication:
-                    event=self.wheel_detector.last_result
-                    new_event=event if event is not previous_event else None
-                    if self.eog_confirmation.update(self.ring,self.wheel_detector,new_event) and event is not None:
-                        event['communication_selected']=True
-                        event['selection_id']=self.ring.selection_id
-                    pulse=getattr(self.wheel_detector,'last_blink_result',None)
-                    if pulse is not None and pulse is not previous_blink:
-                        if self.eog_confirmation.update(self.ring,self.wheel_detector,pulse):
-                            pulse['communication_selected']=True
-                            pulse['selection_id']=self.ring.selection_id
-                        if self.eog_log:self.eog_log.notice(self.wheel_detector,dict(kind='confirmation',event=dict(pulse)))
+                if pipeline_result and self.eog_communication:
+                    for event in pipeline_result['events']:
+                        if event['type']=='selection':
+                            self.ring.action('select','eog-communication')
+                            event['selection_id']=self.ring.selection_id
+                    if self.eog_log:
+                        self.eog_log.write(dict(kind='pipeline',sample_index=self.received_samples-1,
+                            state=pipeline_result['state'],events=pipeline_result['events'])) if pipeline_result['events'] else None
                 if self.guided.mode in ("diagnostic","speed") and self.guided.status=="running":
                     now=time.monotonic();cue=self.guided.snapshot(now)
                     self.guided.pause(now,cue["phase"]=="prepare" and self.wheel_detector.phase!="ready")
