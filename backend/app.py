@@ -67,6 +67,7 @@ class Application:
         self.trial_label = "unlabeled"
         self.guided = GuidedTrial()
         self.recording = False
+        self.record_stop = threading.Event()
 
     def state(self):
         with self.lock:
@@ -111,6 +112,13 @@ class Application:
                     self.ring.revision += 1
             elif action == "suggestions_clear":
                 self.ring.clear_suggestions()
+            elif action == "record_stop":
+                if not self.recording:
+                    raise ValueError("No recording is active")
+                self.record_stop.set()
+                self.recording = False
+                self.guided.stop()
+                self.trial_label = "unlabeled"
             elif action == "guided_start":
                 if self.source != "serial" or not self.recording or not self.connected or self.sensor_actions:
                     raise ValueError("Guided testing requires live recording with sensor navigation disabled")
@@ -229,7 +237,8 @@ class Application:
                         raise ValueError("Recording or label file already exists; choose a new name")
                 connection = stack.enter_context(serial.Serial(port, 115200, timeout=0.5, exclusive=True))
                 source = SerialADCSource(connection)
-                recorder = ADCRecorder(stack.enter_context(open(record_path, "x", newline=""))) if record_path else None
+                raw_stream = stack.enter_context(open(record_path, "x", newline="")) if record_path else None
+                recorder = ADCRecorder(raw_stream) if raw_stream else None
                 if recorder:
                     label_stream = stack.enter_context(open(label_path, "x", newline=""))
                     label_writer = csv.writer(label_stream)
@@ -241,6 +250,11 @@ class Application:
                         self.recording = True
                 while not self.stop.is_set():
                     sample = source.read_sample()
+                    if recorder and self.record_stop.is_set():
+                        raw_stream.close()
+                        label_stream.close()
+                        trial_stream.close()
+                        recorder = None
                     if recorder:
                         recorder.write(sample)
                         with self.lock:

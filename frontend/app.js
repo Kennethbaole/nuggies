@@ -125,6 +125,8 @@ function render(next) {
   $('phone-live').textContent = state.connected ? '● Connected' : '○ Input paused';
   $('input-error').textContent = state.input_error;
   $('trial-label').value = state.trial_label || 'unlabeled';
+  $('recording-status').textContent = state.recording ? 'Recording locally' : 'Monitoring only · not recording';
+  $('record-stop').disabled = !state.recording;
   const guided = state.guided || {status: 'idle'};
   const guidedRunning = guided.status === 'running';
   $('trial-label').disabled = guidedRunning;
@@ -254,6 +256,7 @@ $('audio-toggle').onclick = () => {
 $('token-submit').onclick = () => { token = $('token-input').value; sessionStorage.setItem('nuggies-token', token); setTimeout(poll, 0); };
 document.addEventListener('keydown', event => {
   if (isHUD || event.repeat || $('token-dialog').open || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
+  if (event.key === 'Escape' && document.querySelector('.signal-details').classList.contains('signal-expanded')) return;
   const actions = {ArrowLeft: 'left', a: 'left', ArrowRight: 'right', d: 'right', ' ': 'select', Enter: 'select', b: 'blink', Escape: 'back'};
   const action = actions[event.key] || actions[event.key.toLowerCase()];
   if (action) { event.preventDefault(); command(action); }
@@ -288,3 +291,5 @@ signalWorkspace.addEventListener('toggle', () => {
 
 $('guided-start').onclick = () => command('guided_start');
 $('guided-stop').onclick = () => command('guided_stop');
+
+$('record-stop').onclick = () => command('record_stop');

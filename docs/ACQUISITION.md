@@ -35,7 +35,10 @@ mkdir -p recordings
 Use the actual serial port. Recording starts immediately and refuses to overwrite
 existing files. Open Signal workspace and select a Trial label before each block.
 The raw CSV and companion `.labels.csv` stay in the Git-ignored recordings folder.
-Leave sensor actions disabled during acquisition. Stop with Ctrl-C.
+Leave sensor actions disabled during acquisition. Choose **Stop recording · keep monitor open** to close the recording files
+while keeping the live webpage and serial monitor running. Ctrl-C shuts down the
+whole server and makes the webpage unavailable. A new recording currently requires
+restarting acquisition with a new `--record` filename.
 
 For an initial single-Pill session, connect OUT to A0 and ignore the floating A1
 channel. Record 15 seconds of Neutral, then five Left trials and five Right trials
@@ -107,3 +110,8 @@ artifacts are rejected by timing, but slower artifacts can mimic the required
 pattern. Ordinary blinks are not SELECT commands in this prototype. The live app
 continues to use its existing classifier and remains monitoring-only unless
 explicitly configured otherwise; this prototype is not wired to live controls.
+
+The recording indicator distinguishes monitoring-only from local recording.
+**Stop test** ends cues but keeps recording; **Stop recording** finalizes capture
+and ends cues while keeping the server and live trace available. Escape in the
+expanded workspace closes that view without navigating the phrase ring.

@@ -4,15 +4,16 @@ import argparse
 import json
 from pathlib import Path
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default="http://127.0.0.1:8765")
     parser.add_argument("--chrome", help="Optional installed Chromium/Chrome executable")
+    parser.add_argument("--output", default="artifacts", help="Screenshot output directory")
     args = parser.parse_args()
-    output = Path("artifacts")
+    output = Path(args.output)
     output.mkdir(exist_ok=True)
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True, executable_path=args.chrome)
@@ -27,45 +28,52 @@ def main():
         page.goto(args.url)
         page.wait_for_selector('.slot[data-slot="0"]:not([disabled])')
         page.click("#reset")
-        page.wait_for_function("() => document.querySelector('#screen-name').textContent === 'CONVERSATION'")
+        expect(page.locator("#screen-name")).to_have_text("CONVERSATION")
         page.click(".signal-details summary")
+        page.click("#expand-signal")
+        expect(page.locator("#expand-signal")).to_have_attribute("aria-pressed", "true")
+        assert page.locator("#trace").bounding_box()["width"] > 1200
+        page.keyboard.press("Escape")
+        expect(page.locator("#expand-signal")).to_have_attribute("aria-pressed", "false")
+        expect(page.locator("#screen-name")).to_have_text("CONVERSATION")
         page.select_option("#trial-label", "left")
-        page.wait_for_function("() => document.querySelector('#trial-label').value === 'left'")
+        expect(page.locator("#trial-label")).to_have_value("left")
         page.click(".signal-details summary")
         page.keyboard.press("ArrowRight")
-        page.wait_for_function("() => document.querySelector('[data-slot=\"1\"]').getAttribute('aria-pressed') === 'true'")
+        expect(page.locator('[data-slot="1"]')).to_have_attribute("aria-pressed", "true")
         page.keyboard.press("Space")
-        page.wait_for_function("() => document.querySelector('#center-text').textContent === 'Thank you for being here with me.'")
+        expect(page.locator("#center-text")).to_have_text("Thank you for being here with me.")
         assert page.locator("#phone-text").inner_text() == page.locator("#center-text").inner_text()
         hud = context.new_page(); hud.goto(args.url + "/hud")
-        hud.wait_for_function("() => document.querySelector('#hud-status').textContent.includes('Connected')")
+        expect(hud.locator("#hud-status")).to_contain_text("Connected")
         assert hud.locator("#hud-only").is_visible()
         # More changes the five phrases without rotating the ring geometry.
         positions = page.locator(".slot").evaluate_all("nodes => nodes.map(n => [n.style.left,n.style.top])")
         page.click('[data-slot="6"]'); page.keyboard.press("Space")
-        page.wait_for_function("() => document.querySelector('[data-slot=\"0\"]').textContent === 'Day'")
+        expect(page.locator('[data-slot="0"]')).to_have_text("Day")
         assert positions == page.locator(".slot").evaluate_all("nodes => nodes.map(n => [n.style.left,n.style.top])")
         page.click('[data-slot="7"]'); page.keyboard.press("Space")
-        page.wait_for_function("() => document.querySelector('#screen-name').textContent === 'SPELL YOUR WORDS'")
+        expect(page.locator("#screen-name")).to_have_text("SPELL YOUR WORDS")
         page.click('[data-slot="0"]'); page.keyboard.press("Space")
-        page.wait_for_function("() => document.querySelector('[data-slot=\"0\"]').textContent === 'A–G'")
+        expect(page.locator('[data-slot="0"]')).to_have_text("A–G")
         page.keyboard.press("Escape")
-        page.wait_for_function("() => document.querySelector('[data-slot=\"0\"]').textContent === 'A–M'")
+        expect(page.locator('[data-slot="0"]')).to_have_text("A–M")
         page.keyboard.press("Escape")
-        page.wait_for_function("() => document.querySelector('#screen-name').textContent === 'CONVERSATION'")
+        expect(page.locator("#screen-name")).to_have_text("CONVERSATION")
         page.keyboard.press("Escape")
-        page.wait_for_function("() => document.querySelector('#screen-name').textContent === 'EVERYDAY NEEDS'")
+        expect(page.locator("#screen-name")).to_have_text("EVERYDAY NEEDS")
         assert page.locator("#center-text").inner_text() == "Give me a moment."
         page.click("#audio-toggle")
         page.click('[data-slot="0"]'); page.keyboard.press("Space")
-        page.wait_for_function("() => window.__spoken.length === 1")
+        page.wait_for_timeout(500)
+        assert page.evaluate("window.__spoken.length") == 1
         assert page.evaluate("window.__spoken[0]") == "I would like some water, please."
         page.keyboard.press("ArrowRight"); page.wait_for_timeout(350)
         assert page.evaluate("window.__spoken.length") == 1, "Highlight must not speak"
         page.click("#audio-toggle")
         page.click("#reset"); page.wait_for_timeout(350)
         page.click('[data-slot="3"]'); page.keyboard.press("Space")
-        page.wait_for_function("() => document.querySelector('#center-text').textContent === 'Could you stay with me for a little while?'")
+        expect(page.locator("#center-text")).to_have_text("Could you stay with me for a little while?")
         page.wait_for_timeout(300)
         page.screenshot(path=str(output / "companion-desktop.png"), full_page=True)
         hud.wait_for_timeout(350)

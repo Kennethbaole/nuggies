@@ -164,3 +164,31 @@ class SpeechTests(unittest.TestCase):
                 with self.assertRaises(SpeechUnavailable):
                     speech.synthesize("Hello")
                 remote.assert_not_called()
+
+class RecordingLifecycleTests(unittest.TestCase):
+    def test_stop_recording_keeps_acquisition_and_sidecars_aligned(self):
+        import csv
+        from pathlib import Path
+        from backend.serial_input import ADCSample
+        app = Application(source='serial')
+        reads = 0
+        def read_sample():
+            nonlocal reads
+            reads += 1
+            if reads == 2:
+                app.command(dict(action='record_stop', event_id='stop-capture'))
+            if reads == 3: app.stop.set()
+            return ADCSample(8000 + reads, 8100, reads)
+        with tempfile.TemporaryDirectory() as directory, patch('serial.Serial'), patch('backend.serial_input.SerialADCSource') as source:
+            source.return_value.read_sample.side_effect = read_sample
+            output = Path(directory)/'capture.csv'
+            app.run_serial('fake-port', output)
+            with output.open() as f: raw = list(csv.DictReader(f))
+            for suffix in ('.labels.csv', '.trials.csv'):
+                with output.with_suffix(suffix).open() as f: rows = list(csv.DictReader(f))
+                self.assertEqual(len(rows), len(raw))
+            self.assertEqual(len(raw), 1)
+            self.assertEqual(len(app.samples), 3)
+            self.assertFalse(app.recording)
+            self.assertTrue(app.connected)
+            self.assertEqual(app.error, '')
