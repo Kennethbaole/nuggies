@@ -52,3 +52,9 @@ See [Application and labeled capture](docs/APPLICATION.md).
 Live EOG, biological blink detection, physical optics and target-device operation
 remain unverified. AI suggestions, microphone recording, automatic .env loading
 and Jetson provisioning are not implemented. The terminal tools require macOS/Linux.
+
+## Validation and next milestones
+
+38 unit/API tests and 13 browser acceptance checks pass on macOS.
+See [Validation](docs/VALIDATION.md) for commands, evidence limits and the
+next hardware milestones. Optional container packaging is supplied but untested.

@@ -28,7 +28,7 @@ def read_manifest(path):
 
 
 def multipart(name, files):
-    boundary = "still-" + secrets.token_hex(16)
+    boundary = "nuggies-" + secrets.token_hex(16)
     parts = [f'--{boundary}\r\nContent-Disposition: form-data; name="name"\r\n\r\n{name}\r\n'.encode()]
     for file in files:
         # Safe generated upload filenames avoid header injection from local names.

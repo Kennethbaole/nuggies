@@ -1,0 +1,9 @@
+*
+!Dockerfile
+!requirements.txt
+!backend/
+!backend/*.py
+!frontend/
+!frontend/**
+!config/
+!config/phrases.json
