@@ -1,21 +1,15 @@
 """Keyboard direction simulator; uses only the Python standard library."""
 
 import os
+import select
 import sys
+import termios
 import time
+import tty
 from contextlib import contextmanager
 from typing import Iterator, TextIO
 
 from .models import Direction, DirectionEvent, EOGSample
-
-try:  # macOS / Linux
-    import select
-    import termios
-    import tty
-    msvcrt = None
-except ImportError:  # Windows has no termios; use the console API instead.
-    import msvcrt
-    select = termios = tty = None
 
 
 KEY_DIRECTIONS = {
@@ -62,18 +56,11 @@ def simulate_sample(key: str) -> EOGSample | None:
     return EOGSample(horizontal, vertical, time.time_ns() // 1_000_000)
 
 
-# Windows console arrow keys arrive as a prefix character plus a scan code.
-WINDOWS_ARROWS = {"H": "\x1b[A", "P": "\x1b[B", "M": "\x1b[C", "K": "\x1b[D"}
-
-
 @contextmanager
 def keyboard_input(stream: TextIO = sys.stdin) -> Iterator[TextIO]:
-    """Enable immediate input and always restore the terminal."""
+    """Enable immediate input on macOS/Linux and always restore the terminal."""
     if not stream.isatty():
         raise ValueError("Run the simulator in an interactive terminal.")
-    if msvcrt is not None:
-        yield stream  # msvcrt.getwch() already reads one key without Enter.
-        return
     descriptor = stream.fileno()
     previous = termios.tcgetattr(descriptor)
     try:
@@ -94,11 +81,6 @@ class KeyboardDirectionSource:
         self.stream = stream
 
     def _read_key(self) -> str:
-        if msvcrt is not None:
-            key = msvcrt.getwch()
-            if key in ("\x00", "\xe0"):
-                return WINDOWS_ARROWS.get(msvcrt.getwch(), "")
-            return "\x04" if key == "\x03" else key  # Ctrl-C closes like Ctrl-D
         descriptor = self.stream.fileno()
         key = os.read(descriptor, 1).decode("ascii", errors="replace")
         if key == "\x1b":

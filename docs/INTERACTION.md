@@ -15,5 +15,5 @@ Space, Delete and Speak. Drafts are bounded to 280 characters. Back rewinds a
 letter group before leaving spelling. Speak confirms the draft. Confirmed text
 has a monotonically increasing selection ID and bounded history.
 
-The ring can accept validated suggestion previews without confirming them.
-Provider integration and the visual interface are separate components.
+The ring currently uses curated phrases. Live suggestion providers are not
+implemented. The visual interface is a separate component.

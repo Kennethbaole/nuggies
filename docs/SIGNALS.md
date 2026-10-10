@@ -18,7 +18,7 @@ python3 -m backend.main --replay examples/nano_r4_bench.csv --realtime
 Replace PORT with the discovered device and close Serial Monitor. Use a new
 filename for each capture; existing recordings are never replaced. CLI capture
 is raw-only and has no label UI. Keep an accompanying private setup/trial note.
-An interactive terminal can run `python3 -m backend.main` for keyboard-generated
+On macOS/Linux, an interactive terminal can run `python3 -m backend.main` for keyboard-generated
 samples; these exercise classification and do not represent biological signals.
 
 ## Reproducible signal fixtures
