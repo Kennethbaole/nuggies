@@ -180,7 +180,7 @@ Before body-connected acquisition, follow the setup/electrode/power verification
 
 Positive A0 assumes right; positive A1 assumes up. The hover latches until an opposite projection below -1000 counts lasts ten samples, or 2000 samples pass (eight seconds at 250 Hz). Release requires 100 quiet samples below 600 counts, followed by a reset/warmup. Clipping resets it. The app also resets it when a received sample gap exceeds 500 ms.
 
-The companion underlines active gaze feedback. The ring's keyboard focus can remain at the last enabled slot after hover clears. Browser/Pillow HUD renderers use `selected` and do not implement the companion's separate hover styling. A hover aimed at a disabled slot can differ from the ring's retained selection.
+Gaze visualization was subsequently removed; the companion exposes detector status/readouts. The ring's keyboard focus can remain at the last enabled slot after hover clears. Browser/Pillow HUD renderers use `selected` and do not implement the companion's separate hover styling. A hover aimed at a disabled slot can differ from the ring's retained selection.
 
 The last specific live result was inaccurate directional correspondence, including a repeated center/left trial. Plausible causes include polarity, channel gain differences, baseline drift, onset timing, return pulses and blinks. The repository has not isolated a cause. AC-coupled pulses are not a measurement of continuous absolute gaze position.
 
@@ -573,3 +573,17 @@ suppression and uncertain-event rejection improved development replay to 16/20,
 These reused-data results remain development evidence, not independent validation.
 No new detector is connected to Application or confirmation. G03 remains open.
 See forthcoming continuous experiment guide for refinements and reproducibility.
+
+### Continuous experiment refinement and final branch handoff
+
+Compared twelve continuous variants and an alternative onset alignment using
+existing recordings only. Default waveform/rejection:16/20 correct movements,
+0 wrong directions during movements,0 duplicate correct events,6 false directions
+over275s negative exposure; median cue-to-emission1.51s. Small LSTM:15/20 with
+16false; three-layer recurrent model:14/20 with23false. These are reused-data
+development comparisons, not independent validation. New explicit candidate
+profile/replay CLI runs without labels; verified on68873rawsamples.149tests pass.
+No app/serial/confirmation integration changed; G03 remains open. Next inspect
+missed and false candidates, then opt-in diagnostic integration. Full methods,
+commands, results and limits: [Continuous EOG experiments](docs/EOG_CONTINUOUS_EXPERIMENT.md).
+Gaze highlighting remains removed. No further blanket acquisition requested.

@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import statistics
 
-from backend.temporal_eog import CausalFilter, DecisionPolicy, EventSegmenter, SegmentConfig
+from backend.temporal_eog import CausalFilter, DecisionPolicy, EventSegmenter, PairedDirectionDetector, SegmentConfig
 from backend.live_wheel import LiveWheelTest
 from scripts.eog_experiment import load_trials, trial_fold
 
@@ -47,7 +47,7 @@ def features(x):
                            np.mean(x[:len(x)//2],axis=0)-np.mean(x[len(x)//2:],axis=0)])
 
 
-def training_segments(trials,streams,fold,capture):
+def training_segments(trials,streams,fold,capture,alignment="activity"):
     import numpy as np
     examples=[]
     for t in trials:
@@ -57,7 +57,8 @@ def training_segments(trials,streams,fold,capture):
         end=min(a+100,len(s['frames'])) # first 2s of instructed movement; no return used to find onset
         block=s['frames'][a:end]
         # Training alignment: earliest sizeable movement, relative to each trial peak.
-        magnitude=np.max(abs(block),axis=1)
+        axis,sign={'left':(0,-1),'right':(0,1),'up':(1,1),'down':(1,-1)}.get(t['label'],(1,1))
+        magnitude=np.maximum(block[:,axis]*sign,0) if alignment=="signed" else np.max(abs(block),axis=1)
         hits=np.flatnonzero(magnitude>=max(300,float(magnitude.max())*.35))
         onset=a+(int(hits[0]) if len(hits) else int(magnitude.argmax()))
         begin=max(0,onset-4);window=s['frames'][begin:begin+capture]
@@ -65,9 +66,9 @@ def training_segments(trials,streams,fold,capture):
     return examples
 
 
-def fit(trials,streams,fold,capture):
+def fit(trials,streams,fold,capture,alignment="activity"):
     import numpy as np
-    examples=training_segments(trials,streams,fold,capture)
+    examples=training_segments(trials,streams,fold,capture,alignment)
     labels=[label for label,_ in examples];waves=np.stack([x for _,x in examples])
     scale=np.maximum(np.percentile(abs(waves),95,axis=(0,1)),100)
     waves=np.clip(waves/scale,-2,2)
@@ -75,9 +76,42 @@ def fit(trials,streams,fold,capture):
     return dict(labels=labels,waves=waves,scale=scale,features=f/fscale,fscale=fscale)
 
 
+def fit_recurrent(model, paper=False):
+    import numpy as np
+    import torch
+    from torch import nn
+    torch.set_num_threads(2);torch.manual_seed(37)
+    labels=sorted(set(model['labels']))
+    class Network(nn.Module):
+        def __init__(self):
+            super().__init__()
+            width=128 if paper else 32
+            self.rnn=nn.LSTM(2,width,num_layers=3 if paper else 1,
+                             dropout=.3 if paper else 0,batch_first=True)
+            self.head=nn.Linear(width*2,len(labels))
+        def forward(self,x):
+            y,_=self.rnn(x)
+            return self.head(torch.cat((y.mean(1),y.max(1).values),1))
+    net=Network();optimizer=torch.optim.Adam(net.parameters(),lr=.003)
+    x=torch.tensor(np.asarray(model['waves']),dtype=torch.float32)
+    y=torch.tensor([labels.index(l) for l in model['labels']])
+    for epoch in range(100):
+        net.train();optimizer.zero_grad()
+        loss=nn.functional.cross_entropy(net(x),y);loss.backward()
+        nn.utils.clip_grad_norm_(net.parameters(),1);optimizer.step()
+    net.eval();model['network']=net;model['network_labels']=labels
+    return model
+
+
 def classify(window,model,method):
     import numpy as np
     x=np.clip(np.asarray(window)/model['scale'],-2,2)
+    if method.startswith('lstm'):
+        import torch
+        with torch.no_grad():
+            probs=model['network'](torch.tensor(x[None],dtype=torch.float32)).softmax(-1)[0].numpy()
+        best=int(probs.argmax());label=model['network_labels'][best]
+        return label,float(1-probs[best]),float(probs[best]/max(sum(p for p,l in zip(probs,model['network_labels']) if l in ('blink','double_blink')),1e-9))
     if method=='features':
         distance=np.square(model['features']-features(x)/model['fscale']).mean(axis=1)
     else:
@@ -135,23 +169,36 @@ def score(events,rows,entry,fold,fs=250):
                 false_directions=false,negative_seconds=exposure,latencies=latencies)
 
 
-def run(manifest,output):
+def run(manifest,output,alignment="activity",selected=None):
     import numpy as np
     entries=json.loads(Path(manifest).read_text());trials=load_trials(manifest)
     streams=read_streams(manifest)
     # Predeclared development variants. All results remain exploratory, not a new held-out test.
-    variants=[('current',None,None)]
+    variants=[('current',None,None),('paired-0.7','paired',.7),('paired-1.0','paired',1.0)]
     for method in ('waveform','features'):
         for capture in (.6,1.0):variants.append((f'{method}-{capture}',method,capture))
-    variants += [('waveform-policy','waveform',1.0),('waveform-reject','waveform',1.0),('features-policy','features',1.0)]
+    variants += [('waveform-policy','waveform',1.0),('waveform-reject','waveform',1.0),('features-policy','features',1.0),('lstm-small-policy','lstm-small',1.0),('lstm-paper-policy','lstm-paper',1.0)]
+    if selected:
+        names=set(selected)
+        if names-{v[0] for v in variants}:raise ValueError('Unknown variant')
+        variants=[v for v in variants if v[0] in names]
     reports={}
     for name,method,duration in variants:
         scores=[];outputs=[]
         for fold in range(1,6):
-            model=fit(trials,streams,fold,round(duration*50)) if method else None
+            model=fit(trials,streams,fold,round(duration*50),alignment) if method and method!='paired' else None
+            if method and method.startswith('lstm'):model=fit_recurrent(model,paper=method=='lstm-paper')
             for entry in entries:
                 s=streams[entry['recording']]
                 if not method:events=s['old_events']
+                elif method=='paired':
+                    detector=PairedDirectionDetector(min_return_s=duration);events=[]
+                    for i,(h,v) in enumerate(s['frames']):
+                        if i in s['resets']:detector.reset()
+                        event=detector.process(h,v)
+                        if event:
+                            delta=event['emitted']-event['onset']
+                            events.append(dict(onset=int(s['indices'][max(0,i-delta)]),emitted=int(s['indices'][i]),label=event['label']))
                 else:
                     detector=EventSegmenter(SegmentConfig(capture_s=duration));events=[];policy=DecisionPolicy(reject=name.endswith('reject'))
                     for i,(h,v) in enumerate(s['frames']):
@@ -160,6 +207,7 @@ def run(manifest,output):
                         if segment:
                             label,distance,margin=classify(segment['samples'],model,method)
                             if name.endswith(('policy','reject')):
+                                if method.startswith('lstm') and label in DIRECTIONS and distance>.4:label='unknown'
                                 label,cooldown=policy.apply(label,distance,margin,i)
                                 detector.ready_at=detector.index+cooldown
                             # Segment indices are local to resets; map using current emission position.
@@ -179,11 +227,20 @@ def run(manifest,output):
                 'Cue-to-emit includes user reaction; true physiological onset is not annotated.',
                 'Blink classes suppress directions; double-blink confirmation is not evaluated.',
                 '250 Hz nominal raw rate; clipping/gaps reset candidates.'],
-                config=asdict(SegmentConfig()),runtime=dict(numpy=np.__version__))
+                alignment=alignment,recurrent_seed=37,recurrent_epochs=100,config=asdict(SegmentConfig()),runtime=dict(numpy=np.__version__))
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
     (output/'report.json').write_text(json.dumps(report,indent=2))
+    # Deployment candidate fitted on all reviewed examples, never used for fold scoring.
+    candidate=fit(trials,streams,0,50,alignment)
+    profile=dict(version=1,alignment=alignment,labels=candidate['labels'],
+                 waves=candidate['waves'].tolist(),scale=candidate['scale'].tolist(),
+                 capture_s=1.0,threshold_h=800,threshold_v=800,reject=True,
+                 note='All-data development candidate; replay only, not independently validated.')
+    (output/'candidate-profile.json').write_text(json.dumps(profile))
     return report
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--manifest',required=True);p.add_argument('--output',required=True)
-    args=p.parse_args();run(args.manifest,args.output)
+    p.add_argument('--alignment',choices=('activity','signed'),default='activity')
+    p.add_argument('--variants',nargs='+',help='Optional subset of named variants')
+    args=p.parse_args();run(args.manifest,args.output,args.alignment,args.variants)

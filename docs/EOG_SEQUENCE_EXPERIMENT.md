@@ -117,3 +117,10 @@ candidates during rest/blinks. Then shorten decision latency and add uncertainty
 rejection. Keep model development and comparisons offline until that replay is
 useful. Request a targeted fresh sensor check only after a measured improvement,
 or to answer a specific gap the existing recordings cannot answer.
+
+## Continuous follow-up
+
+The next step is now implemented on `experiment/eog-continuous-detection`.
+See [Continuous experiments](EOG_CONTINUOUS_EXPERIMENT.md). Continuous results
+are lower than cue-aligned window accuracy and expose segmentation/recovery
+failures; do not present the earlier41/45window score as live navigation accuracy.

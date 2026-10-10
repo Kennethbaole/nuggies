@@ -34,3 +34,27 @@ class TemporalEOGTests(unittest.TestCase):
         self.assertLess(p.apply('blink',.001,3,410)[1],p.apply('left',.001,3,420)[1])
         p.reset()
         self.assertEqual(p.apply('left',.001,3,421)[0],'left')
+
+    def test_paired_direction_requires_return_and_rejects_fast_blink(self):
+        from backend.temporal_eog import PairedDirectionDetector
+        for pause,expected in [(50,['up']),(0,[])]:
+            d=PairedDirectionDetector();events=[]
+            for n,v in [(60,0),(10,1500),(pause,0),(10,-1500),(30,0)]:
+                for _ in range(n):
+                    event=d.process(0,v)
+                    if event:events.append(event['label'])
+            self.assertEqual(events,expected)
+
+    def test_continuous_scoring_counts_returns_and_excludes_other_folds(self):
+        from scripts.eog_stream_experiment import score
+        rows=[]
+        def add(n,trial,phase,label):
+            rows.extend(dict(run_id='valid',trial_id=trial,phase=phase,intended_label=label) for _ in range(n))
+        add(6,'baseline','baseline','neutral')
+        add(3,'up-1','prepare','neutral');add(2,'up-1','movement','up');add(4,'up-1','return','neutral')
+        add(3,'blink-1','prepare','neutral');add(2,'blink-1','movement','blink');add(3,'blink-1','rest','neutral')
+        add(2,'up-2','movement','up')
+        events=[dict(onset=i,emitted=i+1,label=l) for i,l in [(9,'up'),(9,'down'),(10,'up'),(12,'down'),(18,'blink'),(25,'down')]]
+        result=score(events,rows,dict(run_id='valid',labels=['neutral','up','blink']),1,fs=1)
+        self.assertEqual((result['trials'],result['hits'],result['wrong'],result['duplicates'],result['false_directions']),(1,1,1,1,1))
+        self.assertEqual(result['negative_seconds'],18)

@@ -100,3 +100,13 @@ blinks), current logic got 20/45, learned templates 41/45, and the initial LSTM
 are not continuous navigation validation or proof of cross-session accuracy.
 Do not send the user back through the full acquisition protocol before exhausting
 these existing-data experiments.
+
+## Continuous algorithm branch
+
+Further work is on `experiment/eog-continuous-detection`, not main. Continuous
+replay now compares twelve variants without cue-driven resets; the strongest
+waveform/rejection candidate recognized 16/20 movements with 6 false directions
+over 275s negative exposure. Current live hover stalled in replay. No live control
+was replaced. See [Continuous EOG experiments](EOG_CONTINUOUS_EXPERIMENT.md)
+for results, reproducible commands, frozen raw-only replay and remaining work.
+The branch suite passes 149 tests.

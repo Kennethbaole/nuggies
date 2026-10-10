@@ -97,3 +97,52 @@ class DecisionPolicy:
             if self.reject and (distance>.08 or margin<1.5):return 'unknown',cooldown
             self.direction=label;self.emitted=index
         return label,cooldown
+
+
+class PairedDirectionDetector:
+    """Timing baseline: a direction requires an opposite return, not an isolated pulse."""
+    def __init__(self, rate=50, threshold=800, min_return_s=.7):
+        self.rate=rate;self.threshold=threshold;self.min_return=round(min_return_s*rate)
+        self.reset()
+
+    def reset(self):
+        self.index=-1;self.phase='warmup';self.started=0;self.axis=0;self.sign=0
+        self.active=0;self.quiet=0;self.peak=0
+
+    def process(self,h,v):
+        self.index+=1;values=(h,v)
+        if not all(math.isfinite(x) for x in values):self.reset();return None
+        if self.phase=='warmup':
+            if self.index-self.started>=self.rate:self.phase='idle'
+        elif self.phase=='idle':
+            axis=max(range(2),key=lambda a:abs(values[a]))
+            if abs(values[axis])>=self.threshold:
+                self.axis=axis;self.sign=1 if values[axis]>0 else -1
+                self.started=self.index;self.phase='outbound';self.peak=abs(values[axis]);self.active=1
+        else:
+            delta=values[self.axis]*self.sign;age=self.index-self.started
+            if age>5*self.rate:
+                self.phase='idle';self.active=0;return None
+            if self.phase=='outbound':
+                self.peak=max(self.peak,delta)
+                if delta>=self.threshold:self.active+=1
+                if delta<self.threshold*.35:
+                    if self.active<2:self.phase='idle'
+                    else:self.phase='return'
+            elif self.phase=='return':
+                if delta < -self.threshold:
+                    if age<self.min_return:
+                        # Fast opposite lobe: blink/rebound, not a held glance/return.
+                        self.phase='cooldown';self.quiet=0
+                    else:self.phase='settle';self.quiet=0
+            elif self.phase=='settle':
+                self.quiet=self.quiet+1 if abs(delta)<self.threshold*.5 else 0
+                if self.quiet>=round(.2*self.rate):
+                    label={ (0,-1):'left',(0,1):'right',(1,1):'up',(1,-1):'down'}[(self.axis,self.sign)]
+                    event=dict(onset=self.started,emitted=self.index,label=label)
+                    self.phase='cooldown';self.quiet=0
+                    return event
+            elif self.phase=='cooldown':
+                self.quiet+=1
+                if self.quiet>=round(.3*self.rate):self.phase='idle'
+        return None
