@@ -8,6 +8,8 @@ import secrets
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+from backend.envfile import load_env
+
 
 def read_manifest(path):
     path = Path(path).resolve()
@@ -46,6 +48,7 @@ def main():
     parser.add_argument("--rights-confirmed", action="store_true", help="Confirm permission and consent for this voice")
     parser.add_argument("--output", default="config/voice_profile.local.json")
     args = parser.parse_args()
+    load_env()
     try:
         manifest, files = read_manifest(args.manifest)
         print(f"Validated {len(files)} local samples, {sum(f.stat().st_size for f in files)} bytes. No upload yet.")
