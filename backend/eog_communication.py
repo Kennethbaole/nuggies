@@ -4,7 +4,8 @@ Consumes detector events, never raw threshold crossings. Quiet signals alone do
 not establish physical center; recovery remains the detector's responsibility.
 """
 class EOGConfirmation:
-    def __init__(self):
+    def __init__(self, pulse_mode=False):
+        self.pulse_mode=pulse_mode
         self.clear()
 
     def clear(self):
@@ -38,7 +39,18 @@ class EOGConfirmation:
         return ((distance <= .08 and margin >= 1.5 and horizontal <= .25)
                 or (distance <= .2 and margin >= 2.5 and horizontal <= .1))
 
+    @staticmethod
+    def pulse_match(event):
+        # Two causal pulses plus a pulse-anchored template, not a late recovery tail.
+        return (event.get('pulse_pair_valid') is True
+                and (event.get('waveform_label') in ('blink','double_blink') or event.get('distance',1)<=.08)
+                and event.get('distance',1)<=.08
+                and event.get('direction_margin',0)>=2
+                and event.get('horizontal_fraction',1)<=.15)
+
     def update(self, ring, detector, event=None):
+        if self.pulse_mode and event and event.get('label')=='double_blink' and event.get('source')!='pulse_stream':
+            event=None  # Legacy window labels cannot confirm while pulse mode is active.
         double = event and event.get('label') == 'double_blink' and event.get('reason') == 'blink'
         if double:event['confirmation_result']='no_pending_choice'
         if detector.phase in ('retry', 'signal_lost', 'centering'):
@@ -102,7 +114,7 @@ class EOGConfirmation:
             return False
         event['confirmation_armed_sample']=self.ready_sample
         if (event.get('onset_sample', -1) < self.ready_sample
-                or not self.blink_match(event)):
+                or not (self.pulse_match(event) if self.pulse_mode else self.blink_match(event))):
             event['confirmation_result']='early_blink' if event.get('onset_sample',-1)<self.ready_sample else 'uncertain_blink_match'
             self.clear()
             self.message = 'Uncertain double blink. Look at the choice again.'

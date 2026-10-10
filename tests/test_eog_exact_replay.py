@@ -14,10 +14,10 @@ from test_guided_eog import fixture_profile
 
 
 class ExactReplayTests(unittest.TestCase):
-    def make_session(self,directory):
+    def make_session(self,directory,pulse_mode=False):
         root=Path(directory);profile=root/'profile.json';profile.write_text(json.dumps(fixture_profile()))
         with patch('backend.app.load_env'),patch('backend.speech.load_env'),patch('backend.suggestions.load_env'):
-            app=Application(source='serial',eog_profile=profile)
+            app=Application(source='serial',eog_profile=profile,eog_pulse_confirmation=pulse_mode)
         csv_path=root/'synthetic.csv';log_path=root/'synthetic.events.jsonl'
         # Nonzero application coordinate exercises reconnect/CSV-origin mapping.
         app.received_samples=700
@@ -69,3 +69,8 @@ class ExactReplayTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'historical'):replay(csv_path,old,profile)
             data=json.loads(profile.read_text());data['threshold_h']=801;profile.write_text(json.dumps(data))
             with self.assertRaisesRegex(ValueError,'digest'):replay(csv_path,log_path,profile)
+
+    def test_pulse_checkpoint_is_serializable_and_exact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            csv_path,log_path,profile=self.make_session(directory,pulse_mode=True)
+            self.assertTrue(replay(csv_path,log_path,profile)['identical'])

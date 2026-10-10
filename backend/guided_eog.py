@@ -5,11 +5,13 @@ import math
 import statistics
 
 from .eog_waveform import DIRECTIONS, WaveformProfile
+from .blink_stream import BlinkPulseStream
 from .temporal_eog import CausalFilter, EventSegmenter, SegmentConfig
 
 
 @dataclass(frozen=True)
 class GuidedConfig:
+    pulse_confirmation: bool = False
     center_s: float = 3
     retry_s: float = 5
     direction_margin: float = 1.1
@@ -21,7 +23,7 @@ class GuidedConfig:
     def __post_init__(self):
         if any(not math.isfinite(x) or x <= 0 for x in (self.center_s,self.retry_s,self.direction_margin,self.recovery_s)) or not math.isfinite(self.haar_weight) or self.haar_weight<0:
             raise ValueError('Invalid guided EOG settings')
-        if type(self.reject_blinks) is not bool or not math.isfinite(self.blink_horizontal_min) or not 0<=self.blink_horizontal_min<=1:
+        if type(self.pulse_confirmation) is not bool or type(self.reject_blinks) is not bool or not math.isfinite(self.blink_horizontal_min) or not 0<=self.blink_horizontal_min<=1:
             raise ValueError('Invalid blink rejection settings')
 
 
@@ -44,8 +46,9 @@ class GuidedEOGTest:
         self.message='Look straight ahead. Collecting 3 seconds of clean resting signal; blink normally.'
         self.horizontal=self.vertical=0
         self.slot=None;self.direction=None;self.last_result=None
+        self.blink_stream=BlinkPulseStream();self.last_blink_result=None
         self.last_classification=None;self._candidate_context=None
-        self._frame_context=deque(maxlen=5)
+        self._frame_context=deque(maxlen=100)
         self.frame=0;self.previous_timestamp=None
         self.clean=deque(maxlen=max(1,round(max(self.config.center_s,self.config.retry_s)*50)))
         self.rest_offset=(0.,0.);self.noise=(0.,0.)
@@ -119,6 +122,7 @@ class GuidedEOGTest:
         self.recent_frames.append((self.raw_index,*value))
         settled=self._clean_frame(value)
         if self.phase in ('centering','retry'):
+            self.blink_stream.reset()
             if settled:
                 # Robust resting residual/noise, separate from continuous DC removal.
                 self.rest_offset=tuple(statistics.median(x[1][i] for x in self.clean) for i in (0,1))
@@ -132,6 +136,22 @@ class GuidedEOGTest:
             return None
         adjusted=tuple(value[i]-self.rest_offset[i] for i in (0,1))
         self._frame_context.append(dict(raw_index=self.raw_index,baseline=list(self.filter.baseline),rest_offset=list(self.rest_offset)))
+        if self.config.pulse_confirmation:
+            pair=self.blink_stream.process(*adjusted,self.raw_index,self.noise)
+            if pair:
+                frames=[(h,v) for i,h,v in self.blink_stream.history if i>=pair['onset_sample']-15][:50]
+                if len(frames)==50:
+                    match=self.profile.classify(frames,self.config.haar_weight)
+                    event=dict(match,label='double_blink',waveform_label=match['label'],reason='blink',
+                               onset_sample=pair['onset_sample'],emitted_sample=self.raw_index,
+                               pulse_pair_valid=True,pulse_pair=pair['pulse_pair'],source='pulse_stream')
+                    self.last_blink_result=event
+                    self._audit('decision',event=event,classification=dict(
+                        window=[[round(x,9) for x in f] for f in frames],window_rate_hz=50,
+                        window_start_sample=pair['onset_sample']-15,
+                        onset_context=next((dict(c) for c in self._frame_context if c['raw_index']==pair['onset_sample']),None),
+                        best_distances={label:round(min(d for d,l in zip(self.profile.last_distances,self.profile.labels) if l==label),12)
+                                        for label in sorted(set(self.profile.labels))}))
         if self.phase=='ready' and settled and self.detector.candidate is None:
             center=tuple(statistics.median(x[1][i] for x in self.clean) for i in (0,1))
             self.rest_offset=tuple(self.rest_offset[i]+max(-.5,min(.5,.01*(center[i]-self.rest_offset[i]))) for i in (0,1))

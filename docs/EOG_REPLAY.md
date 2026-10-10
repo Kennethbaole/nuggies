@@ -32,3 +32,9 @@ speech delivery, or wearer accuracy. Transition logs still include application
 confirmation results for review. Synthetic tests include disabled intervals,
 nonzero CSV origin, repeated identical-phase resets, polling faults, clipping,
 timestamp gaps, wrong profiles, and deliberately corrupted decisions.
+
+Pulse-confirmation mode extends checkpoints with pulse-stream state. It records
+pulse decisions, their anchored window and onset context, and separate application
+confirmation outcome entries. Nested pulse sample indices are globalized too.
+The exact replay assertion covers pulse evidence; ring/application confirmation
+outcomes require the communication replay because they depend on choice content.

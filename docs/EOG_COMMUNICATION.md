@@ -226,3 +226,42 @@ audio policy can still require interaction; this is not an audible hardware test
 The speech toggle can pause output; refresh starts with speech off. Diagnostic mode
 continues to disable speech. Automated browser checks use mocked browser speech and
 disable the cloud API key, so they never call paid TTS.
+
+### Independent pulse confirmation (opt-in)
+
+`--eog-pulse-confirmation --eog-profile PATH` enables the new candidate. The legacy
+one-second gaze classifier still handles directions, while a parallel 50 Hz stream
+keeps observing blinks during its cooldown. Two completed positive pulses must have
+fast rise/fall velocities, bounded width/duration, comparable slopes, low horizontal
+energy, a separated valley and 150–650 ms peak spacing. Thresholds use resting MAD
+noise with absolute floors. A third pulse rejects the cluster; emission waits through
+the third-pulse interval and quiet recovery. Clipping, gaps and recenter reset pairing.
+
+Confirmation requires both that pair and a pulse-anchored one-second template match:
+distance <= .08, direction separation >= 2, horizontal energy fraction <= .15.
+Template-only double-blink labels cannot select in this mode. Existing fresh-choice,
+return/arming, onset, expiry, content-change and one-shot protections remain.
+These thresholds were selected using reused development evidence, not held-out
+wearer validation. The default command line still uses legacy confirmation unless
+this explicit flag is supplied.
+
+Exact failed interaction replay now selects once at sample 16532 instead of missing
+at 16622; zero false confirmations were observed within that identified interaction.
+Across complete reviewed recordings using the frozen all-data profile, baseline
+versus pulse mode selections by onset cue phase are:
+
+| Recording | Legacy | Pulse mode |
+| --- | --- | --- |
+| Session 4 | 1 return + 1 prepare (both false-confirmation risks) | 0 |
+| Session 5 | 0 | 0 |
+| Session 6 | 2 during double-blink movement cues | 2 during double-blink movement cues |
+
+This is a simulated communication replay of acquisition protocols, which did not
+instruct a gaze-confirm sequence. Selection misses are therefore not identifiable
+from these cue files. Raw pair detection found three of five session-6 double-blink
+cues and missed two; baseline/prepare pair candidates also exist but failed the full
+gate. It does not establish zero false confirmations in future natural blinking.
+Private report: `recordings/pulse-confirmation-runtime.json`; reproduce with
+`scripts.eog_pulse_confirmation_review`. Software tests cover single/widely spaced
+blinks, triples, up/return, mixed axes, no choice, early/during-return blink, expiry,
+changed content, faults and one-shot behavior.

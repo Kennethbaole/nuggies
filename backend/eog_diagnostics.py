@@ -16,7 +16,7 @@ def code_identity():
     try:
         commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True,stderr=subprocess.DEVNULL,timeout=2).strip()
     except (OSError,subprocess.SubprocessError):commit='unknown'
-    files=('guided_eog.py','temporal_eog.py','eog_waveform.py','blink_shape.py','eog_communication.py','app.py')
+    files=('guided_eog.py','temporal_eog.py','eog_waveform.py','blink_shape.py','eog_communication.py','app.py','blink_stream.py')
     source=hashlib.sha256()
     for name in files:
         source.update(name.encode());source.update((root/'backend'/name).read_bytes())
@@ -29,12 +29,14 @@ def _pack(value):
     if isinstance(value,tuple):return {'__tuple__':[_pack(x) for x in value]}
     if isinstance(value,list):return [_pack(x) for x in value]
     if isinstance(value,dict):return {key:_pack(item) for key,item in value.items()}
+    if isinstance(value,float) and not __import__('math').isfinite(value):return {'__float__':str(value)}
     return value
 
 
 def _unpack(value):
     if isinstance(value,list):return [_unpack(x) for x in value]
     if isinstance(value,dict):
+        if '__float__' in value:return float(value['__float__'])
         if '__deque__' in value:return deque((_unpack(x) for x in value['__deque__']),maxlen=value['maxlen'])
         if '__tuple__' in value:return tuple(_unpack(x) for x in value['__tuple__'])
         return {key:_unpack(item) for key,item in value.items()}
@@ -42,8 +44,9 @@ def _unpack(value):
 
 
 def detector_checkpoint(detector):
-    excluded={'profile','config','filter','detector','audit_observer'}
+    excluded={'profile','config','filter','detector','audit_observer','blink_stream'}
     return _pack(dict(guided={key:value for key,value in detector.__dict__.items() if key not in excluded},
+                      blink_stream={k:v for k,v in detector.blink_stream.__dict__.items() if k!='config'},
                       filter=dict(detector.filter.__dict__),
                       segmenter={key:value for key,value in detector.detector.__dict__.items() if key!='config'}))
 
@@ -52,6 +55,7 @@ def restore_checkpoint(detector, checkpoint):
     state=_unpack(deepcopy(checkpoint))
     detector.__dict__.update(state['guided'])
     detector.filter.__dict__.update(state['filter'])
+    detector.blink_stream.__dict__.update(state['blink_stream'])
     detector.detector.__dict__.update(state['segmenter'])
 
 
@@ -61,6 +65,9 @@ def global_event(value, detector_index, global_index):
     offset=global_index-detector_index
     for key in INDEX_FIELDS:
         if key in value:value[key]+=offset
+    if 'pulse_pair' in value:
+        for pulse in (value['pulse_pair']['first'],value['pulse_pair']['second']):
+            for key in ('onset_sample','peak_sample','end_sample'):pulse[key]+=offset
     return value
 
 
@@ -103,7 +110,7 @@ class DiagnosticLog:
 
     def notice(self,detector,notice):
         notice=deepcopy(notice)
-        if notice['kind']=='decision':
+        if notice['kind'] in ('decision','confirmation'):
             notice['event']=global_event(notice['event'],detector.raw_index,self.sample_index)
             diagnostic=notice.get('classification')
             if diagnostic:
