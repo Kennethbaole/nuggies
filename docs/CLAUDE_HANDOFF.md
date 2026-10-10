@@ -71,3 +71,5 @@ Bigger, organized UI is implemented; pending choice is shown above the wheel and
 Local detector and canonical state should remain responsive; remote sentence generation is optional with preset fallback. No remote model server has been provisioned. Jetson Orin Nano is separate from the Arduino Nano R4. Do not conflate their roles or claim physical OLED/Jetson success from browser tests.
 
 Latest full-suite result for this change: **186 tests, 185 passed, one optional skip**. The first sandboxed run could not bind local test sockets; the permitted rerun passed.
+
+Browser EOG regression also passed (readiness cues, pending-choice preview, one-shot browser speech, diagnostic isolation, no highlighting, no JavaScript errors). This used simulated UI states, not live sensor accuracy. Implementation commit: `f96cb3d`, pushed to the experiment branch. The live server was not restarted for this observational change; restart deliberately when ready to capture new diagnostics.
