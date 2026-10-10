@@ -107,6 +107,7 @@ function render(next) {
     const button = slotButtons[index];
     button.textContent = slot.label; button.disabled = !slot.enabled;
     button.classList.toggle('selected', state.selected === index);
+    button.classList.toggle('gaze-hover', Boolean(state.wheel_test && state.gaze_hover?.slot === index));
     button.classList.toggle('utility', ['more', 'spell', 'back', 'space', 'delete', 'speak'].includes(slot.action));
     button.setAttribute('aria-pressed', String(state.selected === index));
     button.setAttribute('aria-label', `${slot.label}${slot.text ? ': ' + slot.text : ''}${state.selected === index ? ', highlighted' : ''}`);
@@ -114,7 +115,7 @@ function render(next) {
   const center = state.screen === 'spell' ? state.draft || 'Choose your letters.' : state.confirmed || 'Your words, at your pace.';
   $('center-text').textContent = center; $('phone-text').textContent = state.confirmed || 'Your words, at your pace.';
   $('center-label').textContent = state.screen === 'spell' ? 'YOUR DRAFT' : state.confirmed ? 'YOUR LAST SELECTION' : 'READY WHEN YOU ARE';
-  $('preview-text').textContent = state.preview || `${state.slots[state.selected].label} — double blink to choose`;
+  $('preview-text').textContent = state.preview || `${state.slots[state.selected].label} — ${state.wheel_test ? 'hover only · click or Space to choose' : 'double blink to choose'}`;
   $('center-footer').textContent = state.screen === 'spell' ? 'Choose Speak when ready' : 'Double blink to choose';
   const synthetic = state.input_mode === 'demo';
   $('source-name').textContent = synthetic ? (state.demo_running ? 'Synthetic signal scenario' : 'Keyboard demonstration') : state.input_mode === 'serial' ? 'Nano USB · raw ADC' : 'Recorded ADC replay';
@@ -130,7 +131,11 @@ function render(next) {
   $('wheel-test-toggle').setAttribute('aria-pressed', String(Boolean(state.wheel_test)));
   $('wheel-test-toggle').disabled = !state.wheel_test && (state.input_mode !== 'serial' || !state.connected || state.sensor_actions || state.guided?.status === 'running');
   $('wheel-test-stop').disabled = !state.wheel_test;
-  $('wheel-test-status').textContent = state.wheel_test ? state.wheel_message : 'Eye wheel control off';
+  const gaze = state.gaze_hover;
+  $('wheel-test-status').textContent = state.wheel_test
+    ? `${state.wheel_message}${gaze?.slot != null ? ' → ' + state.slots[gaze.slot].label : ''}` : 'Eye wheel control off';
+  $('gaze-readings').textContent = state.wheel_test && gaze
+    ? `EOG deviation · Horizontal ${gaze.horizontal} · Vertical ${gaze.vertical} ADC counts · ${gaze.phase}` : '';
   if (state.wheel_test && audioEnabled) {
     audioEnabled = false; audio?.pause();
     if ('speechSynthesis' in window) speechSynthesis.cancel();

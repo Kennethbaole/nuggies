@@ -11,20 +11,30 @@ from backend.serial_input import ADCSample
 
 
 class LiveWheelTests(unittest.TestCase):
-    def test_four_direction_mapping_and_no_return_duplicate(self):
-        for channel, sign, expected in [('h',-1,'left'),('h',1,'right'),('v',1,'select'),('v',-1,'back')]:
-            detector=LiveWheelTest();actions=[]
-            for duration,offset in [(2,0),(.3,sign*3000),(1.2,0),(.3,-sign*3000),(2,0)]:
-                for _ in range(round(duration*250)):
-                    action=detector.process(8192+(offset if channel=='h' else 0),8192+(offset if channel=='v' else 0))
-                    if action:actions.append(action)
-            self.assertEqual(actions,[expected])
+    def test_all_directions_hover_before_return_and_do_not_reverse(self):
+        for h,v,expected in [(0,3000,0),(3000,3000,1),(3000,0,2),(3000,-3000,3),(0,-3000,4),(-3000,-3000,5),(-3000,0,6),(-3000,3000,7)]:
+            d=LiveWheelTest(); events=[]
+            def feed(n,x,y):
+                for _ in range(n):
+                    slot=d.process(8192+x,8192+y)
+                    if slot is not None: events.append(slot)
+            feed(500,0,0);feed(75,h,v)
+            self.assertEqual(d.slot,expected)
+            feed(300,0,0)
+            self.assertEqual(d.slot,expected)  # pulse decays during held gaze
+            feed(75,-h,-v);feed(500,0,0)
+            self.assertIsNone(d.slot)
+            self.assertEqual(events,[expected])
 
-    def test_simultaneous_axes_and_clipping_apply_no_action(self):
+    def test_clipping_and_timeout_clear_hover(self):
         d=LiveWheelTest()
-        with patch.object(d.horizontal,'process',return_value=[object()]),patch.object(d.vertical,'process',return_value=[object()]):
-            self.assertIsNone(d.process(8192,8192))
+        for _ in range(300):d.process(8192,8192)
+        for _ in range(75):d.process(8192,11192)
+        self.assertEqual(d.slot,0)
+        for _ in range(2100):d.process(8192,8192)
+        self.assertIsNone(d.slot)
         self.assertIsNone(d.process(16383,8192))
+        self.assertEqual(d.phase,'warmup')
 
     def app(self):
         with patch('backend.app.load_env'),patch('backend.speech.load_env'),patch('backend.suggestions.load_env'):
@@ -45,15 +55,19 @@ class LiveWheelTests(unittest.TestCase):
         app.connected=False
         with self.assertRaises(ValueError):app.command(dict(action='wheel_test',value=True,event_id='disconnected'))
 
-    def test_selection_is_tagged_and_stop_prevents_future_actions(self):
-        app=self.app();app.command(dict(action='wheel_test',value=True,event_id='start'))
-        with patch.object(app.wheel_detector,'process',return_value='select'):
+    def test_focus_only_including_slot_zero_and_stop_prevents_future_focus(self):
+        app=self.app();app.ring.action('focus',value=2)
+        app.command(dict(action='wheel_test',value=True,event_id='start'))
+        with patch.object(app.wheel_detector,'process',return_value=0):
             app.ingest(ADCSample(8192,8192,1004))
-            self.assertEqual(app.ring.selection_id,1)
-            self.assertIn(1,app.wheel_test_selections)
+            self.assertEqual(app.ring.selected,0)
+            self.assertEqual(app.ring.selection_id,0)
+            self.assertEqual(app.ring.screen,'home')
             app.command(dict(action='wheel_test',value=False,event_id='stop'))
+            app.ring.action('focus',value=2)
             app.ingest(ADCSample(8192,8192,1008))
-            self.assertEqual(app.ring.selection_id,1)
+            self.assertEqual(app.ring.selected,2)
+            self.assertIsNone(app.state()['gaze_hover']['slot'])
 
     def test_test_selection_cannot_speak_even_after_stopping(self):
         app=self.app();app.token='';app.ring.action('select','eye-wheel-test');app.wheel_test_selections.append(app.ring.selection_id)

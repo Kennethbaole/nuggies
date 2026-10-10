@@ -211,31 +211,38 @@ recordings are not held-out validation. The tool emits SELECT *candidates* in JS
 it is not connected to the live app, which remains monitoring-only. No gesture
 threshold or live navigation behavior is changed by running replay.
 
-## Supervised live wheel test
+## Supervised live directional hover
 
-For an experimental interaction trial with both Pills, choose **Start experimental
-eye wheel test** beside the wheel. This requires live serial input, stopped guided
-cues, and disabled calibrated navigation. It starts off on every server restart.
-The assumed rate is 250 Hz; use the matching Nano firmware and verified lead
-placement. After one second at center, glance, hold about 1–2 seconds, and return:
+Choose **Start experimental eye wheel test** with both Pills connected and the
+250 Hz firmware. Live serial input is required; guided tests and calibrated
+navigation must be off. Rest at center for one second before looking toward a slot.
 
-| Movement and return | Wheel action |
+| EOG direction | Highlighted wheel position |
 | --- | --- |
-| Left (negative-first A0) | Previous slot |
-| Right (positive-first A0) | Next slot |
-| Up (positive-first A1) | Select highlighted slot |
-| Down (negative-first A1) | Back |
+| Up (positive A1) | Top, slot 0 (Hello on the initial home page) |
+| Up-right | Slot 1 |
+| Right (positive A0) | Slot 2 |
+| Down-right | Slot 3 |
+| Down (negative A1) | Bottom, slot 4 (Back) |
+| Down-left | Slot 5 |
+| Left (negative A0) | Slot 6 |
+| Up-left | Slot 7 |
 
-This uses independent paired-glance prototypes, not the offline double-blink
-classifier. A command follows return and settling, not a held eye position.
-Both detectors reset after each command; simultaneous completed candidates and
-clipping apply no action. Misses and unintended commands remain possible, and
-vertical polarity must be checked rather than assumed universal. This is a
-supervised usability test, not validated control. Keyboard/mouse remain available.
+The slot gets a turquoise hover outline. No phrase, Back action, navigation, or
+speech is activated by gaze. Confirm with existing mouse/keyboard controls when
+needed. Speech remains disabled while this test is on. The page shows smoothed
+horizontal/vertical deviations in ADC counts and the detector phase.
 
-Choose **Stop eye wheel test** beside the wheel or inside expanded Signal
-workspace to immediately disable sensor commands. Guided tests cannot run at the
-same time. Serial failure disables the mode; a sample gap resets candidates.
-Recording is independent. Speech is disabled during this test on the client and
-server; sensor-selected test phrases also cannot be synthesized after the mode
-is stopped. This permits observing wheel behavior without spoken output.
+This is experimental pulse-based direction detection, not absolute gaze tracking.
+A 60 ms smoothing window and sustained threshold crossing trigger the first
+highlight; both axes must exceed 1500 counts for a diagonal. Polarity assumes the
+verified placement and must be checked for each setup. AC-coupled signals decay
+while gaze is held, so the hover is latched until an opposite return pulse or an
+eight-second timeout. Return to center and rest before another direction. A return
+pulse clears the hover outline; keyboard focus remains at the last enabled slot.
+Clipping, sample gaps, stopping, and serial failure reset the detector.
+
+Blink spikes can still resemble vertical gaze. Diagonal timing, individual
+thresholds, and blink rejection need live validation; this mode does not use the
+offline double-blink classifier. Stop the test to disable sensor highlighting.
+Recording remains independent and the mode defaults off after restarting.

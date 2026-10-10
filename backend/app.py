@@ -99,6 +99,7 @@ class Application:
                         calibrated=self.calibration is not None,
                         sensor_actions=self.sensor_actions or self.wheel_test, demo_running=self.demo_running,
                         wheel_test=self.wheel_test, wheel_message=self.wheel_detector.message,
+                        gaze_hover=self.wheel_detector.snapshot(),
                         speech_provider="elevenlabs" if self.speech.available else "browser",
                         suggest_available=self.suggester.available,
                         transcribe_available=self.transcriber.available,
@@ -248,12 +249,9 @@ class Application:
             if self.wheel_test:
                 if len(self.samples) > 1 and sample.timestamp_ms - self.samples[-2]["timestamp_ms"] > 500:
                     self.wheel_detector.reset()
-                action = self.wheel_detector.process(sample.horizontal, sample.vertical)
-                if action:
-                    previous_selection = self.ring.selection_id
-                    self.ring.action(action, "eye-wheel-test")
-                    if self.ring.selection_id != previous_selection:
-                        self.wheel_test_selections.append(self.ring.selection_id)
+                slot = self.wheel_detector.process(sample.horizontal, sample.vertical)
+                if slot is not None:
+                    self.ring.action("focus", "eye-wheel-test", slot)
             elif normalized is not None and self.sensor_actions:
                 direction = self.classifier.classify(normalized).direction.value
                 action = self.gate.update(direction, sample.timestamp_ms)
