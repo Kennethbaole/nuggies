@@ -6,7 +6,9 @@ if (isHUD) { document.body.classList.add('hud-body'); $('hud-only').hidden = fal
 let state = null, seenSelection = null, session = null, audioEnabled = false;
 let token = sessionStorage.getItem('nuggies-token') || '';
 let queue = Promise.resolve(), audio = null, speechBusy = false, pollBusy = false;
-let requestCounter = 0;
+const PROVIDER_LABELS = {gemini: 'Gemini reply suggestions', ollama: 'Local AI suggestions (offline)'};
+const SETUP_HINT = 'Add GEMINI_API_KEY (or OLLAMA_MODEL for offline replies) to .env and restart to enable reply suggestions.';
+let requestCounter = 0, recorder = null, recordTimer = null, suggesting = false;
 const clientID = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
 let lastConnected = null;
 const slotButtons = [];
@@ -98,7 +100,7 @@ function render(next) {
   $('relationship').textContent = contact.relationship;
   $('phone-contact').textContent = `With ${contact.name}`;
   $('screen-name').textContent = state.screen === 'spell' ? 'SPELL YOUR WORDS' : state.screen === 'needs' ? 'EVERYDAY NEEDS' : 'CONVERSATION';
-  $('page-info').textContent = state.screen === 'spell' ? 'Two groups, one letter at a time' : `Phrase set ${state.page + 1} · curated demo`;
+  $('page-info').textContent = state.screen === 'spell' ? 'Two groups, one letter at a time' : `Phrase set ${state.page + 1} · ${PROVIDER_LABELS[state.suggestions_provider] || 'curated demo'}`;
   state.slots.forEach((slot, index) => {
     const button = slotButtons[index];
     button.textContent = slot.label; button.disabled = !slot.enabled;
@@ -124,6 +126,10 @@ function render(next) {
   $('input-error').textContent = state.input_error;
   $('trial-label').value = state.trial_label || 'unlabeled';
   $('signal-info').textContent = `${state.samples.length} recent samples · raw ADC counts${state.calibrated ? ' · calibration loaded' : ''}`;
+  $('suggest-source').textContent = PROVIDER_LABELS[state.suggestions_provider] || 'Local sample phrases';
+  $('heard').textContent = state.heard ? `Heard: “${state.heard}”` : '';
+  $('suggest-clear').hidden = state.suggestions_provider === 'curated-demo';
+  $('listen').disabled = suggesting; $('text-send').disabled = suggesting;
   $('history-count').textContent = state.history.length;
   const oldHistory = $('history').dataset.selection;
   if (oldHistory !== String(state.selection_id)) {
@@ -135,6 +141,46 @@ function render(next) {
   $('hud-status').textContent = `${state.input_mode.toUpperCase()} · ${state.connected ? 'Connected' : 'Paused'} · ${state.screen}`;
   if (lastConnected === false) feedback('Session reconnected.');
   lastConnected = true;
+}
+
+function toBase64(buffer) {
+  const bytes = new Uint8Array(buffer); let text = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(text);
+}
+
+async function suggest(payload) {
+  if (isHUD || suggesting || !state) return false;
+  if (!state.suggest_available) { feedback(SETUP_HINT); return false; }
+  suggesting = true; $('listen').disabled = $('text-send').disabled = true; feedback('Thinking of replies…');
+  try {
+    render(await (await api('/api/suggest', {session_id: state.session_id, ...payload})).json());
+    feedback('New reply suggestions. Nothing is spoken until you choose one.'); return true;
+  } catch (error) { feedback(`${error.message} Sample phrases remain available.`); return false; }
+  finally { suggesting = false; $('listen').disabled = $('text-send').disabled = false; }
+}
+
+async function toggleListen() {
+  if (recorder) { recorder.stop(); return; }
+  if (!state?.suggest_available) { feedback(SETUP_HINT); return; }
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { feedback('Microphone recording is not available in this browser.'); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({audio: true}); }
+  catch { feedback('Microphone permission was denied.'); return; }
+  const chunks = [];
+  const active = recorder = new MediaRecorder(stream);
+  active.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
+  active.onstop = async () => {
+    clearTimeout(recordTimer); stream.getTracks().forEach(track => track.stop());
+    const type = active.mimeType || 'audio/webm'; recorder = null;
+    $('listen-label').textContent = 'Listen'; $('listen').classList.remove('running');
+    const blob = new Blob(chunks, {type});
+    if (blob.size < 1500) { feedback('Nothing was heard. Try again.'); return; }
+    suggest({mime_type: type, audio_b64: toBase64(await blob.arrayBuffer())});
+  };
+  active.start(); $('listen-label').textContent = 'Stop'; $('listen').classList.add('running');
+  feedback('Listening… press again when they finish (stops after 12 seconds).');
+  recordTimer = setTimeout(() => recorder?.stop(), 12000);
 }
 
 function drawTrace() {
@@ -177,6 +223,19 @@ $('select').onclick = () => command('select'); $('reset').onclick = () => comman
 $('scenario').onclick = () => command('demo', !state?.demo_running);
 $('contact').onchange = event => command('contact', event.target.value);
 $('trial-label').onchange = event => command('label', event.target.value);
+$('listen').onclick = toggleListen;
+$('suggest-clear').onclick = () => command('suggestions_clear');
+$('text-toggle').onclick = () => {
+  const open = $('text-panel').hidden;
+  $('text-panel').hidden = !open; $('text-toggle').setAttribute('aria-expanded', String(open));
+  $('text-toggle').classList.toggle('running', open);
+  if (open) $('heard-input').focus();
+};
+$('text-panel').onsubmit = event => {
+  event.preventDefault();
+  const text = $('heard-input').value.trim();
+  if (text) suggest({heard_text: text}).then(ok => { if (ok) $('heard-input').value = ''; });
+};
 $('download-hud').onclick = () => state && downloadFrame(state);
 $('audio-toggle').onclick = () => {
   audioEnabled = !audioEnabled; $('audio-toggle').setAttribute('aria-pressed', String(audioEnabled));

@@ -9,6 +9,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+from .envfile import load_env
+
 
 class SpeechUnavailable(RuntimeError):
     pass
@@ -16,6 +18,7 @@ class SpeechUnavailable(RuntimeError):
 
 class ElevenLabsSpeech:
     def __init__(self, cache_dir=None):
+        load_env()  # local .env fills variables the shell has not set
         self.api_key = os.environ.get("ELEVENLABS_API_KEY", "")
         self.voice_id = os.environ.get("ELEVENLABS_VOICE_ID", "")
         self.model_id = os.environ.get("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")

@@ -1,0 +1,18 @@
+{
+  "Food": "I would like something to eat.",
+  "Water": "Could I have some water, please?",
+  "Warm": "I'm cold. Could you make it warmer?",
+  "Cool": "I'm too warm. Could you cool it down?",
+  "Move": "Could you help me change position?",
+  "Light": "Could you adjust the lighting, please?",
+  "Help": "I need help, please.",
+  "Pain": "I'm in pain.",
+  "Tired": "I'm tired. I'd like to rest.",
+  "Yes": "Yes.",
+  "No": "No.",
+  "Hello": "Hello!",
+  "Thanks": "Thank you.",
+  "Listen": "Please listen, I want to say something.",
+  "Stay": "Could you stay with me for a little while?",
+  "Love": "I love you."
+}

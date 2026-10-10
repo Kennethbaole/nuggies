@@ -16,3 +16,4 @@ config/voice_profile.local.json
 config/calibration.local.json
 artifacts/browser-report/
 config/*.local.json
+CLAUDE.md
