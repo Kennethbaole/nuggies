@@ -7,8 +7,11 @@ communication. [Communication flow and tonight's plan](EOG_COMMUNICATION.md).
 The Nano was live during today's checks; the user reported intended cardinal
 movements triggered and a diagonal requested retry. The later free-wheel test
 ended; recording and navigation were stopped before assembly planning. No formal
-accuracy or biological blink-confirmation result is claimed. Latest software
-suite: 175 tests, 174 passed, one optional skip. Prior exact-runtime development
+accuracy or biological blink-confirmation result is claimed. Homepage readability overhaul adds larger controls and a fixed detected-choice
+preview with confirmation readiness. Deliberate double-blink rejections prompted
+a constrained match-gate adjustment; see EOG_COMMUNICATION.md for reused-data
+comparison and limits. Latest software
+suite: 177 tests, 176 passed, one optional skip. Prior exact-runtime development
 replay: 16/20 correct, three false candidates/275 s. See
 [the diagnostic live-check guide](EOG_LIVE_CHECK.md).
 The following main-baseline description predates this branch integration.

@@ -35,13 +35,26 @@ class ConfirmationTests(unittest.TestCase):
         self.assertFalse(self.gate.update(self.ring,self.detector,self.event()))
         self.assertEqual(self.ring.selection_id,1)
 
+    def test_strong_vertical_match_tolerates_amplitude_distance(self):
+        self.ready();event=self.event()
+        event.update(distance=.15,other_label_margin=2.8,horizontal_fraction=.06)
+        self.assertTrue(self.gate.update(self.ring,self.detector,event))
+        self.assertEqual(event['confirmation_result'],'selected')
+
+    def test_relaxed_distance_does_not_allow_ambiguous_or_mixed_axis_pairs(self):
+        for margin,horizontal,distance in [(2.4,.03,.15),(2.8,.2,.15),(3,.02,.21)]:
+            self.setUp();self.ready();event=self.event()
+            event.update(distance=distance,other_label_margin=margin,horizontal_fraction=horizontal)
+            self.assertFalse(self.gate.update(self.ring,self.detector,event))
+            self.assertEqual(event['confirmation_result'],'uncertain_blink_match')
+
     def test_natural_blink_does_not_select(self):
         self.ready();event=self.event();event['label']='blink'
         self.assertFalse(self.gate.update(self.ring,self.detector,event))
         self.assertIsNotNone(self.gate.target)
 
     def test_conflicting_or_early_blinks_clear_choice(self):
-        for key,value in [('distance',.2),('other_label_margin',1.1),('horizontal_fraction',.8),('onset_sample',1400)]:
+        for key,value in [('distance',.21),('other_label_margin',1.1),('horizontal_fraction',.8),('onset_sample',1400)]:
             with self.subTest(key=key):
                 self.setUp();self.ready();event=self.event();event[key]=value
                 self.assertFalse(self.gate.update(self.ring,self.detector,event))

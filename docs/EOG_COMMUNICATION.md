@@ -34,8 +34,9 @@ layout. Normal eight-slot keyboard/mouse mode remains available after stopping.
 On Home, the existing Back operation enters Needs and confirms "Give me a moment."
 Back from Needs returns Home. This behavior should be revisited for the final UX.
 
-Gaze highlighting remains removed. The center gives instructions; Chosen item
-shows the full text. A short label must not hide what will actually be spoken.
+Gaze highlighting remains removed. A fixed Detected choice card above the wheel shows the full text; the center
+shows the chosen label and Return to center / Ready to confirm status. The
+companion phone continues to show confirmed speech, not pending choices. A short label must not hide what will actually be spoken.
 
 ## Confirmation rules
 
@@ -45,6 +46,9 @@ shows the full text. A short label must not hide what will actually be spoken.
   recovery cannot confirm the item later.
 - The frozen profile must label it double_blink, with distance <= .08,
   competing-label distance ratio >= 1.5, and horizontal energy fraction <= .25.
+  A second, narrower allowance accepts distance <= .2 only with ratio >= 2.5
+  and horizontal energy fraction <= .1. This tolerates larger waveform differences
+  only when class separation and vertical dominance are stronger.
   These are engineering defaults, not validated blink accuracy thresholds.
 - Single blinks are not paired by a timer in this mode; a classified double-blink
   waveform is required. A one-second window may miss more widely spaced pairs.
@@ -136,10 +140,31 @@ doesn't force a retry. No speculative next-word model or model switch was added.
 
 ## Verification
 
-175 unit/integration tests: 174 passed, one optional NumPy test skipped.
+177 unit/integration tests: 176 passed, one optional NumPy test skipped.
 New tests cover recovery, single blinks, ambiguous/early double blinks, expiry,
 changed content/contact, one-shot activation, four-position paging and ingest
 integration. HTTP/browser simulation passed, including one confirmed browser utterance with
 simulated speech playback and no paid API calls. It checks presentation and dispatch, not live
 signal accuracy. See the private artifacts/browser-report/eog report for its
 latest result.
+
+## Double-blink rejection review
+
+The wearer reported deliberate double blinks being marked uncertain. In the
+latest private live event log inspected, 13 events were classified double_blink.
+The original match gate admitted two waveform candidates; the revised gate
+admits four. These are waveform eligibility counts, not four confirmations or
+an accuracy score: pending-choice, recovery and onset conditions still apply.
+
+Replaying the three reviewed recordings through the frozen all-data profile
+produced the same eligible-event counts under old and selected revised rules:
+four during the double-blink movement cues, no additions during single-blink
+movement cues, and unchanged candidates in baseline/prepare/return periods.
+An intermediate ratio >= 2 rule added a baseline candidate and was tightened to
+>= 2.5. This tuning reuses development data and is not independent validation.
+Existing baseline candidates remain a reason to validate false confirmations.
+Private report: recordings/blink-policy-review.json.
+
+Double-blink events now log confirmation_result: selected, no_pending_choice,
+return_to_center_first, early_blink, or uncertain_blink_match. No new live wearer
+result is claimed after this adjustment.
