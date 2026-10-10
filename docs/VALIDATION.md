@@ -2,7 +2,7 @@
 
 ## Software checks
 
-The latest full suite of 133 tests passed on macOS with Python 3.14, including raw CSV handling,
+The latest full suite of 141 tests passed on macOS with Python 3.14, including raw CSV handling,
 calibration fixtures, gesture gates, ring behavior, labeled capture, API access
 boundaries and mocked speech. Both browser JavaScript modules pass syntax checks.
 

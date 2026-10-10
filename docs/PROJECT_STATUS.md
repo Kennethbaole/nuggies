@@ -2,6 +2,13 @@
 
 Updated 2026-10-10.
 
+Latest pulled baseline: b1ceaa0. Reply generation now uses Qwen through Ollama
+only; Gemini was removed. A Contacts page supports local contact profiles and
+chat imports that supply style/examples to reply generation (no fine-tuning).
+The pulled changes did not alter the EOG detector. Latest suite: 141 passing tests.
+See [EOG detector review](EOG_DETECTION_PLAN.md) for the paper assessment and
+recovery defect reproduced against existing recordings.
+
 ## Working implementation
 
 Two BioAmp EXG Pills feed Nano R4 A0 (horizontal) and A1 (vertical). Firmware
@@ -58,7 +65,7 @@ cannot establish continuous absolute gaze position.
 
 ## Evidence and limits
 
-The last full suite passed 133 tests. Isolated browser checks exercised all eight
+The latest pulled code passed 141 tests. Isolated browser checks exercised all eight
 synthetic EOG directions through app ingest, hover release, no gaze activation,
 and stop behavior. Underline styling was checked in the browser. These checks
 verify software behavior, not biological direction accuracy. Earlier labeled
@@ -68,8 +75,9 @@ recordings and offline analysis are local and excluded from Git; see
 ## Local session and restart
 
 The latest local session uses http://127.0.0.1:8877 with serial port
-/dev/cu.usbmodem1101. Ports may change on reconnection. The server was left
-running; its availability and eye-test toggle should be checked on return.
+/dev/cu.usbmodem1101. Ports may change on reconnection. At review time the server was running but serial was disconnected with a device
+not configured error; recording and the eye-test toggle were off. Recheck the
+port after reconnecting and restart the backend to load pulled Python changes.
 No recording was started for the recent UI changes. To restart:
 
 ```sh

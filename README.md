@@ -37,6 +37,9 @@ confirmation. See [Interaction](docs/INTERACTION.md).
 ## Speech
 
 The ElevenLabs adapter, cache and explicit voice-upload helper are implemented.
+Reply suggestions use local Qwen through Ollama; Gemini is no longer a provider.
+The Contacts page imports private chat examples to personalize replies without
+fine-tuning.
 See [Speech](docs/SPEECH.md). Speech-to-text for heard replies runs Qwen3-ASR on the
 Jetson, reached from the laptop through ASR_URL; see [Jetson handoff](docs/JETSON_HANDOFF.md#4-speech-to-text-link-qwen-on-the-jetson-mic-on-the-laptop). Credentials use exported environment variables;
 the app supports .env loading and browser microphone recording.
@@ -64,7 +67,7 @@ service/device validation is separate. The terminal tools require macOS/Linux.
 
 ## Validation and next milestones
 
-The latest full suite passed 133 tests on macOS. Browser checks cover companion
+The latest full suite passed 141 tests on macOS. Browser checks cover companion
 interactions and synthetic eight-direction gaze feedback.
 See [Validation](docs/VALIDATION.md) for commands, evidence limits and the
 next hardware milestones. Optional container packaging is supplied but untested.

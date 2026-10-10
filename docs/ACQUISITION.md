@@ -257,3 +257,7 @@ feedback, not evidence of accurate classification. Pause free-form wheel testing
 and resume with labeled center/cardinal-direction measurements, channel polarity
 and scale review, and independent validation. See [Current status and next
 session](PROJECT_STATUS.md) for the complete handoff and known detector weaknesses.
+
+For the research comparison, existing-data review, and recovery/calibration
+implementation order, see [EOG detector review](EOG_DETECTION_PLAN.md). The
+current recovery phase has no timeout and can stall against a stale baseline.
