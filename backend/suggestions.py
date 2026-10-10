@@ -192,7 +192,7 @@ class GeminiSuggestions:
 
 class OllamaSuggestions:
     """Local model via Ollama for when Gemini is offline. Text only: Ollama's
-    chat models cannot hear audio, so audio needs speech-to-text first."""
+    chat models cannot hear audio, so the app transcribes it first (backend/transcribe.py)."""
 
     def __init__(self, transport=None, timeout=60):
         load_env()
@@ -225,7 +225,7 @@ class OllamaSuggestions:
         heard_text = " ".join(heard_text.split())[:MAX_HEARD_CHARS] if heard_text else ""
         if not heard_text:
             if audio:
-                raise SuggestionUnavailable("Offline replies need typed text; audio transcription is not set up yet")
+                raise SuggestionUnavailable("Offline replies need typed text or speech-to-text (set ASR_URL to the Jetson's Qwen service)")
             raise ValueError("Provide audio or heard_text")
         body = self.build_request(contact, list(recent), list(avoid), heard_text, style_examples)
         started = time.monotonic()

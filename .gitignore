@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 .venv/
+.venv-asr/
 venv/
 .pytest_cache/
 node_modules/
@@ -17,3 +18,4 @@ config/calibration.local.json
 artifacts/browser-report/
 config/*.local.json
 CLAUDE.md
+AGENTS.md

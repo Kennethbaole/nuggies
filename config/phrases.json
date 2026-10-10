@@ -1,8 +1,8 @@
 {
   "contacts": [
-    {"id": "alex", "name": "Alex", "relationship": "Family", "initials": "AL"},
-    {"id": "sam", "name": "Sam", "relationship": "Friend", "initials": "SA"},
-    {"id": "care", "name": "Care team", "relationship": "Support", "initials": "CT"}
+    {"id": "bella", "name": "Bella", "relationship": "Family", "initials": "BE"},
+    {"id": "kenny", "name": "Kenny", "relationship": "Friend", "initials": "KE"},
+    {"id": "kat", "name": "Kat", "relationship": "Support", "initials": "KA"}
   ],
   "phrases": [
     {"id": "hello", "label": "Hello", "text": "Hi, it is good to see you."},

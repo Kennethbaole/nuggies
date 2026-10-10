@@ -39,6 +39,11 @@ class RingState:
             self.selected = 0
         self.revision += 1
 
+    def show_heard(self, heard):
+        """Show what was heard without changing the phrases (no reply model configured)."""
+        self.heard = heard
+        self.revision += 1
+
     def clear_suggestions(self):
         self.suggested, self.heard = None, ""
         self.suggestions_provider = "curated-demo"

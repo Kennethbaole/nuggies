@@ -35,7 +35,8 @@ confirmation. See [Interaction](docs/INTERACTION.md).
 ## Speech
 
 The ElevenLabs adapter, cache and explicit voice-upload helper are implemented.
-See [Speech](docs/SPEECH.md). Credentials use exported environment variables;
+See [Speech](docs/SPEECH.md). Speech-to-text for heard replies runs Qwen3-ASR on the
+Jetson, reached from the laptop through ASR_URL; see [Jetson handoff](docs/JETSON_HANDOFF.md#4-speech-to-text-link-qwen-on-the-jetson-mic-on-the-laptop). Credentials use exported environment variables;
 automatic .env loading and microphone recording are not implemented.
 
 ## Run the companion
@@ -43,6 +44,10 @@ automatic .env loading and microphone recording are not implemented.
 ```sh
 python3 -m backend.app
 ```
+
+With Qwen speech-to-text, `python3 -m scripts.dev` starts the app and the Qwen
+service together as hidden background processes in one terminal; Ctrl+C or
+closing the terminal stops both.
 
 Open http://127.0.0.1:8765. Left/Right navigates; Space confirms; B twice
 simulates blinks. Browser speech requires Enable speech. Companion, phone and

@@ -39,3 +39,24 @@ body.signal-expanded-open{overflow:hidden}
 @media(max-width:600px){.signal-details.signal-expanded{inset:8px;padding:14px}.signal-expanded #trace{height:45vh}}
 
 .guided-test{margin-top:22px;padding:18px;border:1px solid var(--line);border-radius:10px}.guided-test h2{font-size:18px}#guided-cue{font-size:24px;line-height:1.4;color:var(--text)}#guided-progress{font-size:15px;color:var(--green);min-height:24px}
+
+/* Speaking-with picker: a clear pill with a chevron, and a colour per person. */
+.contact-row{gap:14px}
+.contact-row>div:nth-child(2){flex:1;min-width:0}
+.avatar{height:44px;width:44px;flex:none;font-size:12px;font-weight:600;letter-spacing:.06em;color:#14211f;
+  background:linear-gradient(135deg,var(--tone-a),var(--tone-b));box-shadow:0 0 0 3px #101c1c,0 0 0 4px var(--tone-a);
+  transition:background .25s,box-shadow .25s}
+.avatar,.avatar[data-tone="0"]{--tone-a:#e4ad8f;--tone-b:#c98a6d}
+.avatar[data-tone="1"]{--tone-a:#b5d3c1;--tone-b:#86b29c}
+.avatar[data-tone="2"]{--tone-a:#c9b8e8;--tone-b:#9f8ccf}
+.contact-row select{appearance:none;-webkit-appearance:none;width:100%;max-width:none;cursor:pointer;
+  font-family:Georgia,"Times New Roman",serif;font-size:19px;letter-spacing:-.2px;color:var(--text);
+  padding:5px 30px 5px 10px;margin-left:-10px;border:1px solid transparent;border-radius:8px;
+  background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%238daba5' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+  transition:border-color .15s,background-color .15s}
+.contact-row select:hover{border-color:var(--line);background-color:#1a2c2a}
+.contact-row select:focus-visible{outline:none;border-color:var(--accent);background-color:#1a2c2a}
+.contact-row select option{font-family:Inter,ui-sans-serif,"Segoe UI",sans-serif;font-size:14px;background:var(--panel);color:var(--text)}
+#relationship{padding-left:1px;text-transform:uppercase;letter-spacing:.14em;font-size:9px}
+.contact-dot{box-shadow:0 0 0 4px #b5d3c122}
+@media(max-width:600px){.avatar{width:34px;height:34px;font-size:10px}.contact-row select{font-size:15px;padding:4px 24px 4px 8px;margin-left:-8px;background-position:right 7px center}}
