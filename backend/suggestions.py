@@ -50,6 +50,18 @@ class SuggestionResult:
     provider: str = "ollama"
 
 
+def label_for(text):
+    """Button label: the reply's opening words, so it always matches what will be said.
+    Small models write unreliable labels (category names, "REPLY-1", copied examples)."""
+    label = ""
+    for word in text.split():
+        candidate = f"{label} {word}".strip()
+        if len(candidate.strip(" .,!?;:")) > MAX_LABEL_CHARS:
+            break
+        label = candidate
+    return label.strip(" .,!?;:") or text[:MAX_LABEL_CHARS].strip() or "Reply"
+
+
 def clean_suggestions(items, avoid=()):
     """Validate model output: bounded text, no duplicates, none already used."""
     skipped = {" ".join(str(text).lower().split()) for text in avoid}
@@ -57,18 +69,16 @@ def clean_suggestions(items, avoid=()):
     for item in items if isinstance(items, list) else []:
         if not isinstance(item, dict):
             continue
-        text, label = item.get("text"), item.get("label")
+        text = item.get("text")
         if not isinstance(text, str):
             continue
         text = " ".join(text.split())
         key = text.lower()
         if not text or len(text) > MAX_TEXT_CHARS or key in skipped:
             continue
-        label = " ".join(label.split()) if isinstance(label, str) else ""
-        label = (label or text.split()[0]).strip(" .,!?")[:MAX_LABEL_CHARS].strip() or "Reply"
         skipped.add(key)
         digest = hashlib.sha1(key.encode()).hexdigest()[:8]
-        cleaned.append(dict(id=f"ai-{digest}", label=label, text=text))
+        cleaned.append(dict(id=f"ai-{digest}", label=label_for(text), text=text))
         if len(cleaned) == SUGGESTION_COUNT:
             break
     return cleaned

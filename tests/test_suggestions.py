@@ -52,8 +52,15 @@ class CleanTests(unittest.TestCase):
         cleaned = clean_suggestions(items, avoid=["already said."])
         self.assertEqual([item["text"] for item in cleaned], ["Hello there.", "Thanks a lot."])
         self.assertLessEqual(len(cleaned[0]["label"]), 14)
-        self.assertEqual(cleaned[1]["label"], "Thanks")
+        self.assertEqual(cleaned[1]["label"], "Thanks a lot")
         self.assertTrue(cleaned[0]["id"].startswith("ai-"))
+
+    def test_labels_come_from_reply_text_not_model(self):
+        items = [dict(label="REPLY-1", text="Can you call her for me, please?"),
+                 dict(label="Agree", text="Yes, please."),
+                 dict(text="Unbelievably wonderful news!"), dict(text="Congratulations, everyone!")]
+        self.assertEqual([item["label"] for item in clean_suggestions(items)],
+                         ["Can you call", "Yes, please", "Unbelievably", "Congratulation"])
 
     def test_limits_to_five_and_tolerates_non_lists(self):
         many = [dict(label=str(i), text=f"Reply number {i}.") for i in range(9)]
