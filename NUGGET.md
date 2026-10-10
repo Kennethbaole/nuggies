@@ -133,7 +133,20 @@ The firmware owns its own selection index and labels. Its default utility labels
 
 Serial protocol: `O:<comma-separated labels>`, `H:<slot>`, `T:<status>`, `n`, `p`, `s`. Firmware labels are bounded to ten characters. There are no session/revision IDs, acknowledgements establishing application agreement, or confirmed-utterance IDs in this protocol.
 
-Wi-Fi support is compiled off (`USE_WIFI=0`). Enabling its WebSocket client does not make it compatible with `backend.app`, even though both mention port 8765. A matching backend adapter/protocol is missing.
+Wi-Fi support is compiled off (`USE_WIFI=0`). Enabling its WebSocket client does not make it compatible with `backend.app`, which serves HTTP only. A matching WebSocket server is missing, so the display link is USB only for now.
+
+### Website-to-OLED mirror (added 2026-10-10)
+
+`backend/hud_sync.py` polls `/api/state` and sends the ESP32 one complete `W:` frame per change and once a second: highlighted slot (`-1` for none), eight labels (empty hides a slot) and three pre-wrapped centre lines. It follows `frontend/hud.js` for the centre text and for hiding the highlight during eye-driven modes, so the four-item communication layout appears as on the website. It is one-way: the display never sends actions to the website, and the first `W:` frame makes the firmware ignore its standalone `O`/`H`/`n`/`p`/`s` commands until reset.
+
+```sh
+python -m backend.hud_sync --port /dev/cu.usbserial-0001   # USB
+python -m backend.hud_sync --print                         # no hardware
+```
+
+Wi-Fi settings for the future link go in `firmware/esp32_hud/secrets.h` (ignored by Git; copy `secrets.example.h`). Labels are cut to 10 ASCII characters and centre text to at most 38.
+
+Evidence: 14 unit tests including the real `Application` over HTTP; the firmware frame parser was compiled on the host and fed real frames; both `USE_WIFI` variants compile for `esp32doit-devkit-v1` (core 3.3.2, WebSockets library by Markus Sattler). **Not yet flashed or viewed on the OLED**, and the 4x6 centre font has not been judged through the optics. The EOG samples still reach the laptop over the Nano's USB cable; neither a wireless display link nor a wireless sample uplink is built.
 
 ## 4. Rules future changes must preserve
 
@@ -421,7 +434,7 @@ All entries below were open at the audited commit. **Reproduced** means a focuse
 | ID | Priority / evidence | Gap, effect, and next useful check |
 | --- | --- | --- |
 | G01 | Jetson blocker; reproduced | `scripts/try_transcribe.py` imports nonexistent `record` from `scripts.try_suggest`. Even `--help` fails with ImportError. Restore a shared mic helper or replace the import; test all three CLI modes, including health without mic dependencies. |
-| G02 | Joint integration; inspected | ESP32 wheel/bridge bypass canonical companion state, confirmation and speech claims. Either label it a separate prototype or implement an explicit state adapter; verify phrase and utility parity. Optional WebSocket firmware has no server counterpart. |
+| G02 | Joint integration; partly addressed 2026-10-10 | `backend.hud_sync` now mirrors canonical state to the OLED (software-checked only; see section 3). Remaining: flash and view on hardware, optical readability, and the standalone `hud_bridge` path below is unchanged. Original finding: ESP32 wheel/bridge bypass canonical companion state, confirmation and speech claims. Either label it a separate prototype or implement an explicit state adapter; verify phrase and utility parity. Optional WebSocket firmware has no server counterpart. |
 | G03 | EOG usability blocker; reproduced | Guided waveform/pulse paths are integrated. Hidden Ready warmup is fixed and uncertain returns can be reserved; outward template rejection and long retry still affect usability. Preserve current replay cases before further changes. Legacy hover remains a separate path. |
 | G04 | EOG workflow; reproduced | Replay permits duplicate receipt timestamps; calibration labels reject them. Fix alignment using sample identity/order with validation rather than guessing timestamp uniqueness. Preserve compatibility with existing recordings. |
 | G05 | Jetson integration; inspected | Frontend aborts at 18 s while Ollama may run 60 s, after ASR time. Backend work can continue and apply a result after the browser reports failure. Define bounded timing and request ownership/cancellation; test slow success and late result rejection. |
@@ -483,6 +496,7 @@ All tracked source and documentation were read during the audit. This map identi
 | `backend/persona.py`, `envfile.py`, `speech.py` | Local contact/profile storage and retrieval, env loading, ElevenLabs/cache. |
 | `backend/hud.py`, `frontend/hud.js` | Snapshot image/canvas renderers. Neither drives physical optics. |
 | `backend/hud_bridge.py`, `config/hud_phrases.json` | Independent serial ESP32 event/speech flow. |
+| `backend/hud_sync.py` | One-way mirror of website state to the ESP32 OLED over USB. |
 | `frontend/index.html`, `app.js`, `styles.css`, `type.css`, `favicon.svg` | Companion/phone/browser-HUD shell, polling, controls, mic/audio, styling. System fonts need no download. |
 | `frontend/contacts.html`, `contacts.js`, `contacts.css` | People and profile-import interface. |
 | `firmware/nano_r4_eog_250hz/`, `nano_r4_two_channel/`, `esp32_hud/` | Current ADC acquisition, slow bench acquisition, SH1106 command-driven display. |

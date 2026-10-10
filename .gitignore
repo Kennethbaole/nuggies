@@ -20,3 +20,4 @@ config/*.local.json
 CLAUDE.md
 AGENTS.md
 artifacts/ui-refresh/
+firmware/**/secrets.h

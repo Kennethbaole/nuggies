@@ -1,14 +1,21 @@
 // ESP32 DevKit V1 + 1.3" SH1106 OLED: ring HUD driven by text commands.
 //
 // Commands (one per line over USB Serial, or one per WebSocket text message):
+//   W:2|Hello|Thanks|Listen|Stay|Back|Love|More|Spell|I love|you.|
+//                                            mirror the website (backend.hud_sync): highlighted
+//                                            slot (-1 = none), 8 labels (empty = hidden slot),
+//                                            3 centre lines. Sent whole on every change and
+//                                            once a second; "No link" shows if it stops for 4 s.
 //   O:Food,Warm,Cool,Move,Light,Spell,More   new options (up to 7; Back stays at the bottom)
 //   H:3                                      highlight slot 3 (0 = top, clockwise; 4 = Back)
 //   T:speaking...                            status message for 1.5 s
 //   n / p / s                                next / previous / select (local testing)
-// On select it reports "SELECTED:<index>:<label>" over Serial and WebSocket.
+// On select it reports "SELECTED:<index>:<label>" over Serial and WebSocket. O/H/n/p/s are the
+// standalone wheel used by backend.hud_bridge; a W: frame switches to mirroring the website.
 //
 // Libraries (Arduino Library Manager): "U8g2" by oliver, and
 // "WebSockets" by Markus Sattler (arduinoWebSockets).
+// Wi-Fi is not usable yet: nothing in the repo serves this WebSocket. Use USB.
 //
 // Wiring: OLED SDA -> GPIO 21, SCK/SCL -> GPIO 22, VCC -> 3V3, GND -> GND.
 // Power: LiPo -> protection/charger -> 5 V boost -> VIN, never LiPo straight
@@ -19,14 +26,23 @@
 #include <math.h>
 
 // ---------- Settings ----------
-#define USE_WIFI 0          // 1 = connect to the hotspot and the WebSocket server
+#define USE_WIFI 0          // 1 = join the hotspot and connect to the WebSocket server
 #define FLIP_MODE 0         // 0 = normal, 1 = mirror left-right, 2 = mirror top-bottom
 
-const char* WIFI_SSID = "YOUR_HOTSPOT_NAME";
-const char* WIFI_PASS = "YOUR_HOTSPOT_PASSWORD";
-const char* WS_HOST   = "172.20.10.2";   // laptop/Jetson IP (hostname -I / ipconfig getifaddr en0)
-const uint16_t WS_PORT = 8765;           // must match the Python server; check for clashes
-const char* WS_PATH   = "/";
+// Copy secrets.example.h to secrets.h (ignored by Git) and put the real values there.
+#if __has_include("secrets.h")
+  #include "secrets.h"
+#else
+  #define WIFI_SSID "YOUR_HOTSPOT_NAME"
+  #define WIFI_PASS "YOUR_HOTSPOT_PASSWORD"
+  #define WS_HOST   "10.42.0.1"          // the Jetson on its own hotspot (NetworkManager default)
+#endif
+#ifndef WS_PORT
+  #define WS_PORT 8766                   // placeholder: 8765 is the website (HTTP only, no WebSocket)
+#endif
+#ifndef WS_PATH
+  #define WS_PATH "/"
+#endif
 
 #if FLIP_MODE == 1
   #define ROTATION U8G2_MIRROR
@@ -65,8 +81,17 @@ char statusText[24] = "";
 unsigned long statusUntil = 0;
 unsigned long lastPress = 0;
 bool lastBtn = HIGH;
-char lineBuf[160];
+char lineBuf[200];
 int lineLen = 0;
+
+// Mirror mode: the website owns the picture and sends it whole in W: frames.
+const int CENTER_LINES = 3;
+const int MAX_CENTER = 14;
+const unsigned long LINK_TIMEOUT_MS = 4000;
+bool mirrorMode = false;
+bool highlight = true;
+char centerText[CENTER_LINES][MAX_CENTER + 1];
+unsigned long lastFrame = 0;
 
 float slotAngle(int k) { return -PI / 2 + k * SEG; }
 bool slotEmpty(int k) { return labels[k][0] == '\0'; }
@@ -136,7 +161,43 @@ void setOptions(char* list) {
   if (slotEmpty(0)) next();
 }
 
+// W:<selected>|<8 labels>|<3 centre lines>. Fields are split by hand because
+// strtok would skip the empty ones that mark hidden slots.
+void setFrame(char* frame) {
+  const int FIELDS = 1 + N + CENTER_LINES;
+  char* field[FIELDS];
+  int count = 0;
+  field[count++] = frame;
+  for (char* c = frame; *c != '\0' && count < FIELDS; c++) {
+    if (*c == '|') { *c = '\0'; field[count++] = c + 1; }
+  }
+  if (count < 1 + N) return;            // not a complete frame; keep the last picture
+
+  for (int k = 0; k < N; k++) {
+    strncpy(labels[k], field[1 + k], MAX_LABEL);
+    labels[k][MAX_LABEL] = '\0';
+  }
+  for (int i = 0; i < CENTER_LINES; i++) {
+    strncpy(centerText[i], 1 + N + i < count ? field[1 + N + i] : "", MAX_CENTER);
+    centerText[i][MAX_CENTER] = '\0';
+  }
+
+  int k = atoi(field[0]);
+  bool show = k >= 0 && k < N && !slotEmpty(k);
+  if (show && mirrorMode && highlight) moveTo(k);          // glide from the previous slot
+  else if (show) { selected = k; wedge = wedgeTarget = slotAngle(k); }
+  highlight = show;
+  mirrorMode = true;
+  statusUntil = 0;
+  lastFrame = millis();
+}
+
 void handleCommand(char* cmd) {
+  if (strncmp(cmd, "W:", 2) == 0)      { setFrame(cmd + 2); return; }
+  if (mirrorMode) {                    // the website owns the wheel; only status text is local
+    if (strncmp(cmd, "T:", 2) == 0) showStatus(cmd + 2, 1500);
+    return;
+  }
   if (strncmp(cmd, "O:", 2) == 0)      setOptions(cmd + 2);
   else if (strncmp(cmd, "H:", 2) == 0) { int k = atoi(cmd + 2); if (k >= 0 && k < N && !slotEmpty(k)) moveTo(k); }
   else if (strncmp(cmd, "T:", 2) == 0) showStatus(cmd + 2, 1500);
@@ -162,7 +223,7 @@ void readSerial() {
 void readButton() {
   bool btn = digitalRead(BOOT_BTN);   // BOOT button = next (handy without a laptop)
   if (lastBtn == HIGH && btn == LOW && millis() - lastPress > 200) {
-    next();
+    if (!mirrorMode) next();
     lastPress = millis();
   }
   lastBtn = btn;
@@ -180,7 +241,7 @@ void onWebSocket(WStype_t type, uint8_t* payload, size_t length) {
       wsConnected = false;
       break;
     case WStype_TEXT: {
-      char buf[160];
+      char buf[200];
       size_t n = length < sizeof(buf) - 1 ? length : sizeof(buf) - 1;
       memcpy(buf, payload, n);
       buf[n] = '\0';
@@ -218,31 +279,53 @@ void drawPulse(int x, int y) {
 
 void drawStatus() {
   u8g2.setDrawColor(1);
+  if (mirrorMode) {                     // the highlighted slot may be hidden or absent
+    u8g2.setFont(u8g2_font_7x13B_tr);
+    drawCentered(statusText, 64, 32);
+    return;
+  }
   u8g2.setFont(u8g2_font_ncenB14_tr);
   drawCentered(labels[selected], 64, 26);
   u8g2.setFont(u8g2_font_5x8_tr);
   drawCentered(statusText, 64, 52);
 }
 
+// Centre text from the website, already wrapped by hud_sync to fit the inner ellipse.
+void drawCenterText() {
+  int count = 0;
+  for (int i = 0; i < CENTER_LINES; i++) if (centerText[i][0] != '\0') count++;
+  u8g2.setFont(u8g2_font_4x6_tr);
+  int row = 0;
+  for (int i = 0; i < CENTER_LINES; i++) {
+    if (centerText[i][0] == '\0') continue;
+    drawCentered(centerText[i], CX, CY + lround((row - (count - 1) / 2.0f) * 7));
+    row++;
+  }
+}
+
 void drawRing() {
   u8g2.setDrawColor(1);
   u8g2.drawEllipse(CX, CY, ORX, ORY, U8G2_DRAW_ALL);
   u8g2.drawEllipse(CX, CY, IRX, IRY, U8G2_DRAW_ALL);
-  fillWedge(wedge);
+  if (highlight) fillWedge(wedge);
 
   u8g2.setFont(u8g2_font_5x8_tr);
   u8g2.setFontMode(1);
   for (int k = 0; k < N; k++) {
     if (slotEmpty(k)) continue;
     float a = slotAngle(k);
-    u8g2.setDrawColor(k == selected ? 0 : 1);
+    u8g2.setDrawColor(highlight && k == selected ? 0 : 1);
     drawCentered(labels[k], lround(CX + (MRX - 2) * cos(a)), lround(CY + (MRY - 1) * sin(a)));
   }
 
   u8g2.setDrawColor(1);
-  drawPulse(CX, CY - 6);
-  u8g2.setFont(u8g2_font_7x13B_tr);
-  drawCentered(labels[selected], CX, CY + 5);
+  if (mirrorMode) {
+    drawCenterText();
+  } else {
+    drawPulse(CX, CY - 6);
+    u8g2.setFont(u8g2_font_7x13B_tr);
+    drawCentered(labels[selected], CX, CY + 5);
+  }
 
 #if USE_WIFI
   if (!wsConnected) u8g2.drawDisc(124, 3, 2);   // small dot = not connected to the server
@@ -270,6 +353,13 @@ void loop() {
 #if USE_WIFI
   webSocket.loop();
 #endif
+  if (mirrorMode && millis() - lastFrame > LINK_TIMEOUT_MS) {   // backend.hud_sync stopped or the link dropped
+    for (int k = 0; k < N; k++) labels[k][0] = '\0';
+    strcpy(centerText[0], "No link");
+    centerText[1][0] = centerText[2][0] = '\0';
+    highlight = false;
+    lastFrame = millis();
+  }
 
   wedge += (wedgeTarget - wedge) * 0.3f;
   if (fabs(wedgeTarget - wedge) < 0.001) {
