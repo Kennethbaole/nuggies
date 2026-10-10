@@ -184,3 +184,47 @@ run a hotspot on the Wi-Fi radio that comes up at boot; phones then use
 sudo nmcli device wifi hotspot ifname <wifi-device> ssid <ssid> password '<8+ chars>'
 sudo nmcli connection modify Hotspot connection.autoconnect yes
 ```
+
+## 6. Follow main automatically
+
+A user timer runs `scripts/auto_update.sh` every 2 minutes. When `origin/main`
+has new commits, the script tests them in a separate worktree with `.venv` and
+only then fast-forwards `~/nuggies` and restarts `nuggies-app`. It also
+restarts `nuggies-asr` if that service is running and `backend/asr_server.py`
+changed. A failing commit is skipped: the Jetson stays on the last good commit
+until the next push. The script only acts when the checkout is on `main` with
+no edits to tracked files. To test a branch on the Jetson, check it out; updates
+pause until you `git switch main` again. Re-running `pip` for
+`requirements.txt` changes is automatic. Other requirement files and new
+`.env` settings still need a person.
+
+```ini
+# ~/.config/systemd/user/nuggies-update.service
+[Unit]
+Description=Deploy new commits on origin/main
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/nuggies/scripts/auto_update.sh
+```
+
+```ini
+# ~/.config/systemd/user/nuggies-update.timer
+[Unit]
+Description=Check origin/main every 2 minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=2min
+
+[Install]
+WantedBy=timers.target
+```
+
+Run `systemctl --user enable --now nuggies-update.timer` (linger from section 5
+keeps it running without a login). Pause during a demo with
+`touch ~/nuggies/.cache/auto-update.pause` and resume by deleting that file.
+Logs: `journalctl --user -u nuggies-update`. Deploying restarts the app. Open
+pages reconnect by themselves within seconds without asking for the token
+again. In-memory state (the current draft and recent words) starts fresh.
