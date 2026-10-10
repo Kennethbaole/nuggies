@@ -174,3 +174,39 @@ smoothing or spacing also exposes noise and secondary lobes of single blinks;
 two candidate peaks are not proof of two physical blinks or deliberate intent.
 Compare unchanged settings on single-blink, gaze and resting recordings before
 using peak pairs for SELECT. The default smoothing remains 100 ms.
+
+## Offline double-blink candidate detector
+
+`backend.double_blink` is an experimental streaming two-channel detector;
+`backend.review_blinks` replays complete local recordings without issuing live
+commands. It uses 20 ms smoothing and slow baselines, requires two separate
+positive pulses with compatible widths/peak ratios, 120–650 ms between peaks,
+limited horizontal activity, and quiet recovery. Continuous multi-peak pulses,
+clipping, extra activity during recovery, broad pulses and isolated blinks are
+rejected. Baseline freezes while a candidate is pending; one-second cooldown
+follows an emitted candidate. Defaults are development settings, not validated
+personal calibration. Polarity is configurable.
+
+```sh
+python3 -m backend.review_blinks recordings/trial.csv > recordings/blink-review.json
+python3 -m backend.review_blinks recordings/trial.csv --windows recordings/trial.blink-windows.json > recordings/blink-evaluation.json
+```
+
+An optional evaluation file is a JSON list of nonoverlapping intervals containing
+`start_sample` (inclusive), `end_sample` (exclusive), and `expected` (`"SELECT"`
+or `null` for no command). Optional `name` identifies a trial. Use only reviewed
+intervals, excluding skipped/mistimed trials; metadata labels alone do not prove
+intent. The report includes expected-pair hits/misses, duplicate candidates,
+negative-window false candidates and exposure time, and unscored candidates.
+All interval boundaries must fit the recording. Candidate timestamps use sample
+index/fs and include processing/recovery delay. Trial metadata is aligned before
+reporting and never drives the detector. Keep reports and evaluation files local.
+
+Known limitations: false candidates have occurred during gaze/return activity,
+and a close deliberate pair can be rejected when it never drops enough between
+peaks. Natural successive blinks can resemble deliberate pairs. No morphology
+rule can establish intent by itself. Evaluate negative recordings as well as
+successful pairs, then test unchanged settings on fresh data. These development
+recordings are not held-out validation. The tool emits SELECT *candidates* in JSON;
+it is not connected to the live app, which remains monitoring-only. No gesture
+threshold or live navigation behavior is changed by running replay.
