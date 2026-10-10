@@ -1,17 +1,22 @@
-> 2026-10-10 update: A separate opt-in experimental communication mode now connects
-> gaze, recovered-center readiness, and double-blink confirmation to the existing
-> phrase/speech pipeline. Diagnostic eye-wheel mode still cannot confirm or speak.
-> See [communication flow](docs/EOG_COMMUNICATION.md). No live confirmation accuracy is claimed.
-
 # NUGGET — project truth and agent handoff
 
-Updated: 2026-10-10. Repository audited at `b1ceaa0216426cba830f387c474bec8e05c9c3b8`.
+Updated 2026-10-10. Current EOG work is on `experiment/eog-continuous-detection`;
+**do not merge to main**. The general architecture audit below began at `b1ceaa0`;
+its historical experiment notes are superseded by the current sections and
+[development handoff](docs/CLAUDE_HANDOFF.md).
 
-Latest experimental implementation: `12342a4` on
-`experiment/eog-continuous-detection`. Guided EOG live-check instructions and
-current evidence: [EOG_LIVE_CHECK](docs/EOG_LIVE_CHECK.md). Base suite167run,
-166passed,1optional skip; guided and normal desktop/mobile browser checks passed.
-No new wearer or physical OLED result is claimed.
+Latest detector fixes: `000792c` removes hidden warmup after Ready; `8dbd864` adds
+opt-in remembered-excursion return suppression. Independent pulse confirmation is
+implemented and Kenneth reports more consistent double-blink selection. Outward
+direction rejection/retry remains a blocker. Use existing recordings; no new generic
+calibration protocol. See [direction investigation](docs/EOG_DIRECTION_REGRESSION.md),
+[communication flow](docs/EOG_COMMUNICATION.md) and [current status](docs/PROJECT_STATUS.md).
+
+Verification: 224 tests run, 223 passed, one optional skip; isolated browser check
+passes with pulse confirmation/return protection and mocked speech. Reviewed replay:
+16 direction hits, four misses, zero wrong/duplicates, three false directions/275 s;
+zero negative-phase confirmations with the pulse policy. Reused development evidence,
+not independent accuracy. Jetson and physical OLED remain unvalidated.
 
 Read this before changing the project. This is the central reference for project intent, implementation boundaries, evidence, unresolved gaps, and the next work. Detailed guides remain useful, but their known stale statements are listed below. A feature being present in code does not establish that it works on the intended hardware or for the intended users.
 
@@ -73,8 +78,8 @@ Use these evidence labels when discussing progress:
 | --- | --- | --- |
 | Communication UI | Browser navigation, phrase selection, Needs, spelling, shared phone/HUD views are implemented. | Unit checks pass; earlier browser checks are documented. Browser acceptance was not rerun in this audit. |
 | Nano acquisition | Two raw channels, serial parsing, recording/replay, labeling and guided protocols are implemented. | Earlier docs report live two-Pill acquisition. This audit had no serial devices. |
-| EOG navigation | Calibrated left/right navigation and a separate experimental spatial hover mode exist. | The last specific live report says hover did not reliably match intended gaze. The owner says EOG remains under test. |
-| Confirmation | Manual selection and simulated double-blink pairing work in the companion. | The newer biological double-blink detector is offline only. A different older detector can issue SELECT in the standalone ESP32 bridge. |
+| EOG navigation | Guided waveform cardinal navigation is integrated, with immediate Ready detection and optional return suppression. Legacy paths remain separate. | Outward rejection and retry are still usability blockers; replay and wearer reports are separate evidence. |
+| Confirmation | Opt-in gaze → return → independent double-blink confirmation is integrated, with one-shot/expiry/content protections. | Wearer reports improved consistency. Two of five reviewed pulse pairs are missed; live false-confirmation rate is not established. |
 | Reply generation | Ollama/Qwen produces preview suggestions from text. | Code and mocked tests checked. No Jetson inference measurements were captured here. |
 | Speech recognition | Browser microphone → application → Qwen ASR service is implemented. | Client/service tests use fake inference. Real CLI helper currently has a broken import. |
 | Speech output | ElevenLabs with cache and browser fallback are implemented. | Mocked checks pass. Audible output and real provider behavior were not tested here. Piper is installation-only. |
@@ -155,9 +160,9 @@ Before body-connected acquisition, follow the setup/electrode/power verification
 - `nano_r4_eog_250hz.ino` schedules an A0/A1 pair every 4 ms. The reads are sequential, not simultaneous.
 - `nano_r4_two_channel.ino` is the roughly 10 Hz bench sketch; it is unsuitable for the current waveform timing assumptions.
 - `ADCSample.timestamp_ms` is host wall-clock receipt time, not device sampling time. USB buffering can produce repeated timestamps and uneven gaps.
-- There is no device sequence number, MCU timestamp, or stream metadata identifying the running sketch/rate. Dropped samples cannot currently be counted directly.
+- The existing flashed sketch has no MCU sample identity. Optional `nano_r4_eog_v2` adds sequence/micros/header and oversampling settings; host parsing/recording supports it, but it has not been compiled or flashed. See [firmware v2](docs/EOG_FIRMWARE_V2.md).
 - `SerialADCSource` bounds partial-line buffering, ignores invalid rows, and raises after five seconds without a valid sample. The UI reports stale serial input after two seconds. Serial failures end the worker; there is no automatic reconnect.
-- Raw CSV columns, in required order: `timestamp_ms,horizontal_adc,vertical_adc,source,units`. Units are `adc_counts`. Replay accepts equal timestamps but rejects decreasing timestamps.
+- Legacy raw CSV columns: `timestamp_ms,horizontal_adc,vertical_adc,source,units`. New app captures append optional sequence/device timestamp columns; legacy replay remains supported. Units are `adc_counts`; host receipt time is distinct from MCU time.
 - The browser keeps only 300 recent samples; at nominal 250 Hz this represents about 1.2 seconds. Its trace is autoscaled and plotted by sample order, not a calibrated physical-gaze plot.
 
 ### Separate processing paths
@@ -165,6 +170,7 @@ Before body-connected acquisition, follow the setup/electrode/power verification
 | Path | Consumer | Configuration/time basis | What it actually does |
 | --- | --- | --- | --- |
 | `Calibration` → optional `ExponentialSmoother` → `ThresholdClassifier` → `GestureGate` | Companion serial/replay with `--enable-sensor-actions` | Calibration JSON; gate uses receipt timestamps. | Normalize counts, choose dominant cardinal axis, issue left/right after hold/rearm. No biological SELECT. |
+| `GuidedEOGTest` / `EOGPipeline` | Companion and headless JSONL | Frozen private profile, nominal 250→50 Hz; `--eog-pulse-confirmation`, `--eog-return-guard` | Cardinal candidates/returns, optional pending-choice confirmation; transport-free contract v1. |
 | `LiveWheelTest` | Companion experimental eye-wheel toggle | Fixed 250 Hz sample-count assumptions and hardcoded raw thresholds. | Spatial focus among eight slots; no Select/Back activation. Calibration files do not configure it. |
 | `EOGEventDetector` | `backend.detect` and standalone `hud_bridge` | `DetectorConfig`, default 250 Hz; sample index/fs. | NEXT/PREV on threshold onset; double-blink SELECT and long-blink BACK under exploratory rules. Can issue real bridge commands. |
 | `PairedGlanceDetector` | `backend.review_glances` | Default 250 Hz; sample index/fs. | A0-only outbound/return/settling pattern; emits PREV/NEXT after recovery. Not currently wired into companion hover. |
@@ -238,7 +244,7 @@ Each confirmation increments `selection_id`. History retains 12 utterances. Cont
 
 ### Speech
 
-Speech is enabled separately on a companion browser; the browser HUD stays silent. Existing selections are not automatically spoken when a browser first joins or enables speech. `/api/speech` accepts confirmed history entries, not arbitrary frontend text.
+Starting gaze communication enables speech on that companion through its browser click; refresh defaults speech off. Speech can also be enabled separately; the browser HUD stays silent. Existing selections are not automatically spoken when a browser first joins or enables speech. `/api/speech` accepts confirmed history entries, not arbitrary frontend text.
 
 ElevenLabs uses an authorized voice configuration and caches MP3 by text, voice, model and settings. A profile requiring verification disables it. Browser speech is the fallback when unconfigured or when an eligible cloud failure occurs. Audio is played on the browser machine, not automatically on a Jetson speaker.
 
@@ -375,11 +381,11 @@ This is a proposed execution order based on the owner's priorities, not a record
 
 ### EOG workstream
 
-1. Capture a quiet baseline and labeled cardinal movements with distinct center returns; collect blinks and neutral periods as negative cases. Preserve setup notes and the exact raw/sidecar set.
+1. Reuse the reviewed recordings and saved live failure cases. Do not request another generic calibration run; exact reset/window logs now support reproducible offline debugging.
 2. Review polarity, clipping, channel noise, gain/leakage and pulse shape before changing thresholds. Fix the duplicate-timestamp calibration workflow if using that fitter.
 3. Choose and configure the detector actually driving the demo. Prioritize repeatable cardinal behavior over adding more directions or visual effects.
-4. Evaluate unchanged settings on fresh recordings, reporting intended trials, correct/wrong directions, misses, duplicates, false triggers and latency. Keep fitting data separate from evaluation data.
-5. Only add diagonal control and deliberate biological confirmation after the preceding behavior is established. Retain an explicit manual fallback for the hackathon demonstration.
+4. Evaluate candidates on existing held-out repetitions and saved live failures, reporting misses, wrong/duplicate directions, false confirmations, blocked time and latency. Keep fitting data separate from evaluation data. Fresh acceptance testing comes after the current failures are resolved; do not request another blanket recording now.
+5. Preserve the independent double-blink policy while fixing outward/return recognition. Keep diagonals disabled and retain an explicit manual fallback.
 
 ### Jetson workstream
 
@@ -416,7 +422,7 @@ All entries below were open at the audited commit. **Reproduced** means a focuse
 | --- | --- | --- |
 | G01 | Jetson blocker; reproduced | `scripts/try_transcribe.py` imports nonexistent `record` from `scripts.try_suggest`. Even `--help` fails with ImportError. Restore a shared mic helper or replace the import; test all three CLI modes, including health without mic dependencies. |
 | G02 | Joint integration; inspected | ESP32 wheel/bridge bypass canonical companion state, confirmation and speech claims. Either label it a separate prototype or implement an explicit state adapter; verify phrase and utility parity. Optional WebSocket firmware has no server counterpart. |
-| G03 | EOG blocker; inspected | Live-hover thresholds/polarity/timing are hardcoded and disconnected from calibration. Direction consistency, blink rejection, and channel scaling remain unresolved. Test calibrated parameters on the live path, not merely the normalized classifier. |
+| G03 | EOG usability blocker; reproduced | Guided waveform/pulse paths are integrated. Hidden Ready warmup is fixed and uncertain returns can be reserved; outward template rejection and long retry still affect usability. Preserve current replay cases before further changes. Legacy hover remains a separate path. |
 | G04 | EOG workflow; reproduced | Replay permits duplicate receipt timestamps; calibration labels reject them. Fix alignment using sample identity/order with validation rather than guessing timestamp uniqueness. Preserve compatibility with existing recordings. |
 | G05 | Jetson integration; inspected | Frontend aborts at 18 s while Ollama may run 60 s, after ASR time. Backend work can continue and apply a result after the browser reports failure. Define bounded timing and request ownership/cancellation; test slow success and late result rejection. |
 | G06 | Conversation correctness; reproduced | Contact can change during ASR before request context is captured. A fake ASR callback changing Kenny to Kat resulted in Kenny's transcript displayed under Kat. Capture/check context across the entire listen-and-suggest operation. |
@@ -427,8 +433,8 @@ All entries below were open at the audited commit. **Reproduced** means a focuse
 | G11 | Privacy/documentation; inspected | UI/module text promises device-local conversations, but configurable remote Ollama/ASR endpoints and optional ElevenLabs change destinations. Describe actual hosts and payloads. Derived profiles and TTS cache have no retention/backup policy. |
 | G12 | Data recovery; reproduced + inspected | `contacts.local.json` containing JSON `null` raises TypeError; persona validation checks only limited structure. Profile/contact writes are not atomic and all save/remove paths lack a shared persistence lock. Test malformed valid JSON and interrupted/concurrent writes without destroying existing profiles. |
 | G13 | Feedback consistency; reproduced + inspected | At three seconds stale, state reported disconnected but retained hover slot/phase. Companion hides underline via `connected`; the detector clears on later samples/error. HUDs render retained `selected` rather than hover. Define focus/hover/stale display semantics across clients, including disabled slots. |
-| G14 | Capture integrity; inspected | Recording and sidecars have no session manifest, sample IDs or atomic finalization. No explicit measured-rate/drop/invalid-line/clipping summary is shown. A five-second serial timeout requires restart. Add the evidence needed to distinguish transport trouble from detector trouble. |
-| G15 | Hackathon usability; inspected | UI says “Double blink” despite absent companion biological confirmation; hover text says “click ... to choose” although slot click only focuses. Some setup/contact/listening controls still require ordinary interaction. Specify participant versus caregiver controls and label simulation clearly. |
+| G14 | Capture integrity; partially implemented | V2 logs record resets, windows, source/profile identity and replay checkpoints. Optional new sketch/host metadata provides sequence/micros/drop telemetry but is unflashed; current firmware still lacks device timing. Multi-file atomic finalization and transport-driven gap handling remain open. |
+| G15 | Hackathon usability; partially implemented | Companion biological confirmation, full pending-choice preview and readiness are integrated. Setup/contact/listening controls still require ordinary interaction. Preserve distinct diagnostic and communication modes; define operator versus wearer responsibilities. |
 | G16 | Suggestion interaction; inspected | Any ring revision during model generation invalidates replies, including focus movement. This can conflict with “navigation continues while thinking.” Use a deliberate conversation-context revision policy and test navigation during generation. |
 | G17 | Configuration; inspected | Companion hardcodes `.cache/tts`, overriding advertised `SPEECH_CACHE_DIR`. `.env` is working-directory dependent, and the HUD CLI does not load it. Verify effective settings in the intended launcher/deployment without exposing secrets. |
 | G18 | Deployment; inspected | Cold-start/model readiness, launcher failure cleanup, HTTPS/tunnel topology, serial permissions and persistent storage lack a demonstrated complete runbook. `scripts.dev` treats unavailable loopback ASR as a reason to start local ASR, including cases where a tunnel/auth check failed. Test the actual deployment instead of relying on startup text. |
@@ -533,8 +539,8 @@ These need concrete answers when implementing the affected step; they do not pre
 | Decision | Why it matters / current working approach |
 | --- | --- |
 | Which machine owns Nano USB? | Jetson-hosted acquisition is the simplest match to the target backend; a laptop-connected Nano needs a relay that does not exist. Physical/power setup must be reviewed separately. |
-| What is the demo's successful EOG action? | Choose reliable previous/next versus direct cardinal/spatial focus before combining detectors. Current hover is experimental eight-slot focus; existing plan starts with cardinal measurements. |
-| What confirms a real-user choice? | Companion biological confirmation is not integrated. Manual confirmation is the current fallback; no decision establishes a validated blink or dwell policy. |
+| What is the demo's successful EOG action? | Current path is four cardinal choices with return and deliberate double blink. Directional usability remains open; do not introduce diagonals while fixing it. |
+| What confirms a real-user choice? | Opt-in independent double-blink confirmation is integrated and improved by wearer report. Manual confirmation remains a fallback; validated performance and dwell are not established. |
 | What numerical performance gate is acceptable? | Record accuracy/error counts, false activations per exposure time and latency. No target, evaluation duration or held-out dataset standard has been approved. |
 | Where should audio play? | Current app plays in the browser. Jetson/portable speaker output requires a separate decision and potentially an adapter. |
 | Is ESP32 required for this hackathon demo? | Glasses are unfinished and firmware is independent. Browser HUD can support software integration while display assembly continues. |
@@ -647,4 +653,4 @@ reported separately; early candidates are flagged. Detector settings remain
 fixed.169tests run:168pass,1optional skip; homepage flow browser-checked.
 See EOG_LIVE_CHECK.md for definitions and the live recording limitations.
 
-For the current detector investigation and continuation instructions, read [Claude development handoff](docs/CLAUDE_HANDOFF.md). Double-blink pulse-shape diagnostics are observational pending replay validation.
+For the current detector investigation and continuation instructions, read [Claude development handoff](docs/CLAUDE_HANDOFF.md). Independent pulse confirmation and remembered-return protection are opt-in live paths. Other signal/classifier variants remain offline; current limitations and next experiment are recorded in the handoff.
