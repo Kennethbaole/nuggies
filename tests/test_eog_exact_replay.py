@@ -1,5 +1,6 @@
 """Synthetic replay checks; no wearer data or private profile is embedded here."""
 import json
+import math
 from pathlib import Path
 import tempfile
 import unittest
@@ -73,4 +74,38 @@ class ExactReplayTests(unittest.TestCase):
     def test_pulse_checkpoint_is_serializable_and_exact(self):
         with tempfile.TemporaryDirectory() as directory:
             csv_path,log_path,profile=self.make_session(directory,pulse_mode=True)
+            self.assertTrue(replay(csv_path,log_path,profile)['identical'])
+
+    def test_checkpoint_mid_blink_pair_replays_both_pulses(self):
+        # Begin recording between two synthetic Gaussian pulses. The checkpoint
+        # must retain the first pulse, history and current filter state; replay
+        # cannot reconstruct that pulse from the second half of the CSV alone.
+        from backend.guided_eog import GuidedConfig, GuidedEOGTest
+        from backend.eog_waveform import WaveformProfile
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);profile=root/'profile.json'
+            profile.write_text(json.dumps(fixture_profile()))
+            detector=GuidedEOGTest(WaveformProfile(fixture_profile()),GuidedConfig(pulse_confirmation=True))
+            csv_path=root/'pair.csv';log_path=root/'pair.events.jsonl'
+            audit=None
+            with csv_path.open('w',newline='') as stream:
+                recorder=ADCRecorder(stream)
+                for index in range(2000):
+                    vertical=round(8192+sum(5000*math.exp(-.5*((index-center)/10)**2) for center in (1200,1260)))
+                    sample=ADCSample(8192,vertical,1000+index*4)
+                    if index==1235:
+                        self.assertIsNotNone(detector.blink_stream.first)
+                        audit=DiagnosticLog(log_path,detector)
+                        audit.recording('recording_start',index)
+                    if audit:
+                        recorder.write(sample)
+                        audit.before_sample(detector,index,sample.timestamp_ms,True)
+                    detector.process(sample.horizontal,sample.vertical,sample.timestamp_ms)
+                    if audit:audit.after_sample()
+            audit.close()
+            rows=[json.loads(line) for line in log_path.read_text().splitlines()]
+            pairs=[r for r in rows if r['kind']=='decision' and r['event'].get('source')=='pulse_stream']
+            self.assertEqual(len(pairs),1)
+            self.assertLess(pairs[0]['event']['onset_sample'],1235)
+            self.assertEqual(len(pairs[0]['classification']['window']),50)
             self.assertTrue(replay(csv_path,log_path,profile)['identical'])

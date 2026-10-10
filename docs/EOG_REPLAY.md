@@ -38,3 +38,8 @@ pulse decisions, their anchored window and onset context, and separate applicati
 confirmation outcome entries. Nested pulse sample indices are globalized too.
 The exact replay assertion covers pulse evidence; ring/application confirmation
 outcomes require the communication replay because they depend on choice content.
+
+A synthetic mid-pair checkpoint regression starts its CSV after the first of two
+Gaussian blink pulses. Exact replay still reproduces the independent pulse decision,
+its pre-CSV onset and full 50-frame evidence from retained checkpoint history. This
+checks active pairing state, rather than only serializing an empty pulse detector.
