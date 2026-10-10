@@ -171,9 +171,10 @@ class GuidedEOGTests(unittest.TestCase):
             log.record(d,2005,8020)
             log.close()
             rows=[json.loads(line) for line in path.read_text().splitlines()]
-            self.assertEqual(len(rows),3)
-            self.assertEqual(rows[-1]['event']['emitted_sample'],2005)
-            self.assertEqual(rows[-1]['event']['label'],'left')
+            transitions=[row for row in rows if row['kind']=='transition']
+            self.assertEqual(len(transitions),2)
+            self.assertEqual(transitions[-1]['event']['emitted_sample'],2005)
+            self.assertEqual(transitions[-1]['event']['label'],'left')
             with self.assertRaises(FileExistsError):DiagnosticLog(path,d)
 
     def test_diagnostic_cues_require_ready_and_do_not_drive_detection(self):

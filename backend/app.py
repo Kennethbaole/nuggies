@@ -19,7 +19,7 @@ from .envfile import load_env
 from .calibration import Calibration, ExponentialSmoother
 from .classifier import ThresholdClassifier
 from .live_wheel import LiveWheelTest
-from .guided_eog import GuidedEOGTest
+from .guided_eog import GuidedConfig, GuidedEOGTest
 from .eog_diagnostics import DiagnosticLog
 from .eog_communication import EOGConfirmation
 from .guided import GuidedTrial
@@ -53,7 +53,7 @@ def audio_from_payload(payload):
 
 
 class Application:
-    def __init__(self, source="demo", calibration=None, sensor_actions=False, eog_profile=None):
+    def __init__(self, source="demo", calibration=None, sensor_actions=False, eog_profile=None, eog_pulse_confirmation=False):
         load_env()
         self.lock = threading.RLock()
         self.speech_lock = threading.Lock()
@@ -95,26 +95,38 @@ class Application:
         self.record_stop = threading.Event()
         self.wheel_test = False
         self.eog_communication = False
-        self.eog_confirmation = EOGConfirmation()
+        self.eog_confirmation = EOGConfirmation(pulse_mode=eog_pulse_confirmation)
         self.eog_log = None
         self.received_samples = 0
         self.pending_eog_check = None
         self.speed_attempts = {}
         if eog_profile and (source not in ("serial","replay") or sensor_actions):
             raise ValueError("Guided EOG requires serial/replay input with calibrated actions disabled")
-        self.wheel_detector = GuidedEOGTest(eog_profile) if eog_profile else LiveWheelTest()
+        self.wheel_detector = GuidedEOGTest(eog_profile,GuidedConfig(pulse_confirmation=eog_pulse_confirmation)) if eog_profile else LiveWheelTest()
         self.wheel_test_selections = deque(maxlen=128)
+
+    def _eog_boundary(self):
+        if self.eog_log:
+            timestamp=self.samples[-1]['timestamp_ms'] if self.samples else None
+            self.eog_log.boundary(self.received_samples-1,timestamp,self.wheel_test)
+
+    def _reset_eog(self,cause):
+        self._eog_boundary()
+        if isinstance(self.wheel_detector,GuidedEOGTest):self.wheel_detector.reset(cause=cause)
+        else:self.wheel_detector.reset()
+        if self.eog_log:self.eog_log.record(self.wheel_detector,enabled=self.wheel_test)
 
     def state(self):
         with self.lock:
             data = self.ring.snapshot()
             age = None if self.last_received is None else round((time.monotonic() - self.last_received) * 1000)
             if self.wheel_test and isinstance(self.wheel_detector,GuidedEOGTest) and age is not None and age>=1000:
+                self._eog_boundary()
                 self.wheel_detector.fault("no_samples")
                 self.eog_confirmation.clear()
                 if self.eog_log:self.eog_log.record(self.wheel_detector)
             timing=[x["cue_to_detection_ms"] for x in self.speed_attempts.values() if x.get("correct") and not x.get("early_candidate")]
-            data.update(eog_choice_pending=self.eog_confirmation.target is not None and self.eog_communication and self.wheel_test, eog_confirmation_ready=self.eog_confirmation.ready_sample is not None and self.wheel_detector.phase=="ready" and self.eog_communication and self.wheel_test, eog_communication=self.eog_communication and self.wheel_test, eog_confirmation=self.eog_confirmation.message, pending_eog_check=self.pending_eog_check,speed_results=list(self.speed_attempts.values()),speed_median_ms=statistics.median(timing) if timing else None,eog_engine="waveform" if isinstance(self.wheel_detector,GuidedEOGTest) else "legacy", session_id=self.session_id, input_mode=self.source,
+            data.update(eog_choice_pending=self.eog_confirmation.target is not None and self.eog_communication and self.wheel_test, eog_confirmation_ready=self.eog_confirmation.ready_sample is not None and self.wheel_detector.phase in ("ready","recovery") and self.eog_communication and self.wheel_test, eog_communication=self.eog_communication and self.wheel_test, eog_confirmation=self.eog_confirmation.message, pending_eog_check=self.pending_eog_check,speed_results=list(self.speed_attempts.values()),speed_median_ms=statistics.median(timing) if timing else None,eog_engine="waveform" if isinstance(self.wheel_detector,GuidedEOGTest) else "legacy", session_id=self.session_id, input_mode=self.source,
                         connected=self.connected and (self.source == "demo" or age is not None and age < 2000),
                         last_sample_age_ms=age, input_error=self.error,
                         calibrated=self.calibration is not None,
@@ -173,7 +185,7 @@ class Application:
                 self.ring.revision += 1
                 self.pending_eog_check = None
                 self.eog_confirmation.clear()
-                self.wheel_detector.reset()
+                self._reset_eog("communication_on" if enabled else "communication_off")
             elif action == "speed_test":
                 if not isinstance(self.wheel_detector,GuidedEOGTest) or self.source!="serial" or not self.state()["connected"] or not self.recording or self.sensor_actions or self.guided.status=="running":
                     raise ValueError("Speed check requires connected recorded waveform input and stopped cues")
@@ -181,7 +193,7 @@ class Application:
                     self.ring.pages={"home":0,"needs":0};self.ring.selected=0
                 self.eog_communication=False;self.ring.cardinal_layout=False;self.eog_confirmation.clear()
                 self.speed_attempts={};self.pending_eog_check="speed"
-                self.wheel_test=True;self.wheel_detector.reset()
+                self.wheel_test=True;self._reset_eog("speed_test")
             elif action == "wheel_test":
                 if type(payload.get("value")) is not bool:
                     raise ValueError("wheel_test value must be boolean")
@@ -196,21 +208,20 @@ class Application:
                 self.eog_communication=False;self.ring.cardinal_layout=False;self.eog_confirmation.clear()
                 self.ring.revision += 1
                 self.wheel_test = payload["value"]
-                self.wheel_detector.reset()
-                if self.eog_log:self.eog_log.record(self.wheel_detector,enabled=self.wheel_test)
+                self._reset_eog("wheel_test_on" if self.wheel_test else "wheel_test_off")
             elif action == "eog_recenter":
                 if not self.wheel_test or not isinstance(self.wheel_detector,GuidedEOGTest):
                     raise ValueError("Recenter requires an active guided EOG test")
                 if self.guided.mode in ("diagnostic","speed"):self.guided.stop()
                 self.pending_eog_check=None
                 self.eog_confirmation.clear()
-                self.wheel_detector.reset()
-                if self.eog_log:self.eog_log.record(self.wheel_detector)
+                self._reset_eog("recenter")
             elif action == "record_stop":
                 if not self.recording:
                     raise ValueError("No recording is active")
                 self.pending_eog_check=None
                 self.record_stop.set()
+                if self.eog_log:self.eog_log.recording("recording_stop",self.received_samples-1)
                 self.recording = False
                 self.guided.stop()
                 self.trial_label = "unlabeled"
@@ -383,7 +394,9 @@ class Application:
             self.samples.append(dict(timestamp_ms=sample.timestamp_ms,
                                      horizontal=sample.horizontal, vertical=sample.vertical,
                                      units=sample.units, source=sample.source))
+            if self.eog_log:self.eog_log.before_sample(self.wheel_detector,self.received_samples-1,sample.timestamp_ms,self.wheel_test)
             if self.wheel_test:
+                previous_blink = getattr(self.wheel_detector,"last_blink_result",None)
                 previous_event = self.wheel_detector.last_result if isinstance(self.wheel_detector,GuidedEOGTest) else None
                 if not isinstance(self.wheel_detector,GuidedEOGTest) and len(self.samples) > 1 and sample.timestamp_ms - self.samples[-2]["timestamp_ms"] > 500:
                     self.wheel_detector.reset()
@@ -415,6 +428,12 @@ class Application:
                     if self.eog_confirmation.update(self.ring,self.wheel_detector,new_event) and event is not None:
                         event['communication_selected']=True
                         event['selection_id']=self.ring.selection_id
+                    pulse=getattr(self.wheel_detector,'last_blink_result',None)
+                    if pulse is not None and pulse is not previous_blink:
+                        if self.eog_confirmation.update(self.ring,self.wheel_detector,pulse):
+                            pulse['communication_selected']=True
+                            pulse['selection_id']=self.ring.selection_id
+                        if self.eog_log:self.eog_log.notice(self.wheel_detector,dict(kind='confirmation',event=dict(pulse)))
                 if self.guided.mode in ("diagnostic","speed") and self.guided.status=="running":
                     now=time.monotonic();cue=self.guided.snapshot(now)
                     self.guided.pause(now,cue["phase"]=="prepare" and self.wheel_detector.phase!="ready")
@@ -424,6 +443,7 @@ class Application:
                 action = self.gate.update(direction, sample.timestamp_ms)
                 if action:
                     self.ring.action(action, sample.source)
+            if self.eog_log:self.eog_log.after_sample()
 
     def run_demo(self):
         from .scenarios import samples
@@ -479,6 +499,7 @@ class Application:
                     trial_writer.writerow(("timestamp_ms", "intended_label", "trial_id", "phase", "cue", "run_id"))
                     with self.lock:
                         self.recording = True
+                        if self.eog_log:self.eog_log.recording("recording_start",self.received_samples)
                 while not self.stop.is_set():
                     sample = source.read_sample()
                     if recorder and self.record_stop.is_set():
@@ -506,7 +527,7 @@ class Application:
                 self.error = f"{type(error).__name__}: {error}"
                 self.wheel_test = False
                 self.pending_eog_check=None
-                self.wheel_detector.reset()
+                self._reset_eog("serial_error")
 
         finally:
             with self.lock:
@@ -537,7 +558,7 @@ class Application:
                 self.error = f"{type(error).__name__}: {error}"
                 self.wheel_test = False
                 self.pending_eog_check=None
-                self.wheel_detector.reset()
+                self._reset_eog("replay_error")
 
 
 def make_handler(app):
@@ -656,12 +677,15 @@ def main():
     parser.add_argument("--record")
     parser.add_argument("--calibration")
     parser.add_argument("--eog-log", help="New private JSONL path for diagnostic transitions and decisions")
+    parser.add_argument("--eog-pulse-confirmation", action="store_true", help="Experimental independent blink pairing; requires profile")
     parser.add_argument("--eog-profile", help="Private frozen waveform profile; enables guided cardinal diagnostic mode")
     parser.add_argument("--enable-sensor-actions", action="store_true")
     parser.add_argument("--lowpass-hz", type=float)
     args = parser.parse_args()
     if args.host not in ("127.0.0.1", "localhost", "::1") and not os.environ.get("APP_TOKEN"):
         parser.error("Set APP_TOKEN before binding to a LAN/public interface")
+    if args.eog_pulse_confirmation and not args.eog_profile:
+        parser.error("--eog-pulse-confirmation requires --eog-profile")
     if args.eog_log and not args.eog_profile:
         parser.error("--eog-log requires --eog-profile")
     if args.record and not args.serial_port:
@@ -670,7 +694,7 @@ def main():
         parser.error("Sensor actions require a calibration file and serial/replay source")
     try:
         calibration = Calibration.load(args.calibration) if args.calibration else None
-        app = Application("serial" if args.serial_port else "replay" if args.replay else "demo", calibration, args.enable_sensor_actions, args.eog_profile)
+        app = Application("serial" if args.serial_port else "replay" if args.replay else "demo", calibration, args.enable_sensor_actions, args.eog_profile, args.eog_pulse_confirmation)
         if args.lowpass_hz is not None:
             if calibration is None:
                 parser.error("--lowpass-hz requires --calibration")

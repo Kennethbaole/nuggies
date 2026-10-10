@@ -646,3 +646,5 @@ Cue-to-response (includes reaction/UI delay) and candidate-window timing are
 reported separately; early candidates are flagged. Detector settings remain
 fixed.169tests run:168pass,1optional skip; homepage flow browser-checked.
 See EOG_LIVE_CHECK.md for definitions and the live recording limitations.
+
+For the current detector investigation and continuation instructions, read [Claude development handoff](docs/CLAUDE_HANDOFF.md). Double-blink pulse-shape diagnostics are observational pending replay validation.

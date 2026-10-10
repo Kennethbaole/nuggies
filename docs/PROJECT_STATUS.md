@@ -1,3 +1,9 @@
+> Latest live follow-up: recognized double blinks were blocked by navigation
+> recovery. Buffered return settling now arms confirmation separately; the
+> direction classifier is unchanged. Raw replay improves activation delivery but
+> remains unlabeled. Five clipping resets were also logged. See
+> [recovery bug and limits](EOG_COMMUNICATION.md#recovery-blocking-bug-found-in-the-next-live-session).
+
 # Current status and next session
 
 Updated 2026-10-10.
@@ -11,7 +17,7 @@ accuracy or biological blink-confirmation result is claimed. Homepage readabilit
 preview with confirmation readiness. Deliberate double-blink rejections prompted
 a constrained match-gate adjustment; see EOG_COMMUNICATION.md for reused-data
 comparison and limits. Latest software
-suite: 177 tests, 176 passed, one optional skip. Prior exact-runtime development
+suite: 182 tests, 181 passed, one optional skip. Prior exact-runtime development
 replay: 16/20 correct, three false candidates/275 s. See
 [the diagnostic live-check guide](EOG_LIVE_CHECK.md).
 The following main-baseline description predates this branch integration.
@@ -161,3 +167,7 @@ Cue-to-response (includes reaction/UI delay) and candidate-window timing are
 reported separately; early candidates are flagged. Detector settings remain
 fixed.169tests run:168pass,1optional skip; homepage flow browser-checked.
 See EOG_LIVE_CHECK.md for definitions and the live recording limitations.
+
+### Double-blink investigation handoff (2026-10-10)
+
+Added observational pulse-shape features and aligned logged confirmation armed indices. Latest explicit live double blink was rejected by the single/double class margin after successful gaze and return; acceptance behavior is unchanged pending exact replay. Full suite: 186 tests, 185 passed, one optional skip. Continuation instructions and private recording references: [Claude handoff](CLAUDE_HANDOFF.md).

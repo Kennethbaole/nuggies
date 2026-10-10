@@ -3,6 +3,7 @@ import json
 import hashlib
 import math
 from pathlib import Path
+from backend.blink_shape import blink_shape
 
 DIRECTIONS = {'left': 6, 'right': 2, 'up': 0, 'down': 4}
 LABELS = set(DIRECTIONS) | {'blink', 'double_blink'}
@@ -61,6 +62,7 @@ class WaveformProfile:
             if haar_weight:
                 distance += haar_weight*sum((a-b)**2 for a,b in zip(contrast,template))/len(contrast)
             distances.append(distance)
+        self.last_distances = list(distances)  # Observational: preserve every template score for private replay logs.
         best = min(range(len(distances)),key=distances.__getitem__)
         label = self.labels[best];distance = distances[best]
         blink = min(d for d,l in zip(distances,self.labels) if l not in DIRECTIONS)
@@ -68,5 +70,5 @@ class WaveformProfile:
         other = min((d for d,l in zip(distances,self.labels) if l != label), default=math.inf)
         energy=[sum(frame[i]**2 for frame in x) for i in (0,1)]
         horizontal_fraction=energy[0]/max(sum(energy),1e-9)
-        return dict(other_label_margin=other/max(distance,1e-9),horizontal_fraction=horizontal_fraction,label=label, distance=distance, blink_margin=blink/max(distance,1e-9),
+        return dict(**blink_shape(samples), other_label_margin=other/max(distance,1e-9),horizontal_fraction=horizontal_fraction,label=label, distance=distance, blink_margin=blink/max(distance,1e-9),
                     direction_margin=competing/max(distance,1e-9))

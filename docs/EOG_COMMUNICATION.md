@@ -10,7 +10,9 @@ stopped and preserved; no accuracy score is claimed for that unlabeled session.
 A wearer chooses a reachable item with a cardinal eye movement, returns to
 center, and deliberately double blinks to activate it. Confirmed phrases appear
 on the companion and can speak through its existing speech pipeline. The browser
-requires the operator to click Enable speech. Single natural blinks do nothing.
+enables speech on that companion when the operator clicks Start gaze + double-blink
+communication. Single natural blinks do nothing. A refresh resets speech to off;
+Enable speech turns it back on without restarting communication.
 
 Start **gaze + double-blink communication** on the homepage. This is a separate,
 explicit opt-in from the diagnostic eye-wheel test. The default app remains
@@ -41,9 +43,16 @@ companion phone continues to show confirmed speech, not pending choices. A short
 ## Confirmation rules
 
 - A newly accepted gaze at an enabled item creates a pending choice.
-- The detector must finish recovery and become Ready before confirmation arms.
-- A double-blink waveform must begin after arming. Blinks beginning during
-  recovery cannot confirm the item later.
+- Confirmation arms after navigation becomes Ready, or after a classified
+  opposite return and about 250 ms of buffered settling. This separates blink
+  readiness from the longer navigation recovery. Horizontal returns require
+  horizontal settling; vertical returns require both axes to settle first.
+  Once armed, vertical blink activity does not disarm the choice. A later
+  classified movement cancels it. This is electrical return evidence, not an
+  absolute eye-position measurement.
+- A double-blink waveform must begin after the signal-based arming time.
+  Buffered settling can precede the delayed return classification; blinks before
+  that settling time still cannot confirm.
 - The frozen profile must label it double_blink, with distance <= .08,
   competing-label distance ratio >= 1.5, and horizontal energy fraction <= .25.
   A second, narrower allowance accepts distance <= .2 only with ratio >= 2.5
@@ -140,7 +149,7 @@ doesn't force a retry. No speculative next-word model or model switch was added.
 
 ## Verification
 
-177 unit/integration tests: 176 passed, one optional NumPy test skipped.
+182 unit/integration tests: 181 passed, one optional NumPy test skipped.
 New tests cover recovery, single blinks, ambiguous/early double blinks, expiry,
 changed content/contact, one-shot activation, four-position paging and ingest
 integration. HTTP/browser simulation passed, including one confirmed browser utterance with
@@ -168,3 +177,106 @@ Private report: recordings/blink-policy-review.json.
 Double-blink events now log confirmation_result: selected, no_pending_choice,
 return_to_center_first, early_blink, or uncertain_blink_match. No new live wearer
 result is claimed after this adjustment.
+
+## Recovery-blocking bug found in the next live session
+
+The wearer reported worse usability and double blinks still not selecting. The
+next session logged recognized, strongly matched double blinks rejected as
+return_to_center_first. Vertical blink masks repeatedly cleared the full quiet
+period, and the app started a further settling wait after the one-second return
+classifier had already buffered the return. The prior distance allowance did not
+address this interaction defect.
+
+GuidedEOGTest now retains the last two seconds of filtered frames and the
+opposite-return onset. Confirmation can arm from a contiguous ~250 ms settling
+interval after that return, independently of navigation recovery. Once armed,
+a blink's own vertical activity does not restart settling. Subsequent classified
+movement, uncertainty, faults, changed content and expiry still cancel it.
+Direction matching, its thresholds, profile and single-blink behavior are unchanged.
+
+Raw-only old/new replay of the first enabled interval in the latest recording
+produced two versus six activations, one versus five phrase confirmations, and
+16 versus six double blinks blocked waiting for return. UI actions are not in
+the replay and intended actions are unlabeled; these are behavior differences,
+not accuracy estimates or proof of correct activations. Private report:
+recordings/recovery-confirmation-review.json.
+
+A simulated communication replay of the three reviewed recordings produced
+unchanged selection counts: two in prepare intervals for session4, none in
+session5, two in double-blink cues for session6. Existing prepare selections are
+a false-confirmation risk and are not dismissed. Frozen all-data profile and
+reused data limit this check. Private report: recordings/confirmation-regression-review.json.
+
+The live diagnostic session also logged five clipping resets and thirteen
+rejected movements. These counts do not establish direction accuracy; rails and
+contact/movement artifacts can interrupt operation. No new wearer result is
+claimed for the recovery fix. Next checkpoint: one known reply, return, confirm
+with speech off, then natural blinks/no-choice checks.
+
+### 2026-10-10: double-blink ambiguity instrumentation
+
+The latest explicit right → center → double-blink attempt reached an armed gate but failed the single-versus-double template margin (1.218 versus 1.5). Waveform events now include completed vertical-pulse count, widths, separation, ratio and valley diagnostics. These are observational only; selection thresholds remain unchanged pending exact-window replay. Some reused single-blink/direction windows also contain two lobes, so pulse count alone must not authorize selection. Confirmation armed indices now use the same logging coordinate as onset/emitted indices. See `CLAUDE_HANDOFF.md` for the exact event, replay alignment blocker and next experiment.
+
+### Speech on communication start
+
+Starting communication now enables speech on the companion through the same user click.
+The local `.env` configures ElevenLabs: confirmed replies use cloud TTS with a local
+cache and browser speech fallback. No credentials are stored in these docs. Browser
+audio policy can still require interaction; this is not an audible hardware test.
+The speech toggle can pause output; refresh starts with speech off. Diagnostic mode
+continues to disable speech. Automated browser checks use mocked browser speech and
+disable the cloud API key, so they never call paid TTS.
+
+### Independent pulse confirmation (opt-in)
+
+`--eog-pulse-confirmation --eog-profile PATH` enables the new candidate. The legacy
+one-second gaze classifier still handles directions, while a parallel 50 Hz stream
+keeps observing blinks during its cooldown. Two completed positive pulses must have
+fast rise/fall velocities, bounded width/duration, comparable slopes, low horizontal
+energy, a separated valley and 150–650 ms peak spacing. Thresholds use resting MAD
+noise with absolute floors. A third pulse rejects the cluster; emission waits through
+the third-pulse interval and quiet recovery. Clipping, gaps and recenter reset pairing.
+
+Confirmation requires both that pair and a pulse-anchored one-second template match:
+distance <= .08, direction separation >= 2, horizontal energy fraction <= .15.
+Template-only double-blink labels cannot select in this mode. Existing fresh-choice,
+return/arming, onset, expiry, content-change and one-shot protections remain.
+These thresholds were selected using reused development evidence, not held-out
+wearer validation. The default command line still uses legacy confirmation unless
+this explicit flag is supplied.
+
+Exact failed interaction replay now selects once at sample 16532 instead of missing
+at 16622; zero false confirmations were observed within that identified interaction.
+Across complete reviewed recordings using the frozen all-data profile, baseline
+versus pulse mode selections by onset cue phase are:
+
+| Recording | Legacy | Pulse mode |
+| --- | --- | --- |
+| Session 4 | 1 return + 1 prepare (both false-confirmation risks) | 0 |
+| Session 5 | 0 | 0 |
+| Session 6 | 2 during double-blink movement cues | 2 during double-blink movement cues |
+
+This is a simulated communication replay of acquisition protocols, which did not
+instruct a gaze-confirm sequence. Selection misses are therefore not identifiable
+from these cue files. Raw pair detection found three of five session-6 double-blink
+cues and missed two; baseline/prepare pair candidates also exist but failed the full
+gate. It does not establish zero false confirmations in future natural blinking.
+Private report: `recordings/pulse-confirmation-runtime.json`; reproduce with
+`scripts.eog_pulse_confirmation_review`. Software tests cover single/widely spaced
+blinks, triples, up/return, mixed axes, no choice, early/during-return blink, expiry,
+changed content, faults and one-shot behavior.
+
+
+### Retry an unclear pair without a new gaze
+
+In pulse mode, an ambiguous pair after arming now keeps the current choice and
+asks for another double blink. The original ten-second expiry is not extended.
+Early blinks, faults, changed content and new movement still invalidate the choice.
+Replaying the same three reviewed runs and the identified failed interaction
+produced unchanged selections: zero negative-phase selections in the reviewed runs,
+two in double-blink cues, and one correct selection in the identified interaction.
+Pair misses remain two of five cue pairs; selection misses for acquisition-only
+protocols remain unknowable. Private comparison: `pulse-confirmation-retry.json`.
+A synthetic retry-then-confirm check verifies one-shot behavior and unchanged expiry.
+No calibrated probability is claimed: the dataset cannot support calibration of
+intent confidence across sessions with the present class coverage.

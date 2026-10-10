@@ -177,7 +177,7 @@ function render(next) {
     $('preview-text').textContent = pending ? choice.text || choice.label : 'Look at an option. Your detected choice will appear here before you confirm.';
     document.querySelector('.preview').classList.toggle('confirmation-ready', Boolean(state.eog_confirmation_ready));
     $('wheel-test-status').textContent = gaze?.phase === 'ready' ? state.eog_confirmation : gaze?.message;
-    $('input-detail').textContent = 'Experimental gaze and double-blink communication. Enable speech to hear confirmed replies.';
+    $('input-detail').textContent = audioEnabled ? 'Experimental gaze and double-blink communication. Confirmed replies are spoken.' : 'Experimental gaze and double-blink communication. Speech is off; Enable speech to hear confirmed replies.';
     $('page-info').textContent = 'Two replies · More · Back';
   }
   $('eog-recenter').disabled = !state.wheel_test || !state.connected;
@@ -327,12 +327,13 @@ $('text-panel').onsubmit = event => {
   if (text) suggest({heard_text: text}).then(ok => { if (ok) $('heard-input').value = ''; });
 };
 $('download-hud').onclick = () => state && downloadFrame(state);
-$('audio-toggle').onclick = () => {
-  audioEnabled = !audioEnabled; $('audio-toggle').setAttribute('aria-pressed', String(audioEnabled));
+function setAudio(enabled) {
+  audioEnabled = enabled; $('audio-toggle').setAttribute('aria-pressed', String(audioEnabled));
   $('audio-toggle').textContent = audioEnabled ? 'Speech enabled' : 'Enable speech';
   if (!audioEnabled) { audio?.pause(); if ('speechSynthesis' in window) speechSynthesis.cancel(); }
   feedback(audioEnabled ? 'Speech enabled on this companion. Future selections will be spoken.' : 'Speech paused. Text stays visible.');
-};
+}
+$('audio-toggle').onclick = () => setAudio(!audioEnabled);
 $('token-submit').onclick = () => { token = $('token-input').value; sessionStorage.setItem('nuggies-token', token); setTimeout(poll, 0); };
 document.addEventListener('keydown', event => {
   if (isHUD || event.repeat || $('token-dialog').open || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
@@ -375,7 +376,12 @@ $('guided-stop').onclick = () => command('guided_stop');
 $('record-stop').onclick = () => command('record_stop');
 
 $('speed-test-start').onclick = () => command('speed_test');
-$('eog-communication-toggle').onclick = () => command('eog_communication', !state?.eog_communication);
+$('eog-communication-toggle').onclick = () => {
+  const starting = !state?.eog_communication;
+  // This click is the user gesture browsers require before audio; double-blink confirmations then speak.
+  if (starting && !isHUD && !audioEnabled) setAudio(true);
+  command('eog_communication', starting);
+};
 $('wheel-test-toggle').onclick = () => command('wheel_test', !state?.wheel_test);
 $('eog-recenter').onclick = () => command('eog_recenter');
 $('wheel-test-stop').onclick = () => command('wheel_test', false);
