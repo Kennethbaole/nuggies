@@ -6,6 +6,8 @@ if (isHUD) { document.body.classList.add('hud-body'); $('hud-only').hidden = fal
 let state = null, seenSelection = null, session = null, audioEnabled = false;
 let token = sessionStorage.getItem('nuggies-token') || '';
 let queue = Promise.resolve(), audio = null, speechBusy = false, pollBusy = false;
+const PROVIDER_LABELS = {gemini: 'Gemini reply suggestions', ollama: 'Local AI suggestions (offline)'};
+const SETUP_HINT = 'Add GEMINI_API_KEY (or OLLAMA_MODEL for offline replies) to .env and restart to enable reply suggestions.';
 let requestCounter = 0, recorder = null, recordTimer = null, suggesting = false;
 const clientID = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
 let lastConnected = null;
@@ -98,7 +100,7 @@ function render(next) {
   $('relationship').textContent = contact.relationship;
   $('phone-contact').textContent = `With ${contact.name}`;
   $('screen-name').textContent = state.screen === 'spell' ? 'SPELL YOUR WORDS' : state.screen === 'needs' ? 'EVERYDAY NEEDS' : 'CONVERSATION';
-  $('page-info').textContent = state.screen === 'spell' ? 'Two groups, one letter at a time' : `Phrase set ${state.page + 1} · ${state.suggestions_provider === 'gemini' ? 'Gemini suggestions' : 'curated demo'}`;
+  $('page-info').textContent = state.screen === 'spell' ? 'Two groups, one letter at a time' : `Phrase set ${state.page + 1} · ${PROVIDER_LABELS[state.suggestions_provider] || 'curated demo'}`;
   state.slots.forEach((slot, index) => {
     const button = slotButtons[index];
     button.textContent = slot.label; button.disabled = !slot.enabled;
@@ -124,7 +126,7 @@ function render(next) {
   $('input-error').textContent = state.input_error;
   $('trial-label').value = state.trial_label || 'unlabeled';
   $('signal-info').textContent = `${state.samples.length} recent samples · raw ADC counts${state.calibrated ? ' · calibration loaded' : ''}`;
-  $('suggest-source').textContent = state.suggestions_provider === 'gemini' ? 'Gemini reply suggestions' : 'Local sample phrases';
+  $('suggest-source').textContent = PROVIDER_LABELS[state.suggestions_provider] || 'Local sample phrases';
   $('heard').textContent = state.heard ? `Heard: “${state.heard}”` : '';
   $('suggest-clear').hidden = state.suggestions_provider === 'curated-demo';
   $('listen').disabled = suggesting; $('text-send').disabled = suggesting;
@@ -149,7 +151,7 @@ function toBase64(buffer) {
 
 async function suggest(payload) {
   if (isHUD || suggesting || !state) return false;
-  if (!state.suggest_available) { feedback('Add GEMINI_API_KEY to .env and restart to enable reply suggestions.'); return false; }
+  if (!state.suggest_available) { feedback(SETUP_HINT); return false; }
   suggesting = true; $('listen').disabled = $('text-send').disabled = true; feedback('Thinking of replies…');
   try {
     render(await (await api('/api/suggest', {session_id: state.session_id, ...payload})).json());
@@ -160,7 +162,7 @@ async function suggest(payload) {
 
 async function toggleListen() {
   if (recorder) { recorder.stop(); return; }
-  if (!state?.suggest_available) { feedback('Add GEMINI_API_KEY to .env and restart to enable reply suggestions.'); return; }
+  if (!state?.suggest_available) { feedback(SETUP_HINT); return; }
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { feedback('Microphone recording is not available in this browser.'); return; }
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({audio: true}); }

@@ -1,6 +1,7 @@
 import base64
 import json
 import threading
+import time
 import unittest
 from http.server import ThreadingHTTPServer
 from unittest.mock import patch
@@ -9,7 +10,8 @@ from urllib.request import Request, urlopen
 
 from backend.app import Application, make_handler
 from backend.suggestions import (
-    GeminiSuggestions, SuggestionBusy, SuggestionUnavailable, clean_suggestions, normalize_audio_type,
+    FallbackSuggestions, GeminiSuggestions, OllamaSuggestions, SuggestionBusy, SuggestionResult,
+    SuggestionUnavailable, clean_suggestions, normalize_audio_type,
 )
 
 
@@ -202,6 +204,144 @@ class AppIntegrationTests(unittest.TestCase):
             self.assertEqual(error.exception.code, 503)
         finally:
             server.shutdown(); server.server_close(); thread.join()
+
+
+def local_provider(response=None, error=None, model="llama3.2:3b"):
+    calls = []
+
+    def transport(url, headers, body, timeout):
+        calls.append((url, headers, body, timeout))
+        if error:
+            raise error
+        return response
+
+    suggester = OllamaSuggestions(transport=transport)
+    suggester.model = model
+    return suggester, calls
+
+
+def local_reply(payload):
+    return {"message": {"role": "assistant", "content": payload if isinstance(payload, str) else json.dumps(payload)}}
+
+
+class OllamaProviderTests(unittest.TestCase):
+    def test_request_shape_and_result(self):
+        suggester, calls = local_provider(local_reply(GOOD))
+        result = suggester.suggest(contact=dict(name="Alex", relationship="Family"), heard_text="  Do you want   tea? ")
+        url, _, body, _ = calls[0]
+        self.assertEqual(url, "http://127.0.0.1:11434/api/chat")
+        self.assertEqual((body["model"], body["format"], body["stream"]), ("llama3.2:3b", "json", False))
+        self.assertEqual(body["messages"][0]["role"], "system")
+        self.assertIn('"Do you want tea?"', body["messages"][1]["content"])
+        self.assertIn("Alex", body["messages"][1]["content"])
+        self.assertEqual(result.provider, "ollama")
+        self.assertEqual(result.heard, "Do you want tea?")
+        self.assertEqual(len(result.suggestions), 5)
+
+    def test_audio_only_unconfigured_and_failures(self):
+        suggester, calls = local_provider(local_reply(GOOD))
+        with self.assertRaisesRegex(SuggestionUnavailable, "typed text"):
+            suggester.suggest(audio=b"abc", mime_type="audio/webm")
+        with self.assertRaises(ValueError):
+            suggester.suggest()
+        self.assertEqual(calls, [])
+        with self.assertRaises(SuggestionUnavailable):
+            local_provider(local_reply(GOOD), model="")[0].suggest(heard_text="hi")
+        for failure in (local_provider(error=URLError("refused"))[0], local_provider(local_reply("not json"))[0],
+                        local_provider({"error": "model not found"})[0], local_provider(local_reply({"suggestions": []}))[0]):
+            with self.assertRaises(SuggestionUnavailable):
+                failure.suggest(heard_text="hi")
+
+
+class FakeProvider:
+    def __init__(self, name, error=None, delay=0.0, available=True):
+        self.name, self.error, self.delay, self.available, self.calls = name, error, delay, available, 0
+
+    def suggest(self, **kwargs):
+        self.calls += 1
+        time.sleep(self.delay)
+        if self.error:
+            raise self.error
+        return SuggestionResult(kwargs.get("heard_text", ""), [dict(id="x", label="L", text=self.name)], self.name, 0, self.name)
+
+
+def network_failure():
+    try:
+        raise SuggestionUnavailable("Gemini unreachable") from URLError("offline")
+    except SuggestionUnavailable as error:
+        return error
+
+
+class FallbackTests(unittest.TestCase):
+    def test_primary_answers_when_healthy(self):
+        primary, fallback = FakeProvider("gemini"), FakeProvider("ollama")
+        self.assertEqual(FallbackSuggestions(primary, fallback).suggest(heard_text="hi").provider, "gemini")
+        self.assertEqual(fallback.calls, 0)
+
+    def test_network_failure_falls_back_and_skips_primary_for_cooldown(self):
+        primary, fallback = FakeProvider("gemini", error=network_failure()), FakeProvider("ollama")
+        chooser = FallbackSuggestions(primary, fallback)
+        self.assertEqual(chooser.suggest(heard_text="hi").provider, "ollama")
+        self.assertEqual(chooser.suggest(heard_text="hi").provider, "ollama")
+        self.assertEqual(primary.calls, 1)  # Second request did not wait on Gemini again.
+        chooser.skip_primary_until = 0.0
+        primary.error = None
+        self.assertEqual(chooser.suggest(heard_text="hi").provider, "gemini")
+
+    def test_http_error_falls_back_without_cooldown(self):
+        try:
+            raise SuggestionUnavailable("Gemini returned HTTP 500") from HTTPError("u", 500, "x", {}, None)
+        except SuggestionUnavailable as error:
+            http_failure = error
+        primary, fallback = FakeProvider("gemini", error=http_failure), FakeProvider("ollama")
+        chooser = FallbackSuggestions(primary, fallback)
+        chooser.suggest(heard_text="hi")
+        chooser.suggest(heard_text="hi")
+        self.assertEqual((primary.calls, fallback.calls), (2, 2))
+
+    def test_slow_primary_falls_back_at_deadline(self):
+        primary, fallback = FakeProvider("gemini", delay=1.0), FakeProvider("ollama")
+        chooser = FallbackSuggestions(primary, fallback, deadline_s=0.1)
+        started = time.monotonic()
+        self.assertEqual(chooser.suggest(heard_text="hi").provider, "ollama")
+        self.assertLess(time.monotonic() - started, 0.5)
+        self.assertGreater(chooser.skip_primary_until, time.monotonic())
+
+    def test_invalid_input_is_not_retried_locally(self):
+        primary, fallback = FakeProvider("gemini", error=ValueError("bad audio")), FakeProvider("ollama")
+        with self.assertRaises(ValueError):
+            FallbackSuggestions(primary, fallback).suggest(heard_text="hi")
+        self.assertEqual(fallback.calls, 0)
+
+    def test_unconfigured_primary_goes_straight_to_fallback(self):
+        primary, fallback = FakeProvider("gemini", available=False), FakeProvider("ollama")
+        self.assertEqual(FallbackSuggestions(primary, fallback).suggest(heard_text="hi").provider, "ollama")
+        self.assertEqual(primary.calls, 0)
+
+    def test_both_failing_or_unconfigured_is_unavailable(self):
+        chooser = FallbackSuggestions(FakeProvider("gemini", error=network_failure()),
+                                      FakeProvider("ollama", error=SuggestionUnavailable("Local model unreachable")))
+        with self.assertRaisesRegex(SuggestionUnavailable, "Local model unreachable"):
+            chooser.suggest(heard_text="hi")
+        none = FallbackSuggestions(FakeProvider("gemini", available=False), FakeProvider("ollama", available=False))
+        self.assertFalse(none.available)
+        with self.assertRaises(SuggestionUnavailable):
+            none.suggest(heard_text="hi")
+
+
+class OfflineAppTests(unittest.TestCase):
+    def test_offline_gemini_uses_local_model_on_the_ring(self):
+        app = Application()
+        gemini, _ = provider(error=URLError("offline"))
+        local, local_calls = local_provider(local_reply(SECOND))
+        app.suggester = FallbackSuggestions(gemini, local)
+        state = app.suggest(dict(session_id=app.session_id, heard_text="How was your day?"))
+        self.assertEqual(state["suggestions_provider"], "ollama")
+        self.assertEqual(state["slots"][0]["text"], "That sounds good to me.")
+        self.assertEqual(state["heard"], "How was your day?")
+        self.assertEqual(len(local_calls), 1)
+        cleared = app.command(dict(action="suggestions_clear", event_id="clear"))
+        self.assertEqual(cleared["suggestions_provider"], "curated-demo")
 
 
 if __name__ == "__main__":
