@@ -553,3 +553,23 @@ NUGGET gap IDs resolved or added:
 A fix is complete only when its actual production path has been checked; a test that manually creates the missing state is insufficient. For a hardware/service claim, record the concrete setup and observation. For a new product decision, distinguish owner-approved direction from an agent's proposed next step.
 
 No application, firmware or detector defects were fixed as part of this documentation audit. Keep section 10 entries open until subsequent work supplies the implementation and evidence.
+
+### 2026-10-10 — Continuous EOG experiment branch
+
+Branch: `experiment/eog-continuous-detection`, based on main `301cfef`.
+Gaze visualization was removed before this branch; earlier underline descriptions
+above are historical. Existing reviewed recordings are sufficient for current
+algorithm development; do not request a blanket repeat of acquisition.
+
+Added offline causal segmentation and continuous replay comparison. Detectors
+receive raw values only, run whole files, and reset on transport gaps/clipping,
+not movement cues. Labels fit training examples and score held-out repetitions.
+The current live-hover comparator reproduced a stall and missed all 20 scored
+cardinal trials in full replay. This differs from cue-reset window experiments.
+Initial learned 1s waveforms found 11/20 with 9 false directions over 275s scored
+negative exposure. Adaptive blink cooldown, bounded DC adaptation, opposite-return
+suppression and uncertain-event rejection improved development replay to 16/20,
+0 wrong directions during scored movements and 6 false directions over 275s.
+These reused-data results remain development evidence, not independent validation.
+No new detector is connected to Application or confirmation. G03 remains open.
+See forthcoming continuous experiment guide for refinements and reproducibility.
