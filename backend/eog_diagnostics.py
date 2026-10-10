@@ -23,7 +23,7 @@ class DiagnosticLog:
         self.last=signature
         if event and sample_index is not None:
             event=dict(event)
-            for key in ('onset_sample','emitted_sample'):
+            for key in ('onset_sample','emitted_sample','confirmation_armed_sample'):
                 if key in event:event[key]=sample_index-(detector.raw_index-event[key])
         self.write(dict(kind='transition',sample_index=sample_index,timestamp_ms=timestamp_ms,
                         state=state,event=event))

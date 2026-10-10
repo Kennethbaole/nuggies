@@ -210,3 +210,7 @@ rejected movements. These counts do not establish direction accuracy; rails and
 contact/movement artifacts can interrupt operation. No new wearer result is
 claimed for the recovery fix. Next checkpoint: one known reply, return, confirm
 with speech off, then natural blinks/no-choice checks.
+
+### 2026-10-10: double-blink ambiguity instrumentation
+
+The latest explicit right → center → double-blink attempt reached an armed gate but failed the single-versus-double template margin (1.218 versus 1.5). Waveform events now include completed vertical-pulse count, widths, separation, ratio and valley diagnostics. These are observational only; selection thresholds remain unchanged pending exact-window replay. Some reused single-blink/direction windows also contain two lobes, so pulse count alone must not authorize selection. Confirmation armed indices now use the same logging coordinate as onset/emitted indices. See `CLAUDE_HANDOFF.md` for the exact event, replay alignment blocker and next experiment.

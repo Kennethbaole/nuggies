@@ -167,3 +167,7 @@ Cue-to-response (includes reaction/UI delay) and candidate-window timing are
 reported separately; early candidates are flagged. Detector settings remain
 fixed.169tests run:168pass,1optional skip; homepage flow browser-checked.
 See EOG_LIVE_CHECK.md for definitions and the live recording limitations.
+
+### Double-blink investigation handoff (2026-10-10)
+
+Added observational pulse-shape features and aligned logged confirmation armed indices. Latest explicit live double blink was rejected by the single/double class margin after successful gaze and return; acceptance behavior is unchanged pending exact replay. Full suite: 186 tests, 185 passed, one optional skip. Continuation instructions and private recording references: [Claude handoff](CLAUDE_HANDOFF.md).
