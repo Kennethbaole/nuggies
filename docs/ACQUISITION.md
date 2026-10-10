@@ -208,7 +208,8 @@ peaks. Natural successive blinks can resemble deliberate pairs. No morphology
 rule can establish intent by itself. Evaluate negative recordings as well as
 successful pairs, then test unchanged settings on fresh data. These development
 recordings are not held-out validation. The tool emits SELECT *candidates* in JSON;
-it is not connected to the live app, which remains monitoring-only. No gesture
+it is not connected to live confirmation. The app defaults to monitoring, with
+a separate opt-in experimental directional hover mode. No gesture
 threshold or live navigation behavior is changed by running replay.
 
 ## Supervised live directional hover
@@ -240,10 +241,19 @@ highlight; both axes must exceed 1500 counts for a diagonal. Polarity assumes th
 verified placement and must be checked for each setup. AC-coupled signals decay
 while gaze is held, so the hover is latched until an opposite return pulse or an
 eight-second timeout. Return to center and rest before another direction. A return
-pulse clears the hover outline; keyboard focus remains at the last enabled slot.
+pulse clears the underline; keyboard focus remains at the last enabled slot.
 Clipping, sample gaps, stopping, and serial failure reset the detector.
 
 Blink spikes can still resemble vertical gaze. Diagonal timing, individual
 thresholds, and blink rejection need live validation; this mode does not use the
 offline double-blink classifier. Stop the test to disable sensor highlighting.
 Recording remains independent and the mode defaults off after restarting.
+
+## Current live-test outcome
+
+The user reports changing highlights without reliable correspondence to intended
+gaze, including after a repeated center/left trial. The underline is visual
+feedback, not evidence of accurate classification. Pause free-form wheel testing
+and resume with labeled center/cardinal-direction measurements, channel polarity
+and scale review, and independent validation. See [Current status and next
+session](PROJECT_STATUS.md) for the complete handoff and known detector weaknesses.

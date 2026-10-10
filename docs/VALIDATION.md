@@ -2,7 +2,7 @@
 
 ## Software checks
 
-38 unit/API tests pass on macOS with Python 3.14, including raw CSV handling,
+The latest full suite of 133 tests passed on macOS with Python 3.14, including raw CSV handling,
 calibration fixtures, gesture gates, ring behavior, labeled capture, API access
 boundaries and mocked speech. Both browser JavaScript modules pass syntax checks.
 
@@ -30,21 +30,24 @@ python3 -m scripts.browser_check --chrome /path/to/chrome
 The browser check writes screenshots into artifacts/ and changes the running
 demo session. Use an isolated local session without cloud credentials.
 
-## Hardware milestones
+## Hardware status and next milestones
 
-1. Identify exact Pill revisions, connectors, electrode leads and power setup.
-2. Choose and document acquisition timing; the included sketch is a slow bench
-   check, not final physiological acquisition firmware.
-3. Collect labeled raw EOG on the laptop without sensor actions enabled.
-4. Evaluate calibration on separate trials, including drift, saturation, held
-   gaze, returns, spontaneous blinks and intentional blinks.
-5. Implement biological blink detection, then verify navigation, confirmation,
-   false activations and latency end to end.
-6. Evaluate target-device audio, physical display and optics separately.
+Two-channel 250 Hz Nano R4 acquisition and labeled eye-movement recordings have
+been exercised with both Pills. Offline paired-glance and double-blink prototypes
+exist. Live experimental radial hover is implemented, but the user reports that
+its directions do not reliably match actual movements. Do not interpret passing
+software tests as validated EOG control.
 
-No live EOG, biological blink detector, Jetson setup, physical OLED driver,
-optical legibility or real cloud synthesis was verified during these checks.
-The voltage bench fixture is transport evidence only.
+Isolated browser checks additionally fed synthetic ADC samples through app ingest
+for all eight directions, verified underline-only feedback, return/stop clearing,
+and no gaze activation. These ad hoc checks do not measure biological accuracy.
+
+Next: labeled center and four-direction calibration, polarity/gain/noise review,
+then measured threshold and timing changes evaluated on fresh trials. Add diagonal
+classification and blink rejection after cardinal directions work. Biological
+confirmation remains offline; physical OLED/optics, target-device behavior and
+real service audio require separate validation. See [Current status and next
+session](PROJECT_STATUS.md) for the detailed handoff.
 
 ## Optional container
 

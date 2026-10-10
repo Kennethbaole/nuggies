@@ -36,6 +36,14 @@ rate. Example profiles are arbitrary; evaluate real profiles on separate trials.
 
 `GestureGate` allows left/right after a hold, cooldown and neutral rearm. A stale
 gap requires observed neutral. `DoubleBlinkGate` only pairs already detected
-blink events. Biological blink detection is not implemented; vertical gaze does
-not confirm a phrase. Record neutral, movements, held gaze, returns and blinks
+blink events. An offline biological double-blink prototype exists but is not integrated into
+live confirmation; vertical gaze does not confirm a phrase. Record neutral, movements, held gaze, returns and blinks
 before selecting signal-processing parameters.
+
+## Separate experimental hover path
+
+The opt-in live wheel test uses backend/live_wheel.py rather than the calibrated
+classifier and GestureGate above. Calibration profiles do not currently configure
+its thresholds. Current feedback is underline-only, and live direction mapping
+has been reported inaccurate. See [Current status](PROJECT_STATUS.md) for the
+detector parameters and measurement plan before making threshold changes.

@@ -15,5 +15,10 @@ Space, Delete and Speak. Drafts are bounded to 280 characters. Back rewinds a
 letter group before leaving spelling. Speak confirms the draft. Confirmed text
 has a monotonically increasing selection ID and bounded history.
 
-The ring currently uses curated phrases. Live suggestion providers are not
-implemented. The visual interface is a separate component.
+The ring supports curated phrases and provider-generated suggestions.
+The visual interface is a separate component.
+
+Experimental live gaze uses spatial focus rather than previous/next navigation:
+up targets slot 0 and down slot 4, with other directions increasing clockwise.
+Only the detected label is underlined; gaze never invokes Select or Back.
+Live direction accuracy remains unresolved. See [Current status](PROJECT_STATUS.md).
