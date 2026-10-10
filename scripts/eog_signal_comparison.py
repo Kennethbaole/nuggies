@@ -26,7 +26,9 @@ from scripts.eog_stream_experiment import fit, read_streams, score, training_seg
 
 VARIANTS = ('baseline', 'pulse-confirmation', 'extend1.6', 'lp10-notch60', 'lp15-notch60', 'lp20-notch60',
             'median3', 'stable3', 'haar0.1', 'haar0.25', 'haar-multiscale',
-            'second-half', 'nearest2', 'dtw4', 'lda', 'crosstalk', 'bounded-scale')
+            'second-half', 'nearest2', 'dtw4', 'lda', 'crosstalk', 'bounded-scale',
+            'pulse-retry0.6', 'pulse-retry1', 'pulse-retry2', 'pulse-retry3',
+            'pulse-recovery1', 'pulse-recovery2')
 
 
 class Biquad:
@@ -194,8 +196,15 @@ class AdaptiveSegmenter(EventSegmenter):
         return result
 
 
+def config_for_variant(variant):
+    settings=dict(pulse_confirmation=variant.startswith('pulse-'))
+    if variant.startswith('pulse-retry'):settings['retry_s']=float(variant[len('pulse-retry'):])
+    if variant.startswith('pulse-recovery'):settings['recovery_s']=float(variant[len('pulse-recovery'):])
+    return GuidedConfig(**settings)
+
+
 class ExperimentDetector(GuidedEOGTest):
-    def __init__(self,profile,variant):self.variant=variant;super().__init__(profile,GuidedConfig(pulse_confirmation=variant=='pulse-confirmation'))
+    def __init__(self,profile,variant):self.variant=variant;super().__init__(profile,config_for_variant(variant))
     def reset(self,*args,**kwargs):
         super().reset(*args,**kwargs);self.filter=make_filter(self.variant)
         if self.variant=='extend1.6':self.detector=AdaptiveSegmenter(self.detector.config)
@@ -203,10 +212,11 @@ class ExperimentDetector(GuidedEOGTest):
 
 def simulate(raw,profile,variant='baseline',confirmation_factory=EOGConfirmation):
     """Transport-free simulation using real confirmation and ring behavior; no speech."""
-    detector=ExperimentDetector(profile,variant);confirmation=confirmation_factory(pulse_mode=variant=='pulse-confirmation');ring=RingState()
-    ring.cardinal_layout=True;events=[];selections=[];last=None;last_pair=None;accepted_amplitudes=[]
+    detector=ExperimentDetector(profile,variant);confirmation=confirmation_factory(pulse_mode=detector.config.pulse_confirmation);ring=RingState()
+    ring.cardinal_layout=True;events=[];selections=[];last=None;last_pair=None;accepted_amplitudes=[];phases=Counter()
     for row in raw:
         slot=detector.process(float(row['horizontal_adc']),float(row['vertical_adc']),int(row['timestamp_ms']))
+        phases[detector.phase]+=1
         if slot is not None:
             confirmation.clear();ring.action('focus','offline-replay',slot)
             if ring.selected==slot and ring.slots()[slot]['enabled']:confirmation.focus(ring,detector.raw_index)
@@ -214,7 +224,7 @@ def simulate(raw,profile,variant='baseline',confirmation_factory=EOGConfirmation
         if confirmation.update(ring,detector,event):
             selections.append(dict(event,onset=event.get('onset_sample',detector.raw_index),emitted=detector.raw_index))
         pair=detector.last_blink_result
-        if variant=='pulse-confirmation' and pair is not None and pair is not last_pair:
+        if detector.config.pulse_confirmation and pair is not None and pair is not last_pair:
             last_pair=pair
             if confirmation.update(ring,detector,pair):
                 selections.append(dict(pair,onset=pair['onset_sample'],emitted=detector.raw_index))
@@ -230,7 +240,8 @@ def simulate(raw,profile,variant='baseline',confirmation_factory=EOGConfirmation
                         target=max(.8,min(1.25,peak/profile.scale[axis]))
                         profile.gain[axis]=max(.8,min(1.25,.8*profile.gain[axis]+.2*target))
                 accepted_amplitudes.append(event)
-    return events,selections,detector.snapshot()
+    final=detector.snapshot();final['phase_seconds']={k:v/250 for k,v in phases.items()}
+    return events,selections,final
 
 
 def confirmation_score(selections,rows,entry,fold):
@@ -326,13 +337,14 @@ def run(manifest,output,variants=VARIANTS):
                         'Classifier distances, LDA scores and engineered margins are not calibrated probabilities.'],variants={})
     for variant in variants:
         started=time.monotonic();streams=altered_streams(base,variant) if variant=='stable3' or variant=='median3' or variant.startswith('lp') else base
-        scores=[];confirmations=[];runs=[];leaks=[]
+        scores=[];confirmations=[];runs=[];leaks=[];phase_totals=Counter()
         for fold in range(1,6):
             model=fit(trials,streams,fold,50);leak=crosstalk_coefficient(model) if variant=='crosstalk' else 0
             if leak:leaks.append(leak)
             for entry in entries:
                 profile=ExperimentProfile(model,variant,leak)
                 events,selections,final=simulate(streams[entry['recording']]['raw'],profile,variant)
+                phase_totals.update(final['phase_seconds'])
                 s=score(events,streams[entry['recording']]['rows'],entry,fold);scores.append(s)
                 c=confirmation_score(selections,streams[entry['recording']]['rows'],entry,fold);confirmations.append(c)
                 runs.append(dict(fold=fold,recording=Path(entry['recording']).name,events=events,selections=selections,confirmation=c))
@@ -342,6 +354,7 @@ def run(manifest,output,variants=VARIANTS):
                        false_events_per_minute=summary['false_directions']*60/summary['negative_seconds'],
                        negative_phase_confirmations=sum(c['negative_phase_confirmations'] for c in confirmations),
                        total_scored_selections=sum(c['selections'] for c in confirmations),
+                       mean_full_stream_phase_seconds={k:v/5 for k,v in phase_totals.items()},
                        intended_confirmation_misses=None,processing_seconds=round(time.monotonic()-started,2))
         report['variants'][variant]=dict(summary=summary,fold_scores=scores,confirmation_scores=confirmations,runs=runs,leak_coefficients=leaks)
         (output/'report.json').write_text(json.dumps(report,indent=2,allow_nan=False))

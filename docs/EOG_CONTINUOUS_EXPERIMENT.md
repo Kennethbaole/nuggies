@@ -208,3 +208,21 @@ Only the independent pulse-confirmation path is offered as a new live opt-in: it
 Leave-one-session-out: N/A for all three folds because the held-out class labels are absent from the remaining sessions. This is a dataset coverage failure, not a hidden good result. The optional LDA export uses training-only features and is not loaded live.
 
 Run `python -m scripts.eog_signal_comparison --output recordings/signal-comparison-new` with the optional analysis environment. Reports include fold scores, selections by cue phase, missing-class coverage, spectra, morphology and model exports. See [research assessment](EOG_SIGNAL_RESEARCH.md) for sources, analog passband limits, rejected alternatives, and normalization/crosstalk findings.
+
+## Retry/recovery timing investigation after the live usability report
+
+The direction parity check is in [EOG_DIRECTION_REGRESSION](EOG_DIRECTION_REGRESSION.md). These additional variants remain offline; none was deployed. Pulse confirmation and the classifier stay fixed while only retry or recovery duration changes.
+
+| Variant | Hits | Misses | Wrong / duplicates | False directions / min | Negative-phase confirmations | Median cue→emit (s) | Retry time (s) | Recovery time (s) |
+| --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| pulse-confirmation | 16 | 4 | 0 / 0 | 0.655 | 0 | 1.510 | 466.6 | 100.7 |
+| pulse-retry0.6 | 16 | 4 | 0 / 0 | 1.091 | 0 | 1.510 | 277.0 | 129.2 |
+| pulse-retry1 | 16 | 4 | 0 / 0 | 0.873 | 0 | 1.510 | 311.7 | 130.8 |
+| pulse-retry2 | 16 | 4 | 0 / 0 | 0.873 | 0 | 1.510 | 402.9 | 109.5 |
+| pulse-retry3 | 16 | 4 | 0 / 0 | 0.873 | 0 | 1.510 | 436.6 | 100.9 |
+| pulse-recovery1 | 11 | 9 | 0 / 0 | 0.436 | 0 | 1.628 | 537.5 | 37.1 |
+| pulse-recovery2 | 16 | 4 | 0 / 0 | 0.655 | 0 | 1.510 | 466.6 | 87.0 |
+
+Direction metrics retain 20 scored trials and 275 s negative exposure. Phase time covers entire raw streams, averaged across the five fitted folds, and must not be divided by the 275 s scored exposure. True confirmation misses remain N/A for these acquisition protocols.
+
+Shorter retry increases false directions without recovering the four missed cues. One-second recovery loses five additional directions. Two-second recovery saves about 13.7 s of recovery across the full streams without changing the scored outcomes, but does not fix template rejection or demonstrate faster successful wearer interactions. Keep it an offline candidate; do not silently shorten the live return protection. Private report: `recordings/signal-comparison-retry/report.json`.

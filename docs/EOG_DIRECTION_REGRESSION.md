@@ -44,3 +44,9 @@ an extra experimental detector or ask the wearer to repeat calibration because a
 reused-data example passed. No new direction or retry settings have been deployed.
 The remaining live result is a usability failure report, not a completed scripted
 acceptance check; correct and false confirmation totals remain unscored by intent.
+
+## Timing sweep outcome
+
+Retry .6/1/2/3 s retains 16 hits and four misses but increases false directions from three to five/four/four/four over 275 s; all have zero negative-phase confirmations in this replay. Recovery 1 s falls to 11 hits/nine misses with two false directions; recovery 2 s keeps 16/four and three false directions, with zero negative-phase confirmations. No timing variant is enabled. The full table separates actual blocked time from scored negative exposure.
+
+The next algorithm experiment should track an uncertain excursion and its return explicitly while preserving the pending-choice rules, rather than discarding the whole temporal context and demanding another long clean-rest buffer. Fit and compare that state change on existing recordings before another live deployment. Shorter retry alone has now been checked and does not solve this tradeoff.
