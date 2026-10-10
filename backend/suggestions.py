@@ -73,8 +73,21 @@ def normalize_audio_type(mime_type):
     return AUDIO_TYPES[base]
 
 
-def clean_suggestions(items, avoid=()):
-    """Validate model output: bounded text, no duplicates, none already used."""
+def label_for(text):
+    """Button label: the reply's opening words, so it always matches what will be said."""
+    label = ""
+    for word in text.split():
+        candidate = f"{label} {word}".strip()
+        if len(candidate.strip(" .,!?;:")) > MAX_LABEL_CHARS:
+            break
+        label = candidate
+    return label.strip(" .,!?;:") or text[:MAX_LABEL_CHARS].strip() or "Reply"
+
+
+def clean_suggestions(items, avoid=(), label_from_text=False):
+    """Validate model output: bounded text, no duplicates, none already used.
+    label_from_text ignores the model's labels; small local models write unreliable
+    ones (category names, "REPLY-1", copied examples)."""
     skipped = {" ".join(str(text).lower().split()) for text in avoid}
     cleaned = []
     for item in items if isinstance(items, list) else []:
@@ -89,6 +102,8 @@ def clean_suggestions(items, avoid=()):
             continue
         label = " ".join(label.split()) if isinstance(label, str) else ""
         label = (label or text.split()[0]).strip(" .,!?")[:MAX_LABEL_CHARS].strip() or "Reply"
+        if label_from_text:
+            label = label_for(text)
         skipped.add(key)
         digest = hashlib.sha1(key.encode()).hexdigest()[:8]
         cleaned.append(dict(id=f"ai-{digest}", label=label, text=text))
@@ -225,6 +240,7 @@ class OllamaSuggestions:
                       dict(role="user", content=context_text(contact, recent, avoid, heard_text, style_examples, persona))],
             format="json",
             stream=False,
+            think=False,  # Qwen reasons before answering by default; that costs seconds per reply.
             keep_alive="30m",  # Keep the model loaded so the next request skips the load time.
             options=dict(temperature=0.8, num_predict=700),
         )
@@ -251,7 +267,7 @@ class OllamaSuggestions:
             parsed = parse_model_json(data["message"]["content"])
         except (KeyError, TypeError, ValueError) as error:
             raise SuggestionUnavailable("Local model returned no usable suggestions") from error
-        suggestions = clean_suggestions(parsed.get("suggestions"), avoid)
+        suggestions = clean_suggestions(parsed.get("suggestions"), avoid, label_from_text=True)
         if not suggestions:
             raise SuggestionUnavailable("Local model returned no usable suggestions")
         return SuggestionResult(heard_text, suggestions, self.model, latency, "ollama")
