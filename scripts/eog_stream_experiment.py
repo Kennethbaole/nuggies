@@ -6,14 +6,14 @@ import json
 from pathlib import Path
 import statistics
 
-from backend.temporal_eog import CausalFilter, DecisionPolicy, EventSegmenter, PairedDirectionDetector, SegmentConfig
+from backend.temporal_eog import CausalFilter, DecisionPolicy, EventSegmenter, PairedDirectionDetector, SegmentConfig, StableBaselineFilter
 from backend.live_wheel import LiveWheelTest
 from scripts.eog_experiment import load_trials, trial_fold
 
 DIRECTIONS={'left','right','up','down'}
 
 
-def read_streams(manifest):
+def read_streams(manifest, stable_s=None):
     import numpy as np
     streams={}
     for entry in json.loads(Path(manifest).read_text()):
@@ -23,7 +23,7 @@ def read_streams(manifest):
             with path.with_suffix('.trials.csv').open() as f:rows=list(csv.DictReader(f))
             if len(raw)!=len(rows) or any(r['timestamp_ms']!=m['timestamp_ms'] for r,m in zip(raw,rows)):
                 raise ValueError('Misaligned raw and trial metadata')
-            filt=CausalFilter();frames=[];indices=[];resets=[];old=LiveWheelTest();old_events=[];previous=None
+            filt=StableBaselineFilter(stable_s) if stable_s else CausalFilter();frames=[];indices=[];resets=[];old=LiveWheelTest();old_events=[];previous=None
             for i,r in enumerate(raw):
                 ts=int(r['timestamp_ms']);h=float(r['horizontal_adc']);v=float(r['vertical_adc'])
                 if previous is not None and ts<previous:raise ValueError('Timestamps go backwards')
@@ -40,11 +40,24 @@ def read_streams(manifest):
     return streams
 
 
-def features(x):
+def features(x, shape=False):
     import numpy as np
-    return np.concatenate([np.max(x,axis=0),np.min(x,axis=0),np.mean(x,axis=0),
+    basic=np.concatenate([np.max(x,axis=0),np.min(x,axis=0),np.mean(x,axis=0),
                            np.sqrt(np.mean(x*x,axis=0)),np.mean(abs(np.diff(x,axis=0)),axis=0),
                            np.mean(x[:len(x)//2],axis=0)-np.mean(x[len(x)//2:],axis=0)])
+    if not shape:return basic
+    extra=[]
+    for axis in range(2):
+        y=x[:,axis];peak=int(np.argmax(abs(y)));amplitude=max(abs(y[peak]),1e-9)
+        signed=y*(1 if y[peak]>=0 else -1)
+        # Duration, peak timing, opposite lobe strength and its timing.
+        extra.extend([np.mean(signed>=amplitude*.5),peak/len(y),
+                      max(0,-float(signed[peak:].min()))/amplitude,
+                      (peak+int(signed[peak:].argmin()))/len(y),
+                      np.mean(abs(y[-max(1,len(y)//5):]))/amplitude])
+    energy=np.sum(x*x,axis=0)
+    extra.append(float(energy[0]/max(float(energy.sum()),1e-9)))
+    return np.concatenate([basic,extra])
 
 
 def training_segments(trials,streams,fold,capture,alignment="activity"):
@@ -73,7 +86,8 @@ def fit(trials,streams,fold,capture,alignment="activity"):
     scale=np.maximum(np.percentile(abs(waves),95,axis=(0,1)),100)
     waves=np.clip(waves/scale,-2,2)
     f=np.stack([features(x) for x in waves]);fscale=np.maximum(f.std(axis=0),.03)
-    return dict(labels=labels,waves=waves,scale=scale,features=f/fscale,fscale=fscale)
+    sf=np.stack([features(x,shape=True) for x in waves]);sscale=np.maximum(sf.std(axis=0),.03)
+    return dict(labels=labels,waves=waves,scale=scale,features=f/fscale,fscale=fscale,shape_features=sf/sscale,shape_scale=sscale)
 
 
 def fit_recurrent(model, paper=False):
@@ -112,7 +126,9 @@ def classify(window,model,method):
             probs=model['network'](torch.tensor(x[None],dtype=torch.float32)).softmax(-1)[0].numpy()
         best=int(probs.argmax());label=model['network_labels'][best]
         return label,float(1-probs[best]),float(probs[best]/max(sum(p for p,l in zip(probs,model['network_labels']) if l in ('blink','double_blink')),1e-9))
-    if method=='features':
+    if method=='shape':
+        distance=np.square(model['shape_features']-features(x,shape=True)/model['shape_scale']).mean(axis=1)
+    elif method=='features':
         distance=np.square(model['features']-features(x)/model['fscale']).mean(axis=1)
     else:
         # Match individual examples, allowing +/- 80ms timing variation.
@@ -178,12 +194,15 @@ def run(manifest,output,alignment="activity",selected=None):
     for method in ('waveform','features'):
         for capture in (.6,1.0):variants.append((f'{method}-{capture}',method,capture))
     variants += [('waveform-policy','waveform',1.0),('waveform-reject','waveform',1.0),('features-policy','features',1.0),('lstm-small-policy','lstm-small',1.0),('lstm-paper-policy','lstm-paper',1.0)]
+    variants += [('waveform-recovery','waveform',1.0),('shape-policy','shape',1.0),('stable-3-recovery','waveform',1.0),('stable-5-recovery','waveform',1.0),('waveform-retry3','waveform',1.0),('waveform-retry5','waveform',1.0)]
     if selected:
         names=set(selected)
         if names-{v[0] for v in variants}:raise ValueError('Unknown variant')
         variants=[v for v in variants if v[0] in names]
     reports={}
+    default_streams=streams
     for name,method,duration in variants:
+        streams=read_streams(manifest,stable_s=int(name.split('-')[1])) if name.startswith('stable-') else default_streams
         scores=[];outputs=[]
         for fold in range(1,6):
             model=fit(trials,streams,fold,round(duration*50),alignment) if method and method!='paired' else None
@@ -200,13 +219,14 @@ def run(manifest,output,alignment="activity",selected=None):
                             delta=event['emitted']-event['onset']
                             events.append(dict(onset=int(s['indices'][max(0,i-delta)]),emitted=int(s['indices'][i]),label=event['label']))
                 else:
-                    detector=EventSegmenter(SegmentConfig(capture_s=duration));events=[];policy=DecisionPolicy(reject=name.endswith('reject'))
+                    detector=EventSegmenter(SegmentConfig(capture_s=duration));events=[];policy=DecisionPolicy(reject=name.endswith(('reject','recovery','retry3','retry5')),track_rejected=name.endswith('recovery'),retry_s=int(name[-1]) if 'retry' in name else None)
                     for i,(h,v) in enumerate(s['frames']):
                         if i in s['resets']:detector.reset();policy.reset()
+                        policy.observe(h,v)
                         segment=detector.process(h,v)
                         if segment:
                             label,distance,margin=classify(segment['samples'],model,method)
-                            if name.endswith(('policy','reject')):
+                            if name.endswith(('policy','reject','recovery','retry3','retry5')):
                                 if method.startswith('lstm') and label in DIRECTIONS and distance>.4:label='unknown'
                                 label,cooldown=policy.apply(label,distance,margin,i)
                                 detector.ready_at=detector.index+cooldown
@@ -231,7 +251,7 @@ def run(manifest,output,alignment="activity",selected=None):
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
     (output/'report.json').write_text(json.dumps(report,indent=2))
     # Deployment candidate fitted on all reviewed examples, never used for fold scoring.
-    candidate=fit(trials,streams,0,50,alignment)
+    candidate=fit(trials,default_streams,0,50,alignment)
     profile=dict(version=1,alignment=alignment,labels=candidate['labels'],
                  waves=candidate['waves'].tolist(),scale=candidate['scale'].tolist(),
                  capture_s=1.0,threshold_h=800,threshold_v=800,reject=True,

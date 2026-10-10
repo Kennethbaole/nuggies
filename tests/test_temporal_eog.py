@@ -58,3 +58,51 @@ class TemporalEOGTests(unittest.TestCase):
         result=score(events,rows,dict(run_id='valid',labels=['neutral','up','blink']),1,fs=1)
         self.assertEqual((result['trials'],result['hits'],result['wrong'],result['duplicates'],result['false_directions']),(1,1,1,1,1))
         self.assertEqual(result['negative_seconds'],18)
+
+    def test_rejected_excursion_return_is_not_a_command(self):
+        p=DecisionPolicy(reject=True,track_rejected=True)
+        self.assertEqual(p.apply('left',.17,3,100)[0],'unknown')
+        self.assertEqual(p.apply('right',.02,3,200)[0],'return')
+        # Recovery expires; it must not permanently disable opposite commands.
+        self.assertEqual(p.apply('right',.02,3,301)[0],'right')
+        p.reset()
+        self.assertEqual(p.apply('right',.02,3,302)[0],'right')
+
+    def test_stable_baseline_tracks_small_drift_but_freezes_during_excursions(self):
+        from backend.temporal_eog import StableBaselineFilter
+        d=StableBaselineFilter(3)
+        for _ in range(800):d.process(8192,8192)
+        for _ in range(1500):d.process(8292,8192)
+        self.assertGreater(d.baseline[0],8250)
+        before=d.baseline
+        for _ in range(1500):d.process(10200,8192)
+        self.assertEqual(d.baseline,before) # quiet off-center voltage cannot redefine center
+        d.process(16383,8192)
+        self.assertIsNone(d.baseline)
+        self.assertFalse(d.clean)
+        with self.assertRaises(ValueError):StableBaselineFilter(0)
+
+    def test_shape_features_separate_equal_height_different_duration(self):
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest('Optional EOG experiment dependencies are not installed')
+        from scripts.eog_stream_experiment import features
+        short=np.zeros((50,2));long=short.copy()
+        short[5:10,1]=1;long[5:35,1]=1
+        a=features(short,shape=True);b=features(long,shape=True)
+        self.assertTrue(np.isfinite(a).all())
+        self.assertEqual(len(a),23)
+        self.assertNotEqual(a[17],b[17]) # vertical half-height occupancy
+
+    def test_retry_waits_for_clean_readings_with_blinks_excluded(self):
+        p=DecisionPolicy(reject=True,rate=10,retry_s=3)
+        self.assertEqual(p.apply('left',.17,3,100)[0],'unknown')
+        self.assertTrue(p.retry)
+        self.assertEqual(p.apply('right',.01,3,120)[0],'retry')
+        for _ in range(20):p.observe(0,0)
+        for _ in range(4):p.observe(0,2000) # blink-like activity cannot establish baseline
+        self.assertTrue(p.retry)
+        for _ in range(12):p.observe(0,0)
+        self.assertFalse(p.retry)
+        self.assertEqual(p.apply('right',.01,3,200)[0],'right')
