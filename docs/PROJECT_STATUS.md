@@ -1,6 +1,33 @@
+> Latest live follow-up: recognized double blinks were blocked by navigation
+> recovery. Buffered return settling now arms confirmation separately; the
+> direction classifier is unchanged. Raw replay improves activation delivery but
+> remains unlabeled. Five clipping resets were also logged. See
+> [recovery bug and limits](EOG_COMMUNICATION.md#recovery-blocking-bug-found-in-the-next-live-session).
+
 # Current status and next session
 
 Updated 2026-10-10.
+
+Current experiment: opt-in waveform navigation plus experimental gaze/double-blink
+communication. [Communication flow and tonight's plan](EOG_COMMUNICATION.md).
+The Nano was live during today's checks; the user reported intended cardinal
+movements triggered and a diagonal requested retry. The later free-wheel test
+ended; recording and navigation were stopped before assembly planning. No formal
+accuracy or biological blink-confirmation result is claimed. Homepage readability overhaul adds larger controls and a fixed detected-choice
+preview with confirmation readiness. Deliberate double-blink rejections prompted
+a constrained match-gate adjustment; see EOG_COMMUNICATION.md for reused-data
+comparison and limits. Latest software
+suite: 182 tests, 181 passed, one optional skip. Prior exact-runtime development
+replay: 16/20 correct, three false candidates/275 s. See
+[the diagnostic live-check guide](EOG_LIVE_CHECK.md).
+The following main-baseline description predates this branch integration.
+
+Latest pulled baseline: b1ceaa0. Reply generation now uses Qwen through Ollama
+only; Gemini was removed. A Contacts page supports local contact profiles and
+chat imports that supply style/examples to reply generation (no fine-tuning).
+The pulled changes did not alter the EOG detector. Latest suite: 144 passing tests.
+See [EOG detector review](EOG_DETECTION_PLAN.md) for the paper assessment and
+recovery defect reproduced against existing recordings.
 
 ## Working implementation
 
@@ -11,14 +38,14 @@ and shares phrase-wheel state with the phone and silent HUD views.
 
 The experimental eye wheel test reads live serial data and focuses an eight-slot
 radial wheel. Up targets the top slot (initial Hello), down targets bottom Back,
-with left/right and diagonals mapped spatially. Gaze only underlines the detected
-label: glowing sectors and filled gaze highlights were removed. Gaze does not
+with left/right and diagonals mapped spatially. Gaze visual highlighting has been fully removed: no underline, glowing sector,
+or filled gaze highlight. Detector state remains visible in the status/readouts. Gaze does not
 activate phrases/utilities or speech. Keyboard/mouse confirmation remains
 available; speech is disabled while the experimental test is active.
 
 ## Observed issue
 
-In live use the underline changes, but does not reliably correspond to intended
+Before visual feedback was removed, the underline changed but did not reliably correspond to intended
 movements. Repeating the center/left trial did not resolve it. Usable directional
 control has **not** been established. The cause is not yet isolated; this does
 not by itself prove poor electrode signals or reversed wiring.
@@ -38,13 +65,15 @@ can affect the result. The trigger counts threshold activity without requiring
 a consistent direction throughout that interval. AC-coupled movement pulses
 cannot establish continuous absolute gaze position.
 
-## Resume with calibration, not more UI changes
+## Resume with offline algorithm development
 
-1. Recheck the setup and acquire a quiet center baseline. Keep wheel control off
-   while recording labeled measurements.
-2. Record separate left, right, up, and down trials, with explicit center returns
-   and several repetitions. Record blinks separately; distinguish intended gaze
-   from its return in the review.
+1. Use the existing reviewed recordings for offline model development. The new
+   [sequence experiment](EOG_SEQUENCE_EXPERIMENT.md) compares learned temporal
+   templates and an LSTM with fixed-threshold logic. No new acquisition is
+   required for this stage.
+2. Extend the promising template baseline to continuous-stream event detection,
+   using existing recordings to score return pulses, rest periods and blink
+   interference without cue-based detection boundaries.
 3. Verify polarity and compare channel noise, clipping, excursion amplitude,
    cross-axis leakage, and pulse timing. Fit separate per-axis thresholds/scales
    from measurements rather than guessing.
@@ -58,7 +87,7 @@ cannot establish continuous absolute gaze position.
 
 ## Evidence and limits
 
-The last full suite passed 133 tests. Isolated browser checks exercised all eight
+The latest code passed 144 tests. Isolated browser checks exercised all eight
 synthetic EOG directions through app ingest, hover release, no gaze activation,
 and stop behavior. Underline styling was checked in the browser. These checks
 verify software behavior, not biological direction accuracy. Earlier labeled
@@ -68,8 +97,9 @@ recordings and offline analysis are local and excluded from Git; see
 ## Local session and restart
 
 The latest local session uses http://127.0.0.1:8877 with serial port
-/dev/cu.usbmodem1101. Ports may change on reconnection. The server was left
-running; its availability and eye-test toggle should be checked on return.
+/dev/cu.usbmodem1101. Ports may change on reconnection. At review time the server was running but serial was disconnected with a device
+not configured error; recording and the eye-test toggle were off. Recheck the
+port after reconnecting and restart the backend to load pulled Python changes.
 No recording was started for the recent UI changes. To restart:
 
 ```sh
@@ -79,3 +109,65 @@ python3 -m backend.app --serial-port PORT --port 8877
 Close other serial readers first. The test defaults off after restart. Preserve
 private recordings locally and create new filenames for new sessions. Follow the
 power and electrode precautions in [Acquisition](ACQUISITION.md) before resuming.
+
+## Latest offline result
+
+Forty-five reviewed windows were evaluated using all five leave-one-repetition-out
+folds. For navigation (cardinal direction versus no direction during neutral/
+blinks), current logic got 20/45, learned templates 41/45, and the initial LSTM
+34/45. Templates recognized 18/20 cardinal trials and suppressed direction on
+23/25 neutral/blink windows. These cue-aligned, same-session development results
+are not continuous navigation validation or proof of cross-session accuracy.
+Do not send the user back through the full acquisition protocol before exhausting
+these existing-data experiments.
+
+## Continuous algorithm branch
+
+Further work is on `experiment/eog-continuous-detection`, not main. Continuous
+replay now compares twelve variants without cue-driven resets; the strongest
+waveform/rejection candidate recognized 16/20 movements with 6 false directions
+over 275s negative exposure. Current live hover stalled in replay. No live control
+was replaced. See [Continuous EOG experiments](EOG_CONTINUOUS_EXPERIMENT.md)
+for results, reproducible commands, frozen raw-only replay and remaining work.
+The branch suite passes 149 tests.
+
+
+### Shape, retry and baseline follow-up (2026-10-10)
+
+See [improvement roadmap](EOG_IMPROVEMENT_ROADMAP.md) for the requested guided-center/retry design,
+research assessment and implementation priorities. New opt-in replay variants:
+3s retry gate15/20 with5false directions;5s gate14/20 with4false over275s.
+Existing waveform rejection remains16/20 with6false. Remembering rejected
+labels, extra shape features and stable-only baseline replacement did not improve
+the overall result; retain them as documented comparisons, not live defaults.
+No application, OLED, confirmation or speech integration changed.
+
+
+### Integrated guided EOG mode — 2026-10-10
+
+The experimental branch now has opt-in app integration using --eog-profile:
+three-second guided center, hybrid DC/rest estimates, five-second retry,
+recovery/return suppression, uncertain horizontal blink handling and quality
+faults. Cardinal focus only; no automatic confirmation or speech. Browser HUD
+shows status without gaze highlighting. Private raw/decision logs and a short
+readiness-aware live protocol are available. Selected exact-runtime replay:
+16/20 correct,0wrong/duplicates,3false candidates/275s (two boundary ambiguous,
+one blink-related up); median cue-to-emission1.51s. Existing main behavior
+without the profile flag is unchanged. Physical OLED status adapter is untested.
+See [live-check guide](EOG_LIVE_CHECK.md) for evidence, launch instructions and remaining
+limitations. Earlier statements that no integration exists are historical.
+
+
+### Homepage speed-check follow-up
+
+First live manual check: operator confirms intended cardinal responses and
+retry for an untrained diagonal; no cue labels, so no numeric accuracy claim.
+A new homepage button starts a recorded12-direction speed check after center.
+Cue-to-response (includes reaction/UI delay) and candidate-window timing are
+reported separately; early candidates are flagged. Detector settings remain
+fixed.169tests run:168pass,1optional skip; homepage flow browser-checked.
+See EOG_LIVE_CHECK.md for definitions and the live recording limitations.
+
+### Double-blink investigation handoff (2026-10-10)
+
+Added observational pulse-shape features and aligned logged confirmation armed indices. Latest explicit live double blink was rejected by the single/double class margin after successful gaze and return; acceptance behavior is unchanged pending exact replay. Full suite: 186 tests, 185 passed, one optional skip. Continuation instructions and private recording references: [Claude handoff](CLAUDE_HANDOFF.md).

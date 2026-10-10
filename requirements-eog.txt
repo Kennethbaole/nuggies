@@ -1,0 +1,4 @@
+# Optional offline experiments only; not needed by the companion app.
+torch>=2.6,<3
+numpy>=2,<3
+PyWavelets>=1.8,<2

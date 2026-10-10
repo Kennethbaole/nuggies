@@ -20,5 +20,5 @@ The visual interface is a separate component.
 
 Experimental live gaze uses spatial focus rather than previous/next navigation:
 up targets slot 0 and down slot 4, with other directions increasing clockwise.
-Only the detected label is underlined; gaze never invokes Select or Back.
+Gaze visual highlighting is removed; gaze never invokes Select or Back.
 Live direction accuracy remains unresolved. See [Current status](PROJECT_STATUS.md).

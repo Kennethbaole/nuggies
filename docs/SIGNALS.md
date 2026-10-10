@@ -44,6 +44,9 @@ before selecting signal-processing parameters.
 
 The opt-in live wheel test uses backend/live_wheel.py rather than the calibrated
 classifier and GestureGate above. Calibration profiles do not currently configure
-its thresholds. Current feedback is underline-only, and live direction mapping
+its thresholds. Gaze visual highlighting is removed, and live direction mapping
 has been reported inaccurate. See [Current status](PROJECT_STATUS.md) for the
 detector parameters and measurement plan before making threshold changes.
+
+Use [the supervised sequence experiment](EOG_SEQUENCE_EXPERIMENT.md) to develop
+and compare temporal models from existing recordings before further acquisition.

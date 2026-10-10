@@ -229,8 +229,8 @@ navigation must be off. Rest at center for one second before looking toward a sl
 | Left (negative A0) | Slot 6 |
 | Up-left | Slot 7 |
 
-During the test, only the currently detected slot label is underlined. The
-underline clears when hover releases, the mode stops, or serial becomes stale. No phrase, Back action, navigation, or
+Gaze highlighting has been removed. The detector direction and raw channel
+readouts remain available for development; gaze does not decorate wheel slots. No phrase, Back action, navigation, or
 speech is activated by gaze. Confirm with existing mouse/keyboard controls when
 needed. Speech remains disabled while this test is on. The page shows smoothed
 horizontal/vertical deviations in ADC counts and the detector phase.
@@ -241,7 +241,7 @@ highlight; both axes must exceed 1500 counts for a diagonal. Polarity assumes th
 verified placement and must be checked for each setup. AC-coupled signals decay
 while gaze is held, so the hover is latched until an opposite return pulse or an
 eight-second timeout. Return to center and rest before another direction. A return
-pulse clears the underline; keyboard focus remains at the last enabled slot.
+pulse releases the detector latch; internal focus remains at the last enabled slot.
 Clipping, sample gaps, stopping, and serial failure reset the detector.
 
 Blink spikes can still resemble vertical gaze. Diagonal timing, individual
@@ -252,8 +252,12 @@ Recording remains independent and the mode defaults off after restarting.
 ## Current live-test outcome
 
 The user reports changing highlights without reliable correspondence to intended
-gaze, including after a repeated center/left trial. The underline is visual
-feedback, not evidence of accurate classification. Pause free-form wheel testing
-and resume with labeled center/cardinal-direction measurements, channel polarity
-and scale review, and independent validation. See [Current status and next
+gaze, including after a repeated center/left trial. The previous underline was visual feedback, not evidence of accurate
+classification, and has been removed. Existing recordings are sufficient for
+algorithm development: run the offline sequence experiment and continuous replay
+comparison before requesting additional acquisition. See [Current status and next
 session](PROJECT_STATUS.md) for the complete handoff and known detector weaknesses.
+
+For the research comparison, existing-data review, and recovery/calibration
+implementation order, see [EOG detector review](EOG_DETECTION_PLAN.md). The
+current recovery phase has no timeout and can stall against a stale baseline.

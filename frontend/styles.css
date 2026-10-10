@@ -63,4 +63,3 @@ body.signal-expanded-open{overflow:hidden}
 
 .wheel-test-controls{margin:18px 0;padding:14px;border:1px solid var(--line);border-radius:10px}.wheel-test-controls p{font-size:12px;line-height:1.5;color:var(--muted)}#wheel-test-status{color:var(--green)}
 
-.slot.gaze-hover { text-decoration:underline; text-decoration-color:#62f5df; text-decoration-thickness:3px; text-underline-offset:7px; }
