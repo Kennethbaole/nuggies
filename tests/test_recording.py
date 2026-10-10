@@ -44,3 +44,10 @@ class RecordingTests(unittest.TestCase):
         replay.read_sample()
         with self.assertRaisesRegex(ValueError, "go backwards"):
             replay.read_sample()
+
+    def test_device_metadata_roundtrip_and_blank_legacy_metadata(self):
+        samples=[ADCSample(10,20,1000,sequence=42,device_timestamp_us=123456),ADCSample(30,40,1004)]
+        stream=io.StringIO();recorder=ADCRecorder(stream,include_device_metadata=True)
+        for sample in samples:recorder.write(sample)
+        stream.seek(0);source=CSVReplaySource(stream)
+        self.assertEqual([source.read_sample(),source.read_sample()],samples)

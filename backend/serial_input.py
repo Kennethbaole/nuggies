@@ -1,6 +1,7 @@
 """Read the Nano test sketch's CSV stream; values remain raw ADC counts."""
 
 import time
+from collections import deque
 from contextlib import ExitStack
 from dataclasses import dataclass
 
@@ -12,20 +13,25 @@ class ADCSample:
     timestamp_ms: int  # Host receipt time, not the MCU sampling time.
     source: str = "nano_r4"
     units: str = "adc_counts"
+    sequence: int | None = None
+    device_timestamp_us: int | None = None
 
 
 def parse_adc_line(line: bytes) -> ADCSample | None:
     """Ignore headers, corrupt lines, and values outside the 14-bit range."""
     try:
         fields = line.decode("ascii").strip().split(",")
-        if len(fields) != 2 or not all(field.strip().isdigit() for field in fields):
+        if len(fields) not in (2,4) or not all(field.strip().isdigit() for field in fields):
             return None
-        horizontal, vertical = map(int, fields)
+        values=list(map(int,fields))
+        sequence,device_us=(values[0],values[1]) if len(values)==4 else (None,None)
+        horizontal,vertical=values[-2:]
+        if sequence is not None and not(0<=sequence<=0xffffffff and 0<=device_us<=0xffffffff):return None
     except (UnicodeDecodeError, ValueError):
         return None
     if not (0 <= horizontal <= 16383 and 0 <= vertical <= 16383):
         return None
-    return ADCSample(horizontal, vertical, time.time_ns() // 1_000_000)
+    return ADCSample(horizontal, vertical, time.time_ns() // 1_000_000,sequence=sequence,device_timestamp_us=device_us)
 
 
 class SerialADCSource:
@@ -36,6 +42,28 @@ class SerialADCSource:
         self.pending = b""
         self.discarding = False
         self.ignored_lines = 0
+        self.metadata={};self.previous_device=None;self.dropped_samples=0
+        self.duplicate_samples=0;self.device_resets=0;self.intervals=deque(maxlen=500)
+
+    def snapshot(self):
+        return dict(metadata=dict(self.metadata),ignored_lines=self.ignored_lines,
+                    dropped_samples=self.dropped_samples,duplicate_samples=self.duplicate_samples,
+                    device_resets=self.device_resets,
+                    received_rate_hz=1_000_000*len(self.intervals)/sum(self.intervals) if self.intervals else None)
+
+    def _observe(self,sample):
+        if sample.sequence is None:return
+        if self.previous_device is not None:
+            seq,us=self.previous_device
+            delta=(sample.sequence-seq)&0xffffffff
+            elapsed=(sample.device_timestamp_us-us)&0xffffffff
+            if delta==0:self.duplicate_samples+=1
+            elif delta>1_000_000 or not 0<elapsed<10_000_000:
+                self.device_resets+=1;self.intervals.clear()
+            else:
+                self.dropped_samples+=delta-1;self.intervals.append(elapsed)
+        self.previous_device=(sample.sequence,sample.device_timestamp_us)
+
 
     def read_sample(self, timeout: float = 5.0) -> ADCSample:
         deadline = time.monotonic() + timeout
@@ -54,8 +82,16 @@ class SerialADCSource:
                 self.discarding = False
                 self.ignored_lines += 1
                 continue
+            if line.startswith(b'#nuggies-eog-v2,'):
+                try:
+                    fields=line.decode('ascii').strip().split(',')
+                    self.metadata=dict(field.split('=',1) for field in fields[1:])
+                    self.metadata['protocol']='nuggies-eog-v2'
+                except (UnicodeDecodeError,ValueError):self.ignored_lines+=1
+                continue
             sample = parse_adc_line(line)
             if sample is not None:
+                self._observe(sample)
                 return sample
             self.ignored_lines += 1
         raise TimeoutError("No valid samples for 5 seconds. Check the sketch, port, and Serial Monitor.")

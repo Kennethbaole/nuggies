@@ -85,6 +85,7 @@ class Application:
         self.smoother = None
         self.connected = source == "demo"
         self.error = ""
+        self.input_transport = {}
         self.demo_running = False
         self.last_received = None
         self.stop = threading.Event()
@@ -137,7 +138,7 @@ class Application:
             timing=[x["cue_to_detection_ms"] for x in self.speed_attempts.values() if x.get("correct") and not x.get("early_candidate")]
             data.update(eog_schema_version=EOG_SCHEMA_VERSION,eog_events=list(self.eog_events),eog_choice_pending=self.eog_confirmation.target is not None and self.eog_communication and self.wheel_test, eog_confirmation_ready=self.eog_confirmation.ready_sample is not None and self.wheel_detector.phase in ("ready","recovery") and self.eog_communication and self.wheel_test, eog_communication=self.eog_communication and self.wheel_test, eog_confirmation=self.eog_confirmation.message, pending_eog_check=self.pending_eog_check,speed_results=list(self.speed_attempts.values()),speed_median_ms=statistics.median(timing) if timing else None,eog_engine="waveform" if isinstance(self.wheel_detector,GuidedEOGTest) else "legacy", session_id=self.session_id, input_mode=self.source,
                         connected=self.connected and (self.source == "demo" or age is not None and age < 2000),
-                        last_sample_age_ms=age, input_error=self.error,
+                        last_sample_age_ms=age, input_error=self.error,input_transport=self.input_transport,
                         calibrated=self.calibration is not None,
                         sensor_actions=self.sensor_actions or self.wheel_test, demo_running=self.demo_running,
                         wheel_test=self.wheel_test, wheel_message=self.wheel_detector.message,
@@ -493,7 +494,7 @@ class Application:
                 connection = stack.enter_context(serial.Serial(port, 115200, timeout=0.5, exclusive=True))
                 source = SerialADCSource(connection)
                 raw_stream = stack.enter_context(open(record_path, "x", newline="")) if record_path else None
-                recorder = ADCRecorder(raw_stream) if raw_stream else None
+                recorder = ADCRecorder(raw_stream,include_device_metadata=True) if raw_stream else None
                 if recorder:
                     label_stream = stack.enter_context(open(label_path, "x", newline=""))
                     label_writer = csv.writer(label_stream)
@@ -506,6 +507,7 @@ class Application:
                         if self.eog_log:self.eog_log.recording("recording_start",self.received_samples)
                 while not self.stop.is_set():
                     sample = source.read_sample()
+                    with self.lock:self.input_transport=source.snapshot()
                     if recorder and self.record_stop.is_set():
                         raw_stream.close()
                         label_stream.close()

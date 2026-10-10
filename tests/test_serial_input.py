@@ -42,3 +42,23 @@ class SerialInputTests(unittest.TestCase):
         self.assertEqual(source.read_sample().vertical, 2)
         with self.assertRaises(TimeoutError):
             source.read_sample(timeout=0)
+
+    def test_v2_metadata_and_legacy_are_both_supported(self):
+        sample=parse_adc_line(b'42,123456,8192,8000\n')
+        self.assertEqual((sample.sequence,sample.device_timestamp_us),(42,123456))
+        self.assertEqual((sample.horizontal,sample.vertical),(8192,8000))
+        self.assertIsNone(parse_adc_line(b'4294967296,0,1,2\n'))
+        self.assertIsNone(parse_adc_line(b'1,-1,1,2\n'))
+        self.assertIsNone(parse_adc_line(b'1,2,16384,0\n'))
+
+    def test_sequence_gaps_duplicates_reset_and_micros_wrap(self):
+        source=SerialADCSource(FakeConnection([
+            b'#nuggies-eog-v2,rate_hz=250,oversample=1\n',
+            b'4294967295,4294965000,8192,8000\n',
+            b'0,1704,8192,8000\n',b'3,13704,8192,8000\n',
+            b'3,13704,8192,8000\n',b'0,0,8192,8000\n']))
+        for _ in range(5):source.read_sample()
+        self.assertEqual(source.metadata['rate_hz'],'250')
+        self.assertEqual(source.dropped_samples,2)
+        self.assertEqual(source.duplicate_samples,1)
+        self.assertEqual(source.device_resets,1)

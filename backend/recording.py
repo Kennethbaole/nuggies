@@ -9,16 +9,21 @@ from .serial_input import ADCSample
 FIELDS = ("timestamp_ms", "horizontal_adc", "vertical_adc", "source", "units")
 
 
+DEVICE_FIELDS=("sequence","device_timestamp_us")
+
+
 class ADCRecorder:
-    def __init__(self, stream):
+    def __init__(self, stream, include_device_metadata=False):
+        self.include_device_metadata=include_device_metadata
         self.stream = stream
         self.writer = csv.writer(stream)
-        self.writer.writerow(FIELDS)
+        self.writer.writerow(FIELDS+DEVICE_FIELDS if include_device_metadata else FIELDS)
         self.stream.flush()
 
     def write(self, sample: ADCSample) -> None:
-        self.writer.writerow((sample.timestamp_ms, sample.horizontal, sample.vertical,
-                              sample.source, sample.units))
+        row=(sample.timestamp_ms,sample.horizontal,sample.vertical,sample.source,sample.units)
+        if self.include_device_metadata:row+=(sample.sequence,sample.device_timestamp_us)
+        self.writer.writerow(row)
         self.stream.flush()
 
 
@@ -27,7 +32,7 @@ class CSVReplaySource:
 
     def __init__(self, stream, realtime: bool = False):
         self.reader = csv.DictReader(stream)
-        if self.reader.fieldnames != list(FIELDS):
+        if self.reader.fieldnames not in (list(FIELDS),list(FIELDS+DEVICE_FIELDS)):
             raise ValueError("Recording must have timestamp_ms,horizontal_adc,vertical_adc,source,units columns")
         self.realtime = realtime
         self.first_timestamp = None
@@ -41,6 +46,10 @@ class CSVReplaySource:
         try:
             if None in row or any(value is None for value in row.values()):
                 raise ValueError("wrong column count")
+            sequence=device_us=None
+            if 'sequence' in row and (row['sequence'] or row['device_timestamp_us']):
+                sequence=int(row['sequence']);device_us=int(row['device_timestamp_us'])
+                if not(0<=sequence<=0xffffffff and 0<=device_us<=0xffffffff):raise ValueError('Invalid device metadata')
             timestamp = int(row["timestamp_ms"])
             horizontal = int(row["horizontal_adc"])
             vertical = int(row["vertical_adc"])
@@ -61,7 +70,7 @@ class CSVReplaySource:
             while (remaining := target - time.monotonic()) > 0:
                 time.sleep(min(remaining, 0.1))
         self.previous_timestamp = timestamp
-        return ADCSample(horizontal, vertical, timestamp, row["source"], row["units"])
+        return ADCSample(horizontal, vertical, timestamp, row["source"], row["units"],sequence,device_us)
 
 
 def print_replay(path: str, realtime: bool = False, count: int | None = None) -> None:
