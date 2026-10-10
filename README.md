@@ -78,3 +78,11 @@ Existing reviewed recordings can train and evaluate temporal waveform templates
 and a paper-inspired LSTM without more acquisition. See [Sequence experiment](docs/EOG_SEQUENCE_EXPERIMENT.md).
 Optional experiment dependencies are separate from the app. Reports and models
 remain private under recordings/. Gaze visual highlighting is currently removed.
+
+
+### Guided EOG diagnostic mode (experimental branch)
+
+An opt-in waveform detector supports instructed center, retry/recovery, quality
+feedback and a short recorded live check. It focuses cardinal slots without
+automatic confirmation or speech. See [the live-check guide](docs/EOG_LIVE_CHECK.md)
+for private-profile preparation, startup, replay evidence and limitations.

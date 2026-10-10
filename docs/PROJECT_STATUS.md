@@ -2,6 +2,13 @@
 
 Updated 2026-10-10.
 
+Current experiment: opt-in guided waveform EOG mode is ready for a short live
+check. Exact-runtime development replay:16/20 correct,3false candidates/275s.
+Verification:167tests run,166passed,1optional skip; guided and normal desktop/mobile
+browser checks passed. No Nano is currently detected and no new wearer/OLED test
+was performed. Start with [the live-check guide](EOG_LIVE_CHECK.md).
+The following main-baseline description predates this branch integration.
+
 Latest pulled baseline: b1ceaa0. Reply generation now uses Qwen through Ollama
 only; Gemini was removed. A Contacts page supports local contact profiles and
 chat imports that supply style/examples to reply generation (no fine-tuning).
@@ -121,3 +128,18 @@ Existing waveform rejection remains16/20 with6false. Remembering rejected
 labels, extra shape features and stable-only baseline replacement did not improve
 the overall result; retain them as documented comparisons, not live defaults.
 No application, OLED, confirmation or speech integration changed.
+
+
+### Integrated guided EOG mode — 2026-10-10
+
+The experimental branch now has opt-in app integration using --eog-profile:
+three-second guided center, hybrid DC/rest estimates, five-second retry,
+recovery/return suppression, uncertain horizontal blink handling and quality
+faults. Cardinal focus only; no automatic confirmation or speech. Browser HUD
+shows status without gaze highlighting. Private raw/decision logs and a short
+readiness-aware live protocol are available. Selected exact-runtime replay:
+16/20 correct,0wrong/duplicates,3false candidates/275s (two boundary ambiguous,
+one blink-related up); median cue-to-emission1.51s. Existing main behavior
+without the profile flag is unchanged. Physical OLED status adapter is untested.
+See [live-check guide](EOG_LIVE_CHECK.md) for evidence, launch instructions and remaining
+limitations. Earlier statements that no integration exists are historical.

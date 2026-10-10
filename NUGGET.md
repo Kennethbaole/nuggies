@@ -2,6 +2,12 @@
 
 Updated: 2026-10-10. Repository audited at `b1ceaa0216426cba830f387c474bec8e05c9c3b8`.
 
+Latest experimental implementation: `12342a4` on
+`experiment/eog-continuous-detection`. Guided EOG live-check instructions and
+current evidence: [EOG_LIVE_CHECK](docs/EOG_LIVE_CHECK.md). Base suite167run,
+166passed,1optional skip; guided and normal desktop/mobile browser checks passed.
+No new wearer or physical OLED result is claimed.
+
 Read this before changing the project. This is the central reference for project intent, implementation boundaries, evidence, unresolved gaps, and the next work. Detailed guides remain useful, but their known stale statements are listed below. A feature being present in code does not establish that it works on the intended hardware or for the intended users.
 
 ## Contents
@@ -609,3 +615,18 @@ Existing waveform rejection remains16/20 with6false. Remembering rejected
 labels, extra shape features and stable-only baseline replacement did not improve
 the overall result; retain them as documented comparisons, not live defaults.
 No application, OLED, confirmation or speech integration changed.
+
+
+### Integrated guided EOG mode — 2026-10-10
+
+The experimental branch now has opt-in app integration using --eog-profile:
+three-second guided center, hybrid DC/rest estimates, five-second retry,
+recovery/return suppression, uncertain horizontal blink handling and quality
+faults. Cardinal focus only; no automatic confirmation or speech. Browser HUD
+shows status without gaze highlighting. Private raw/decision logs and a short
+readiness-aware live protocol are available. Selected exact-runtime replay:
+16/20 correct,0wrong/duplicates,3false candidates/275s (two boundary ambiguous,
+one blink-related up); median cue-to-emission1.51s. Existing main behavior
+without the profile flag is unchanged. Physical OLED status adapter is untested.
+See [live-check guide](docs/EOG_LIVE_CHECK.md) for evidence, launch instructions and remaining
+limitations. Earlier statements that no integration exists are historical.

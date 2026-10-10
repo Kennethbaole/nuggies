@@ -162,3 +162,18 @@ Existing waveform rejection remains16/20 with6false. Remembering rejected
 labels, extra shape features and stable-only baseline replacement did not improve
 the overall result; retain them as documented comparisons, not live defaults.
 No application, OLED, confirmation or speech integration changed.
+
+
+### Integrated guided EOG mode — 2026-10-10
+
+The experimental branch now has opt-in app integration using --eog-profile:
+three-second guided center, hybrid DC/rest estimates, five-second retry,
+recovery/return suppression, uncertain horizontal blink handling and quality
+faults. Cardinal focus only; no automatic confirmation or speech. Browser HUD
+shows status without gaze highlighting. Private raw/decision logs and a short
+readiness-aware live protocol are available. Selected exact-runtime replay:
+16/20 correct,0wrong/duplicates,3false candidates/275s (two boundary ambiguous,
+one blink-related up); median cue-to-emission1.51s. Existing main behavior
+without the profile flag is unchanged. Physical OLED status adapter is untested.
+See [live-check guide](EOG_LIVE_CHECK.md) for evidence, launch instructions and remaining
+limitations. Earlier statements that no integration exists are historical.
