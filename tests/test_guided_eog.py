@@ -273,6 +273,7 @@ class DemoToleranceTest(unittest.TestCase):
         default,demo=GuidedConfig(),GuidedConfig.demo(pulse_confirmation=True)
         self.assertEqual((default.direction_distance,default.blink_margin,default.retry_s),(.08,1.5,5))
         self.assertEqual((demo.direction_distance,demo.blink_margin,demo.retry_s),(.15,1.5,1.5))
+        self.assertEqual((demo.blink_margin_up,demo.blink_margin_down,default.blink_margin_up),(1.3,1.2,0))
         self.assertTrue(demo.pulse_confirmation)
         with self.assertRaises(ValueError):GuidedConfig(direction_distance=0)
 

@@ -317,3 +317,13 @@ Sessions 4/5 are the profile's own training data, and evening intent is unlabell
 this is a demonstration trade (fewer rejections, more false directions), not an
 accuracy result. A false direction only changes the pending choice; speaking still
 requires the armed double blink.
+
+Follow-up the same evening: with the demo tolerance live, left/right worked but
+up/down were still mostly rejected, as `blink_overlap` with blink margins 1.33–1.44
+against 1.5 (direction margins 3–5). The demo preset now uses a per-direction blink
+margin of 1.3 for Up and 1.2 for Down. Replay of four evening live recordings
+(unlabelled): down 4 -> 6, up 5 -> 8; Up at 1.2 jumped to 18, consistent with blinks
+read as Up, so it was not used. Cued sessions 4/5/6 were unchanged except one more
+accepted direction outside cues in session 6. The gain is small: remaining vertical
+rejections are distant matches against the morning templates, which points to
+re-recording the vertical examples rather than further loosening.
