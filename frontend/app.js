@@ -17,8 +17,9 @@ const slotButtons = [];
 for (let i = 0; i < 8; i++) {
   const button = document.createElement('button'); button.className = 'slot'; button.dataset.slot = String(i);
   const angle = i * Math.PI / 4;
-  button.style.left = `${50 + Math.sin(angle) * 38}%`;
-  button.style.top = `${50 - Math.cos(angle) * 38}%`;
+  // Unit direction; CSS sets the radius so eye-control mode can pull choices toward the centre.
+  button.style.setProperty('--sx', Math.sin(angle).toFixed(4));
+  button.style.setProperty('--sy', (-Math.cos(angle)).toFixed(4));
   button.addEventListener('click', () => command('focus', i));
   $('slots').append(button); slotButtons.push(button);
 }
