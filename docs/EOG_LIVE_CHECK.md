@@ -1,3 +1,8 @@
+> 2026-10-10 update: A separate opt-in experimental communication mode now connects
+> gaze, recovered-center readiness, and double-blink confirmation to the existing
+> phrase/speech pipeline. Diagnostic eye-wheel mode still cannot confirm or speak.
+> See [communication flow](EOG_COMMUNICATION.md). No live confirmation accuracy is claimed.
+
 # Guided EOG diagnostic test
 
 Updated 2026-10-10. Branch: `experiment/eog-continuous-detection`.

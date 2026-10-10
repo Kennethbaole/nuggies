@@ -2,11 +2,15 @@
 
 Updated 2026-10-10.
 
-Current experiment: opt-in guided waveform EOG mode is ready for a short live
-check. Exact-runtime development replay:16/20 correct,3false candidates/275s.
-Verification:167tests run,166passed,1optional skip; guided and normal desktop/mobile
-browser checks passed. No Nano is currently detected and no new wearer/OLED test
-was performed. Start with [the live-check guide](EOG_LIVE_CHECK.md).
+Current experiment: opt-in waveform navigation plus experimental gaze/double-blink
+communication. [Communication flow and tonight's plan](EOG_COMMUNICATION.md).
+The Nano was live during today's checks; the user reported intended cardinal
+movements triggered and a diagonal requested retry. The later free-wheel test
+ended; recording and navigation were stopped before assembly planning. No formal
+accuracy or biological blink-confirmation result is claimed. Latest software
+suite: 175 tests, 174 passed, one optional skip. Prior exact-runtime development
+replay: 16/20 correct, three false candidates/275 s. See
+[the diagnostic live-check guide](EOG_LIVE_CHECK.md).
 The following main-baseline description predates this branch integration.
 
 Latest pulled baseline: b1ceaa0. Reply generation now uses Qwen through Ollama
