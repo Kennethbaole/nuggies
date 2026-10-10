@@ -104,3 +104,13 @@ class PulseConfirmationSafetyTests(unittest.TestCase):
         for patch in (dict(distance=.12),dict(direction_margin=1.35),dict(pulse_pair_valid=False)):
             self.setUp();self.arm();event=self.event();event.update(patch)
             self.assertFalse(self.gate.update(self.ring,self.detector,event))
+
+    def test_uncertain_pair_can_retry_without_new_gaze_or_extended_expiry(self):
+        self.arm();event=self.event();event['direction_margin']=1.3
+        self.assertFalse(self.gate.update(self.ring,self.detector,event))
+        self.assertIsNotNone(self.gate.target)
+        self.assertEqual(self.gate.target[1],1000)
+        self.gate.update(self.ring,self.detector)
+        self.assertIn('again',self.gate.message)
+        self.assertTrue(self.gate.update(self.ring,self.detector,self.event()))
+        self.assertEqual(self.ring.selection_id,1)

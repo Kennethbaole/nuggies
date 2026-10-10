@@ -265,3 +265,18 @@ Private report: `recordings/pulse-confirmation-runtime.json`; reproduce with
 `scripts.eog_pulse_confirmation_review`. Software tests cover single/widely spaced
 blinks, triples, up/return, mixed axes, no choice, early/during-return blink, expiry,
 changed content, faults and one-shot behavior.
+
+
+### Retry an unclear pair without a new gaze
+
+In pulse mode, an ambiguous pair after arming now keeps the current choice and
+asks for another double blink. The original ten-second expiry is not extended.
+Early blinks, faults, changed content and new movement still invalidate the choice.
+Replaying the same three reviewed runs and the identified failed interaction
+produced unchanged selections: zero negative-phase selections in the reviewed runs,
+two in double-blink cues, and one correct selection in the identified interaction.
+Pair misses remain two of five cue pairs; selection misses for acquisition-only
+protocols remain unknowable. Private comparison: `pulse-confirmation-retry.json`.
+A synthetic retry-then-confirm check verifies one-shot behavior and unchanged expiry.
+No calibrated probability is claimed: the dataset cannot support calibration of
+intent confidence across sessions with the present class coverage.

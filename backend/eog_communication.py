@@ -13,6 +13,7 @@ class EOGConfirmation:
         self.ready_sample = None
         self.confirmation_quiet_since = None
         self.settle_after_sample = -1
+        self.retry_pending = False
         self.message = 'Look at a choice, then return to center.'
 
     @staticmethod
@@ -25,6 +26,7 @@ class EOGConfirmation:
         self.ready_sample = None
         self.confirmation_quiet_since = None
         self.settle_after_sample = -1
+        self.retry_pending = False
         self.message = 'Return to center before double blinking.'
 
     @staticmethod
@@ -109,15 +111,20 @@ class EOGConfirmation:
             return False
         if self.ready_sample is None:
             self.ready_sample = detector.raw_index
-        self.message = f"Double blink to choose {ring.slots()[ring.selected]['label']}."
+        self.message = ('Blink unclear. Keep looking center and double blink again.' if self.retry_pending
+                        else f"Double blink to choose {ring.slots()[ring.selected]['label']}.")
         if not event or event.get('label') != 'double_blink' or event.get('reason') != 'blink':
             return False
         event['confirmation_armed_sample']=self.ready_sample
         if (event.get('onset_sample', -1) < self.ready_sample
                 or not (self.pulse_match(event) if self.pulse_mode else self.blink_match(event))):
             event['confirmation_result']='early_blink' if event.get('onset_sample',-1)<self.ready_sample else 'uncertain_blink_match'
-            self.clear()
-            self.message = 'Uncertain double blink. Look at the choice again.'
+            if self.pulse_mode and event['confirmation_result']=='uncertain_blink_match':
+                self.retry_pending = True
+                self.message = 'Blink unclear. Keep looking center and double blink again.'
+            else:
+                self.clear()
+                self.message = 'Uncertain double blink. Look at the choice again.'
             return False
         event['confirmation_result']='selected'
         self.clear()  # Consume before dispatch: never repeat on the same choice.
