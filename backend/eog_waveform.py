@@ -62,6 +62,7 @@ class WaveformProfile:
             if haar_weight:
                 distance += haar_weight*sum((a-b)**2 for a,b in zip(contrast,template))/len(contrast)
             distances.append(distance)
+        self.last_distances = list(distances)  # Observational: preserve every template score for private replay logs.
         best = min(range(len(distances)),key=distances.__getitem__)
         label = self.labels[best];distance = distances[best]
         blink = min(d for d,l in zip(distances,self.labels) if l not in DIRECTIONS)

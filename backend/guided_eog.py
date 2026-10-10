@@ -36,7 +36,7 @@ class GuidedEOGTest:
         self.totals = dict(accepted=0,rejected=0,blinks=0,returns=0,faults=0)
         self.reset()
 
-    def reset(self, clear_events=True):
+    def reset(self, clear_events=True, *, cause="manual", origin="external"):
         self.filter = CausalFilter()
         self.detector = EventSegmenter(SegmentConfig(capture_s=1,
                         threshold_h=self.profile.thresholds[0],threshold_v=self.profile.thresholds[1]))
@@ -44,6 +44,8 @@ class GuidedEOGTest:
         self.message='Look straight ahead. Collecting 3 seconds of clean resting signal; blink normally.'
         self.horizontal=self.vertical=0
         self.slot=None;self.direction=None;self.last_result=None
+        self.last_classification=None;self._candidate_context=None
+        self._frame_context=deque(maxlen=5)
         self.frame=0;self.previous_timestamp=None
         self.clean=deque(maxlen=max(1,round(max(self.config.center_s,self.config.retry_s)*50)))
         self.rest_offset=(0.,0.);self.noise=(0.,0.)
@@ -51,10 +53,15 @@ class GuidedEOGTest:
         self.previous_frame=None;self.mask_until=0;self.recovery_started=0;self.return_seen=False;self.return_sample=None
         self.progress=0;self.wait_started=0
         if clear_events:self.events.clear()
+        self._audit("reset",cause=cause,origin=origin,clear_events=clear_events)
 
-    def fault(self, reason):
+    def _audit(self, kind, **data):
+        observer=getattr(self,"audit_observer",None)
+        if observer is not None:observer(self,dict(kind=kind,**data))
+
+    def fault(self, reason, *, origin="external"):
         if self.phase == 'signal_lost' and self.reason == reason:return
-        self.reset(clear_events=False);self.totals['faults']+=1
+        self.reset(clear_events=False,cause='fault:'+reason,origin=origin);self.totals['faults']+=1
         self.phase='signal_lost';self.reason=reason
         self.message='Signal interrupted. Check the connection, then look straight ahead to recenter.'
 
@@ -74,6 +81,7 @@ class GuidedEOGTest:
             event.update({k:round(v,6) for k,v in result.items() if k!='label' and math.isfinite(v)})
             event['candidate']=result['label']
         self.last_result=event;self.events.append(event)
+        self._audit("decision",event=dict(event),classification=self.last_classification)
         return event
 
     def _clean_frame(self,value):
@@ -96,11 +104,11 @@ class GuidedEOGTest:
     def process(self,h,v,timestamp_ms=None):
         if timestamp_ms is not None:
             if self.previous_timestamp is not None and (timestamp_ms<self.previous_timestamp or timestamp_ms-self.previous_timestamp>500):
-                self.fault('timestamp_gap')
+                self.fault('timestamp_gap',origin='sample')
             self.previous_timestamp=timestamp_ms
         self.raw_index+=1
         if not all(math.isfinite(x) and 5<x<16378 for x in (h,v)):
-            self.fault('clipping');return None
+            self.fault('clipping',origin='sample');return None
         if self.phase=='signal_lost':
             self.phase='centering';self.reason='look_center'
             self.message='Signal restored. Look straight ahead while center is checked.'
@@ -117,24 +125,37 @@ class GuidedEOGTest:
                 self.noise=tuple(1.4826*statistics.median(abs(x[1][i]-self.rest_offset[i]) for x in self.clean) for i in (0,1))
                 self.phase='ready';self.reason='ready';self.slot=None;self.direction=None
                 self.detector.reset();self.clean.clear();self.progress=1
+                self._audit('component_reset',component='segmenter',cause='center_ready',origin='sample')
                 self.message='Ready. Look left, right, up or down, then return to center. Speech stays off.'
             elif self.frame-self.wait_started>15*50:
                 self.message='Still waiting for clean rest. Look straight ahead; check electrode contact or choose Recenter.'
             return None
         adjusted=tuple(value[i]-self.rest_offset[i] for i in (0,1))
+        self._frame_context.append(dict(raw_index=self.raw_index,baseline=list(self.filter.baseline),rest_offset=list(self.rest_offset)))
         if self.phase=='ready' and settled and self.detector.candidate is None:
             center=tuple(statistics.median(x[1][i] for x in self.clean) for i in (0,1))
             self.rest_offset=tuple(self.rest_offset[i]+max(-.5,min(.5,.01*(center[i]-self.rest_offset[i]))) for i in (0,1))
+        previous_candidate=self.detector.candidate
         segment=self.detector.process(*adjusted)
+        if previous_candidate is None and self.detector.candidate is not None:
+            self._candidate_context=dict(self._frame_context[-2]) if len(self._frame_context)>1 else dict(self._frame_context[-1])
         if self.phase=='recovery' and (self.return_seen or self.frame-self.recovery_started>=round(self.config.recovery_s*50)):
             recent=[x for x in self.clean if x[0]>=self.frame-20]
             if len(recent)>=15:
                 self.phase='ready';self.reason='ready';self.slot=None;self.direction=None
                 self.detector.reset();self.clean.clear()
+                self._audit('component_reset',component='segmenter',cause='recovery_ready',origin='sample')
                 self.message='Ready for the next direction.'
                 return None
         if not segment:return None
         result=self.profile.classify(segment['samples'],self.config.haar_weight)
+        distances=getattr(self.profile,'last_distances',[])
+        self.last_classification=dict(
+            window=[[round(value,9) for value in frame] for frame in segment['samples']],
+            window_rate_hz=50,window_start_sample=self.raw_index-(len(segment['samples'])-1)*5,
+            onset_context=self._candidate_context,
+            best_distances={label:round(min(distance for distance,name in zip(distances,self.profile.labels) if name==label),12)
+                            for label in sorted(set(self.profile.labels))} if distances else {})
         label=result['label']
         self.detector.ready_at=self.detector.index+round((.15 if label not in DIRECTIONS else .4)*50)
         if label not in DIRECTIONS:

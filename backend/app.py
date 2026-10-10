@@ -104,11 +104,23 @@ class Application:
         self.wheel_detector = GuidedEOGTest(eog_profile) if eog_profile else LiveWheelTest()
         self.wheel_test_selections = deque(maxlen=128)
 
+    def _eog_boundary(self):
+        if self.eog_log:
+            timestamp=self.samples[-1]['timestamp_ms'] if self.samples else None
+            self.eog_log.boundary(self.received_samples-1,timestamp,self.wheel_test)
+
+    def _reset_eog(self,cause):
+        self._eog_boundary()
+        if isinstance(self.wheel_detector,GuidedEOGTest):self.wheel_detector.reset(cause=cause)
+        else:self.wheel_detector.reset()
+        if self.eog_log:self.eog_log.record(self.wheel_detector,enabled=self.wheel_test)
+
     def state(self):
         with self.lock:
             data = self.ring.snapshot()
             age = None if self.last_received is None else round((time.monotonic() - self.last_received) * 1000)
             if self.wheel_test and isinstance(self.wheel_detector,GuidedEOGTest) and age is not None and age>=1000:
+                self._eog_boundary()
                 self.wheel_detector.fault("no_samples")
                 self.eog_confirmation.clear()
                 if self.eog_log:self.eog_log.record(self.wheel_detector)
@@ -172,7 +184,7 @@ class Application:
                 self.ring.revision += 1
                 self.pending_eog_check = None
                 self.eog_confirmation.clear()
-                self.wheel_detector.reset()
+                self._reset_eog("communication_on" if enabled else "communication_off")
             elif action == "speed_test":
                 if not isinstance(self.wheel_detector,GuidedEOGTest) or self.source!="serial" or not self.state()["connected"] or not self.recording or self.sensor_actions or self.guided.status=="running":
                     raise ValueError("Speed check requires connected recorded waveform input and stopped cues")
@@ -180,7 +192,7 @@ class Application:
                     self.ring.pages={"home":0,"needs":0};self.ring.selected=0
                 self.eog_communication=False;self.ring.cardinal_layout=False;self.eog_confirmation.clear()
                 self.speed_attempts={};self.pending_eog_check="speed"
-                self.wheel_test=True;self.wheel_detector.reset()
+                self.wheel_test=True;self._reset_eog("speed_test")
             elif action == "wheel_test":
                 if type(payload.get("value")) is not bool:
                     raise ValueError("wheel_test value must be boolean")
@@ -195,21 +207,20 @@ class Application:
                 self.eog_communication=False;self.ring.cardinal_layout=False;self.eog_confirmation.clear()
                 self.ring.revision += 1
                 self.wheel_test = payload["value"]
-                self.wheel_detector.reset()
-                if self.eog_log:self.eog_log.record(self.wheel_detector,enabled=self.wheel_test)
+                self._reset_eog("wheel_test_on" if self.wheel_test else "wheel_test_off")
             elif action == "eog_recenter":
                 if not self.wheel_test or not isinstance(self.wheel_detector,GuidedEOGTest):
                     raise ValueError("Recenter requires an active guided EOG test")
                 if self.guided.mode in ("diagnostic","speed"):self.guided.stop()
                 self.pending_eog_check=None
                 self.eog_confirmation.clear()
-                self.wheel_detector.reset()
-                if self.eog_log:self.eog_log.record(self.wheel_detector)
+                self._reset_eog("recenter")
             elif action == "record_stop":
                 if not self.recording:
                     raise ValueError("No recording is active")
                 self.pending_eog_check=None
                 self.record_stop.set()
+                if self.eog_log:self.eog_log.recording("recording_stop",self.received_samples-1)
                 self.recording = False
                 self.guided.stop()
                 self.trial_label = "unlabeled"
@@ -380,6 +391,7 @@ class Application:
             self.samples.append(dict(timestamp_ms=sample.timestamp_ms,
                                      horizontal=sample.horizontal, vertical=sample.vertical,
                                      units=sample.units, source=sample.source))
+            if self.eog_log:self.eog_log.before_sample(self.wheel_detector,self.received_samples-1,sample.timestamp_ms,self.wheel_test)
             if self.wheel_test:
                 previous_event = self.wheel_detector.last_result if isinstance(self.wheel_detector,GuidedEOGTest) else None
                 if not isinstance(self.wheel_detector,GuidedEOGTest) and len(self.samples) > 1 and sample.timestamp_ms - self.samples[-2]["timestamp_ms"] > 500:
@@ -421,6 +433,7 @@ class Application:
                 action = self.gate.update(direction, sample.timestamp_ms)
                 if action:
                     self.ring.action(action, sample.source)
+            if self.eog_log:self.eog_log.after_sample()
 
     def run_demo(self):
         from .scenarios import samples
@@ -476,6 +489,7 @@ class Application:
                     trial_writer.writerow(("timestamp_ms", "intended_label", "trial_id", "phase", "cue", "run_id"))
                     with self.lock:
                         self.recording = True
+                        if self.eog_log:self.eog_log.recording("recording_start",self.received_samples)
                 while not self.stop.is_set():
                     sample = source.read_sample()
                     if recorder and self.record_stop.is_set():
@@ -503,7 +517,7 @@ class Application:
                 self.error = f"{type(error).__name__}: {error}"
                 self.wheel_test = False
                 self.pending_eog_check=None
-                self.wheel_detector.reset()
+                self._reset_eog("serial_error")
 
         finally:
             with self.lock:
@@ -534,7 +548,7 @@ class Application:
                 self.error = f"{type(error).__name__}: {error}"
                 self.wheel_test = False
                 self.pending_eog_check=None
-                self.wheel_detector.reset()
+                self._reset_eog("replay_error")
 
 
 def make_handler(app):
