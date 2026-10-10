@@ -19,7 +19,7 @@
 #     lists PASS / FAIL / PENDING per item, and any FAIL exits with status 1.
 #
 # Overrides (environment variables):
-#   OLLAMA_MODEL   Ollama model to pull       (default: llama3.2:3b)
+#   OLLAMA_MODEL   Ollama model to pull       (default: qwen3:1.7b)
 #   PIPER_VOICE    Piper voice to download    (default: en_US-lessac-medium)
 #   PIPER_DIR      Where Piper voices go      (default: .cache/piper, Git-ignored)
 #   ASR_MODEL      Qwen speech-to-text model  (default: Qwen/Qwen3-ASR-0.6B; 1.7B is more accurate)
@@ -33,7 +33,7 @@
 
 set -euo pipefail
 
-OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.2:3b}"
+OLLAMA_MODEL="${OLLAMA_MODEL:-qwen3:1.7b}"
 PIPER_VOICE="${PIPER_VOICE:-en_US-lessac-medium}"
 PIPER_DIR="${PIPER_DIR:-.cache/piper}"
 ASR_MODEL="${ASR_MODEL:-Qwen/Qwen3-ASR-0.6B}"

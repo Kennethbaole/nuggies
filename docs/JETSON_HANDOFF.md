@@ -43,9 +43,9 @@ Jetson yet.
 Why Ollama and Piper: both let the Jetson work without the internet or a
 cloud account.
 
-- **Ollama** runs a small language model on the Jetson. It is meant for the
-  planned AI phrase suggestions, which would replace the curated phrase bank.
-  The curated bank stays as the fallback.
+- **Ollama** runs a small Qwen model (default `qwen3:1.7b`) on the Jetson. It
+  writes reply suggestions offline when Gemini fails or is slow. The curated
+  phrase bank stays as the fallback.
 - **Piper** is local text-to-speech. It is meant as an offline voice when
   ElevenLabs is unconfigured or unreachable, and to avoid relying on whatever
   browser voices the Jetson happens to have.

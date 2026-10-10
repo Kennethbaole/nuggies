@@ -59,6 +59,13 @@ class CleanTests(unittest.TestCase):
         self.assertEqual(cleaned[1]["label"], "Thanks")
         self.assertTrue(cleaned[0]["id"].startswith("ai-"))
 
+    def test_label_from_text_uses_reply_opening_words(self):
+        items = [dict(label="REPLY-1", text="Can you call her for me, please?"),
+                 dict(label="Agree", text="Yes, please."), dict(text="Congratulations, everyone!")]
+        self.assertEqual([item["label"] for item in clean_suggestions(items, label_from_text=True)],
+                         ["Can you call", "Yes, please", "Congratulation"])
+        self.assertEqual(clean_suggestions(items)[0]["label"], "REPLY-1")
+
     def test_limits_to_five_and_tolerates_non_lists(self):
         many = [dict(label=str(i), text=f"Reply number {i}.") for i in range(9)]
         self.assertEqual(len(clean_suggestions(many)), 5)
@@ -232,13 +239,14 @@ class OllamaProviderTests(unittest.TestCase):
         result = suggester.suggest(contact=dict(name="Alex", relationship="Family"), heard_text="  Do you want   tea? ")
         url, _, body, _ = calls[0]
         self.assertEqual(url, "http://127.0.0.1:11434/api/chat")
-        self.assertEqual((body["model"], body["format"], body["stream"]), ("llama3.2:3b", "json", False))
+        self.assertEqual((body["model"], body["format"], body["stream"], body["think"]), ("llama3.2:3b", "json", False, False))
         self.assertEqual(body["messages"][0]["role"], "system")
         self.assertIn('"Do you want tea?"', body["messages"][1]["content"])
         self.assertIn("Alex", body["messages"][1]["content"])
         self.assertEqual(result.provider, "ollama")
         self.assertEqual(result.heard, "Do you want tea?")
         self.assertEqual(len(result.suggestions), 5)
+        self.assertEqual(result.suggestions[0]["label"], "Yes, tea would")  # From the reply, not the model.
 
     def test_audio_only_unconfigured_and_failures(self):
         suggester, calls = local_provider(local_reply(GOOD))
