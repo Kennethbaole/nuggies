@@ -158,3 +158,19 @@ trials (3-second preparation, 3-second blink cue, 4-second rest), and a final
 10-second baseline. Follow each cue once; baseline single blinks are allowed.
 If a section was skipped, exclude its labeled windows rather than treating the
 cue label as proof the movement happened. This remains recording-only.
+
+### Close double-blink peak review
+
+The default 250 ms peak separation can merge fast blink pairs. Compare alternate
+filtering and candidate spacing explicitly rather than treating missing peaks as
+missing blinks:
+
+```sh
+python3 -m backend.vertical_features recordings/trial.csv --smoothing-ms 20 --peak-threshold 1000 --peak-gap-ms 80 > recordings/close-peaks.json
+```
+
+Reports include all analysis settings and `positive_peak_candidates`. Reducing
+smoothing or spacing also exposes noise and secondary lobes of single blinks;
+two candidate peaks are not proof of two physical blinks or deliberate intent.
+Compare unchanged settings on single-blink, gaze and resting recordings before
+using peak pairs for SELECT. The default smoothing remains 100 ms.

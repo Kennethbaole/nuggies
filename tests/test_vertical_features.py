@@ -20,7 +20,7 @@ class VerticalFeatureTests(unittest.TestCase):
         v[80:90]=[11192]*10
         f=waveform_features([8192]*200,v,8192,8192,100)
         self.assertEqual(f['negative_positive_ratio'],.2)
-        self.assertEqual(len(f['positive_peaks_over_1500']),2)
+        self.assertEqual(len(f['positive_peak_candidates']),2)
         self.assertNotIn('action',f)
 
     def test_constant_channel_and_invalid_windows(self):
@@ -45,3 +45,12 @@ class VerticalFeatureTests(unittest.TestCase):
         self.assertEqual(sum(s[0] for s in steps),75)
         self.assertEqual(sum(s[1]=='double_blink' for s in steps),5)
         self.assertFalse(any(s[1] in ('up','down','left','right') for s in steps))
+
+    def test_close_pair_spacing_is_configurable_not_a_blink_decision(self):
+        v=[8192]*100
+        v[10:15]=[11192]*5;v[30:35]=[10192]*5
+        broad=waveform_features([8192]*100,v,8192,8192,100)
+        close=waveform_features([8192]*100,v,8192,8192,100,1000,.08)
+        self.assertEqual(len(broad['positive_peak_candidates']),1)
+        self.assertEqual(len(close['positive_peak_candidates']),2)
+        self.assertNotIn('action',close)
