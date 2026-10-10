@@ -28,7 +28,7 @@ class RingState:
         self.heard = ""
         self.shown = []  # Recently offered suggestion texts, so refreshes don't repeat.
 
-    def set_suggestions(self, items, heard="", provider="ollama"):
+    def set_suggestions(self, items, heard="", provider="gemini"):
         """Replace the Home pool with previewed replies; nothing is spoken."""
         self.suggested = list(items)
         self.suggestions_provider = provider
@@ -37,6 +37,11 @@ class RingState:
         self.pages["home"] = 0
         if self.screen == "home":
             self.selected = 0
+        self.revision += 1
+
+    def show_heard(self, heard):
+        """Show what was heard without changing the phrases (no reply model configured)."""
+        self.heard = heard
         self.revision += 1
 
     def clear_suggestions(self):

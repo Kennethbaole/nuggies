@@ -17,17 +17,34 @@ from urllib.parse import urlsplit
 from .envfile import load_env
 from .calibration import Calibration, ExponentialSmoother
 from .classifier import ThresholdClassifier
+from .live_wheel import LiveWheelTest
 from .guided import GuidedTrial
 from .ring import RingState
 from .speech import ElevenLabsSpeech, SpeechUnavailable
 from .state_machine import DoubleBlinkGate, GestureGate
-from .suggestions import OllamaSuggestions, SuggestionBusy, SuggestionUnavailable
+from .suggestions import (
+    DEFAULT_DEADLINE_S, FallbackSuggestions, GeminiSuggestions, OllamaSuggestions, SuggestionBusy,
+    SuggestionUnavailable,
+)
+from .transcribe import RemoteTranscriber, TranscriptionUnavailable
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
 MAX_BODY = 4096
 MAX_SUGGEST_BODY = 4 * 1024 * 1024  # base64 audio from the browser microphone
 MIN_SUGGEST_INTERVAL = 1.0
+
+
+def audio_from_payload(payload):
+    audio_b64 = payload.get("audio_b64")
+    if audio_b64 is None:
+        return None
+    if not isinstance(audio_b64, str):
+        raise ValueError("audio_b64 must be a string")
+    try:
+        return base64.b64decode(audio_b64, validate=True)
+    except ValueError as error:
+        raise ValueError("audio_b64 is not valid base64") from error
 
 
 class Application:
@@ -39,7 +56,13 @@ class Application:
         self.token = os.environ.get("APP_TOKEN", "")
         self.session_id = secrets.token_hex(12)
         self.speech = ElevenLabsSpeech(ROOT / ".cache" / "tts")
-        self.suggester = OllamaSuggestions()  # Local Qwen model; works offline.
+        # Gemini first; the local Ollama model answers when Gemini fails or is slow.
+        self.suggester = FallbackSuggestions(
+            GeminiSuggestions(), OllamaSuggestions(),
+            deadline_s=float(os.environ.get("SUGGEST_DEADLINE_S", DEFAULT_DEADLINE_S)))
+        # Qwen speech-to-text on the Jetson (ASR_URL) is the only way audio becomes text;
+        # Gemini and Ollama only ever receive the transcript.
+        self.transcriber = RemoteTranscriber()
         self.suggest_lock = threading.Lock()
         self.last_suggest = 0.0
         self.samples = deque(maxlen=300)
@@ -62,6 +85,9 @@ class Application:
         self.guided = GuidedTrial()
         self.recording = False
         self.record_stop = threading.Event()
+        self.wheel_test = False
+        self.wheel_detector = LiveWheelTest()
+        self.wheel_test_selections = deque(maxlen=128)
 
     def state(self):
         with self.lock:
@@ -71,9 +97,12 @@ class Application:
                         connected=self.connected and (self.source == "demo" or age is not None and age < 2000),
                         last_sample_age_ms=age, input_error=self.error,
                         calibrated=self.calibration is not None,
-                        sensor_actions=self.sensor_actions, demo_running=self.demo_running,
+                        sensor_actions=self.sensor_actions or self.wheel_test, demo_running=self.demo_running,
+                        wheel_test=self.wheel_test, wheel_message=self.wheel_detector.message,
+                        gaze_hover=self.wheel_detector.snapshot(),
                         speech_provider="elevenlabs" if self.speech.available else "browser",
                         suggest_available=self.suggester.available,
+                        transcribe_available=self.transcriber.available,
                         trial_label=self.trial_label,
                         recording=self.recording, guided=self.guided.snapshot(time.monotonic()),
                         samples=list(self.samples))
@@ -106,6 +135,15 @@ class Application:
                     self.ring.revision += 1
             elif action == "suggestions_clear":
                 self.ring.clear_suggestions()
+            elif action == "wheel_test":
+                if type(payload.get("value")) is not bool:
+                    raise ValueError("wheel_test value must be boolean")
+                if payload["value"]:
+                    if (self.source != "serial" or not self.state()["connected"] or self.sensor_actions
+                            or self.guided.status == "running"):
+                        raise ValueError("Wheel test requires connected serial, stopped guided cues, and disabled calibrated control")
+                self.wheel_test = payload["value"]
+                self.wheel_detector.reset()
             elif action == "record_stop":
                 if not self.recording:
                     raise ValueError("No recording is active")
@@ -114,16 +152,16 @@ class Application:
                 self.guided.stop()
                 self.trial_label = "unlabeled"
             elif action == "guided_start":
-                if self.source != "serial" or not self.recording or not self.connected or self.sensor_actions:
+                if self.source != "serial" or not self.recording or not self.connected or self.sensor_actions or self.wheel_test:
                     raise ValueError("Guided testing requires live recording with sensor navigation disabled")
-                self.guided.start(time.monotonic())
+                self.guided.start(time.monotonic(), payload.get("value") or "horizontal")
             elif action == "guided_stop":
                 self.guided.stop()
                 self.trial_label = "unlabeled"
             elif action == "label":
                 if self.guided.status == "running":
                     raise ValueError("Stop the guided test before labeling manually")
-                if payload.get("value") not in {"unlabeled", "neutral", "left", "right", "up", "down", "blink", "held_gaze"}:
+                if payload.get("value") not in {"unlabeled", "neutral", "left", "right", "up", "down", "blink", "double_blink", "held_gaze"}:
                     raise ValueError("Unknown trial label")
                 self.guided = GuidedTrial()
                 self.trial_label = payload["value"]
@@ -132,38 +170,64 @@ class Application:
             self.event_ids.append(event_id)
             return self.state()
 
+    def transcribe(self, payload):
+        """Speech-to-text only, through Qwen on the Jetson; the ring is not changed."""
+        if payload.get("session_id") != self.session_id:
+            raise ValueError("Transcription session mismatch")
+        audio = audio_from_payload(payload)
+        if audio is None:
+            raise ValueError("audio_b64 is required")
+        if not self.suggest_lock.acquire(blocking=False):
+            raise SuggestionBusy("A listening request is already running")
+        try:
+            transcript = self.transcriber.transcribe(audio, payload.get("mime_type"))
+        finally:
+            self.suggest_lock.release()
+        return dict(text=transcript.text, language=transcript.language,
+                    model=transcript.model, latency_ms=transcript.latency_ms)
+
+    def hear(self, audio, mime_type):
+        """Turn audio into text with Qwen; TranscriptionUnavailable propagates."""
+        text = self.transcriber.transcribe(audio, mime_type).text
+        if not text:
+            raise SuggestionUnavailable("No speech was heard; try again closer to the microphone")
+        return text
+
     def suggest(self, payload):
-        """Ask the local model for reply previews; the ring keeps its fallback on failure."""
+        """Hear audio with Qwen, then ask Gemini (or the local model) for reply previews.
+
+        Listening needs only ASR_URL: without a reply model the transcript is shown
+        and the phrases stay. The ring keeps its fallback on failure."""
         if payload.get("session_id") != self.session_id:
             raise ValueError("Suggestion session mismatch")
-        heard_text, audio_b64 = payload.get("heard_text"), payload.get("audio_b64")
+        heard_text = payload.get("heard_text")
         if heard_text is not None and not isinstance(heard_text, str):
             raise ValueError("heard_text must be a string")
-        audio = None
-        if audio_b64 is not None:
-            if not isinstance(audio_b64, str):
-                raise ValueError("audio_b64 must be a string")
-            try:
-                audio = base64.b64decode(audio_b64, validate=True)
-            except ValueError as error:
-                raise ValueError("audio_b64 is not valid base64") from error
-        if not self.suggester.available:
-            raise SuggestionUnavailable("Reply suggestions are not configured (OLLAMA_MODEL); curated phrases remain")
+        audio = audio_from_payload(payload)
+        if audio is not None and not self.transcriber.available:
+            raise TranscriptionUnavailable("Speech-to-text is not configured (ASR_URL); type what they said instead")
+        if audio is None and not self.suggester.available:
+            raise SuggestionUnavailable("Reply suggestions are not configured (GEMINI_API_KEY or OLLAMA_MODEL); curated phrases remain")
         if not self.suggest_lock.acquire(blocking=False):
             raise SuggestionBusy("A suggestion request is already running")
         try:
             if time.monotonic() - self.last_suggest < MIN_SUGGEST_INTERVAL:
                 raise SuggestionBusy("Please wait a moment before listening again")
             self.last_suggest = time.monotonic()
+            if audio is not None:
+                heard_text = self.hear(audio, payload.get("mime_type"))
+                if not self.suggester.available:
+                    with self.lock:
+                        self.ring.show_heard(heard_text)
+                        return self.state()
             with self.lock:
                 contact = next((c for c in self.ring.config["contacts"] if c["id"] == self.ring.contact), None)
                 context_revision = self.ring.revision
                 recent = [item["text"] for item in self.ring.history[:4]]
                 avoid = self.ring.shown + recent
                 examples = [p["text"] for p in self.ring.config["phrases"][:4]]
-            result = self.suggester.suggest(contact=contact, recent=recent, avoid=avoid, audio=audio,
-                                            mime_type=payload.get("mime_type"), heard_text=heard_text,
-                                            style_examples=examples)
+            result = self.suggester.suggest(contact=contact, recent=recent, avoid=avoid,
+                                            heard_text=heard_text, style_examples=examples)
             with self.lock:
                 if self.ring.revision != context_revision:
                     raise SuggestionUnavailable("Conversation changed while replies were generated; request fresh suggestions")
@@ -182,7 +246,13 @@ class Application:
             self.samples.append(dict(timestamp_ms=sample.timestamp_ms,
                                      horizontal=sample.horizontal, vertical=sample.vertical,
                                      units=sample.units, source=sample.source))
-            if normalized is not None and self.sensor_actions:
+            if self.wheel_test:
+                if len(self.samples) > 1 and sample.timestamp_ms - self.samples[-2]["timestamp_ms"] > 500:
+                    self.wheel_detector.reset()
+                slot = self.wheel_detector.process(sample.horizontal, sample.vertical)
+                if slot is not None:
+                    self.ring.action("focus", "eye-wheel-test", slot)
+            elif normalized is not None and self.sensor_actions:
                 direction = self.classifier.classify(normalized).direction.value
                 action = self.gate.update(direction, sample.timestamp_ms)
                 if action:
@@ -267,6 +337,8 @@ class Application:
             with self.lock:
                 self.connected = False
                 self.error = f"{type(error).__name__}: {error}"
+                self.wheel_test = False
+                self.wheel_detector.reset()
 
         finally:
             with self.lock:
@@ -295,6 +367,8 @@ class Application:
             with self.lock:
                 self.connected = False
                 self.error = f"{type(error).__name__}: {error}"
+                self.wheel_test = False
+                self.wheel_detector.reset()
 
 
 def make_handler(app):
@@ -350,7 +424,7 @@ def make_handler(app):
                 return self.reply(401, dict(error="Enter the session token"))
             try:
                 path = urlsplit(self.path).path
-                limit = MAX_SUGGEST_BODY if path == "/api/suggest" else MAX_BODY
+                limit = MAX_SUGGEST_BODY if path in ("/api/suggest", "/api/transcribe") else MAX_BODY
                 length = int(self.headers.get("Content-Length", "0"))
                 if not 0 < length <= limit:
                     raise ValueError(f"Request must contain at most {limit} bytes")
@@ -361,10 +435,14 @@ def make_handler(app):
                     return self.reply(200, app.command(payload))
                 if path == "/api/suggest":
                     return self.reply(200, app.suggest(payload))
+                if path == "/api/transcribe":
+                    return self.reply(200, app.transcribe(payload))
                 if path == "/api/speech":
                     # Only previously confirmed utterances may reach cloud TTS.
                     with app.lock:
                         selection_id = payload.get("selection_id")
+                        if app.wheel_test or selection_id in app.wheel_test_selections:
+                            raise ValueError("Speech is disabled for experimental wheel-test selections")
                         if payload.get("session_id") != app.session_id:
                             raise ValueError("Speech session mismatch")
                         item = next((item for item in app.ring.history if item["id"] == selection_id), None)
@@ -387,7 +465,7 @@ def make_handler(app):
                 return self.reply(400, dict(error=str(error)))
             except SuggestionBusy as error:
                 return self.reply(429, dict(error=str(error)))
-            except (SpeechUnavailable, SuggestionUnavailable) as error:
+            except (SpeechUnavailable, SuggestionUnavailable, TranscriptionUnavailable) as error:
                 return self.reply(503, dict(error=str(error)))
     return Handler
 

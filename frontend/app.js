@@ -6,8 +6,9 @@ if (isHUD) { document.body.classList.add('hud-body'); $('hud-only').hidden = fal
 let state = null, seenSelection = null, session = null, audioEnabled = false;
 let token = sessionStorage.getItem('nuggies-token') || '';
 let queue = Promise.resolve(), audio = null, speechBusy = false, pollBusy = false;
-const PROVIDER_LABELS = {ollama: 'On-device AI reply suggestions'};
-const SETUP_HINT = 'Set OLLAMA_MODEL in .env (with Ollama running) and restart to enable reply suggestions.';
+const PROVIDER_LABELS = {gemini: 'Gemini reply suggestions', ollama: 'Local AI suggestions (offline)'};
+const SETUP_HINT = 'Add GEMINI_API_KEY (or OLLAMA_MODEL for offline replies) to .env and restart to enable reply suggestions.';
+const LISTEN_HINT = 'Set ASR_URL to the Qwen speech-to-text service in .env and restart to enable listening.';
 let requestCounter = 0, recorder = null, recordTimer = null, suggesting = false;
 const clientID = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
 let lastConnected = null;
@@ -59,7 +60,7 @@ function browserSpeak(text) {
 }
 
 async function speakSelection(snapshot) {
-  if (!audioEnabled || isHUD || speechBusy || !snapshot.confirmed) return;
+  if (!audioEnabled || isHUD || speechBusy || !snapshot.confirmed || snapshot.wheel_test || snapshot.source === 'eye-wheel-test') return;
   speechBusy = true;
   try {
     const response = await api('/api/speech', {selection_id: snapshot.selection_id, session_id: snapshot.session_id});
@@ -97,6 +98,7 @@ function render(next) {
     }
   }
   $('contact').value = state.contact; $('avatar').textContent = contact.initials;
+  $('avatar').dataset.tone = String(state.contacts.indexOf(contact) % 3);
   $('relationship').textContent = contact.relationship;
   $('phone-contact').textContent = `With ${contact.name}`;
   $('screen-name').textContent = state.screen === 'spell' ? 'SPELL YOUR WORDS' : state.screen === 'needs' ? 'EVERYDAY NEEDS' : 'CONVERSATION';
@@ -104,7 +106,9 @@ function render(next) {
   state.slots.forEach((slot, index) => {
     const button = slotButtons[index];
     button.textContent = slot.label; button.disabled = !slot.enabled;
-    button.classList.toggle('selected', state.selected === index);
+    button.classList.toggle('selected', !state.wheel_test && state.selected === index);
+    const hovered = Boolean(state.wheel_test && state.connected && state.gaze_hover?.slot === index);
+    button.classList.toggle('gaze-hover', hovered);
     button.classList.toggle('utility', ['more', 'spell', 'back', 'space', 'delete', 'speak'].includes(slot.action));
     button.setAttribute('aria-pressed', String(state.selected === index));
     button.setAttribute('aria-label', `${slot.label}${slot.text ? ': ' + slot.text : ''}${state.selected === index ? ', highlighted' : ''}`);
@@ -112,11 +116,11 @@ function render(next) {
   const center = state.screen === 'spell' ? state.draft || 'Choose your letters.' : state.confirmed || 'Your words, at your pace.';
   $('center-text').textContent = center; $('phone-text').textContent = state.confirmed || 'Your words, at your pace.';
   $('center-label').textContent = state.screen === 'spell' ? 'YOUR DRAFT' : state.confirmed ? 'YOUR LAST SELECTION' : 'READY WHEN YOU ARE';
-  $('preview-text').textContent = state.preview || `${state.slots[state.selected].label} — double blink to choose`;
-  $('center-footer').textContent = state.screen === 'spell' ? 'Choose Speak when ready' : 'Double blink to choose';
+  $('preview-text').textContent = state.preview || `${state.slots[state.selected].label} — ${state.wheel_test ? 'hover only · click or Space to choose' : 'double blink to choose'}`;
+  $('center-footer').textContent = state.wheel_test ? 'Gaze highlights · click or Space to choose' : state.screen === 'spell' ? 'Choose Speak when ready' : 'Double blink to choose';
   const synthetic = state.input_mode === 'demo';
   $('source-name').textContent = synthetic ? (state.demo_running ? 'Synthetic signal scenario' : 'Keyboard demonstration') : state.input_mode === 'serial' ? 'Nano USB · raw ADC' : 'Recorded ADC replay';
-  $('input-detail').textContent = synthetic ? 'No glasses or electrodes needed.' : state.sensor_actions ? 'Calibrated navigation enabled. Blink detection pending.' : 'Monitoring only. Sensor navigation is disabled.';
+  $('input-detail').textContent = state.wheel_test ? 'Experimental eye wheel control active. Speech disabled.' : synthetic ? 'No glasses or electrodes needed.' : state.sensor_actions ? 'Calibrated navigation enabled. Blink detection pending.' : 'Monitoring only. Sensor navigation is disabled.';
   $('scenario').disabled = !synthetic;
   $('scenario').textContent = state.demo_running ? 'Stop signal scenario' : 'Run signal scenario';
   $('scenario').classList.toggle('running', state.demo_running);
@@ -124,12 +128,30 @@ function render(next) {
   $('connection').classList.toggle('disconnected', !state.connected);
   $('phone-live').textContent = state.connected ? '● Connected' : '○ Input paused';
   $('input-error').textContent = state.input_error;
+  $('wheel-test-toggle').textContent = state.wheel_test ? 'Stop eye wheel test' : 'Start experimental eye wheel test';
+  $('wheel-test-toggle').setAttribute('aria-pressed', String(Boolean(state.wheel_test)));
+  $('wheel-test-toggle').disabled = !state.wheel_test && (state.input_mode !== 'serial' || !state.connected || state.sensor_actions || state.guided?.status === 'running');
+  $('wheel-test-stop').disabled = !state.wheel_test;
+  const gaze = state.gaze_hover;
+  $('wheel-test-status').textContent = state.wheel_test
+    ? `${state.wheel_message}${gaze?.slot != null ? ' → ' + state.slots[gaze.slot].label : ''}` : 'Eye wheel control off';
+  $('gaze-readings').textContent = state.wheel_test && gaze
+    ? `EOG deviation · Horizontal ${gaze.horizontal} · Vertical ${gaze.vertical} ADC counts · ${gaze.phase}` : '';
+  if (state.wheel_test && audioEnabled) {
+    audioEnabled = false; audio?.pause();
+    if ('speechSynthesis' in window) speechSynthesis.cancel();
+    $('audio-toggle').setAttribute('aria-pressed', 'false');
+    $('audio-toggle').textContent = 'Enable speech';
+  }
+  $('audio-toggle').disabled = Boolean(state.wheel_test);
   $('trial-label').value = state.trial_label || 'unlabeled';
   $('recording-status').textContent = state.recording ? 'Recording locally' : 'Monitoring only · not recording';
   $('record-stop').disabled = !state.recording;
   const guided = state.guided || {status: 'idle'};
   const guidedRunning = guided.status === 'running';
   $('trial-label').disabled = guidedRunning;
+  $('guided-protocol').disabled = guidedRunning;
+  if (guidedRunning) $('guided-protocol').value = guided.protocol;
   $('guided-start').disabled = guidedRunning || !state.recording || !state.connected || state.sensor_actions;
   $('guided-stop').disabled = !guidedRunning;
   $('guided-cue').textContent = guided.cue || 'Live recording required to start a guided test.';
@@ -161,18 +183,21 @@ function toBase64(buffer) {
 
 async function suggest(payload) {
   if (isHUD || suggesting || !state) return false;
-  if (!state.suggest_available) { feedback(SETUP_HINT); return false; }
-  suggesting = true; $('listen').disabled = $('text-send').disabled = true; feedback('Thinking of replies…');
+  const listening = Boolean(payload.audio_b64);
+  if (!listening && !state.suggest_available) { feedback(SETUP_HINT); return false; }
+  suggesting = true; $('listen').disabled = $('text-send').disabled = true;
+  feedback(listening ? 'Transcribing with Qwen…' : 'Thinking of replies…');
   try {
     render(await (await api('/api/suggest', {session_id: state.session_id, ...payload})).json());
-    feedback('New reply suggestions. Nothing is spoken until you choose one.'); return true;
+    feedback(state.suggest_available ? 'New reply suggestions. Nothing is spoken until you choose one.'
+      : `Transcribed with Qwen: “${state.heard}”`); return true;
   } catch (error) { feedback(`${error.message} Sample phrases remain available.`); return false; }
   finally { suggesting = false; $('listen').disabled = $('text-send').disabled = false; }
 }
 
 async function toggleListen() {
   if (recorder) { recorder.stop(); return; }
-  if (!state?.suggest_available) { feedback(SETUP_HINT); return; }
+  if (!state?.transcribe_available) { feedback(LISTEN_HINT); return; }
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { feedback('Microphone recording is not available in this browser.'); return; }
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({audio: true}); }
@@ -289,7 +314,10 @@ signalWorkspace.addEventListener('toggle', () => {
   if (!signalWorkspace.open) setSignalExpanded(false);
 });
 
-$('guided-start').onclick = () => command('guided_start');
+$('guided-start').onclick = () => command('guided_start', $('guided-protocol').value);
 $('guided-stop').onclick = () => command('guided_stop');
 
 $('record-stop').onclick = () => command('record_stop');
+
+$('wheel-test-toggle').onclick = () => command('wheel_test', !state?.wheel_test);
+$('wheel-test-stop').onclick = () => command('wheel_test', false);

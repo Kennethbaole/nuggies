@@ -72,7 +72,7 @@ class RingTests(unittest.TestCase):
         self.choose(4)
         self.assertEqual(self.ring.letters, "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
         self.assertEqual(self.ring.screen, "spell")
-        state = self.ring.action("contact", value="care")
+        state = self.ring.action("contact", value="kat")
         self.assertEqual(state["screen"], "home")
         self.assertEqual(state["page"], 0)
 
