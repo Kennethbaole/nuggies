@@ -76,3 +76,42 @@ regression moves immediately after actual center/recovery transitions and verifi
 capture starts within 120 ms. No new wearer recording was requested.
 
 Frozen-profile pulse-confirmation replay also retains two selections in session-6 double-blink cues, zero in negative cue phases across sessions 4–6, and one selection in the exactly reconstructed failed interaction. Pulse-pair misses remain two of five reviewed cues; acquisition-only confirmation misses are not identifiable. Private report: `recordings/pulse-confirmation-ready-fix.json`.
+
+## Reserved returns from uncertain excursions
+
+`--eog-return-guard` enables a pure-Python 50 Hz navigation veto. It records a
+sustained horizontal excursion while Ready, even if its eventual waveform command
+is rejected or labelled blink-family. It also remembers directional candidates
+at rejection/acceptance. An open excursion survives quiet, retry, and timeout
+rearming. Its opposite is reserved as a return. An observed opposite lobe followed
+by quiet closes ownership, but its interval remains recorded so a delayed window
+cannot issue a new opposite command. Explicit reset/fault clears the guard.
+
+The guard generates no gaze or confirmation. It requires existing classified
+candidates to navigate and retains the pulse-confirmation gate. Automatic horizontal
+tracking uses three filtered frames, a count floor, and a minimal horizontal/vertical
+ratio; these remain engineering settings. Vertical ownership comes from directional
+candidates, avoiding automatic vertical blink ownership. New automatic excursions
+are disabled during recovery so a small rebound cannot reserve the next real gaze.
+
+A first prototype that seeded during recovery caused a reviewed right cue to be
+swallowed and its return to be accepted left: 15 hits/five misses/four false directions.
+That prototype was rejected. The selected guard retains **16 hits/four misses, zero
+wrong/duplicate directions, three false directions / 275 s, and zero negative-phase
+confirmations**, with median cue-to-emission 1.51 s. Frozen-profile replay retains
+two selections in double-blink movement cues and the single exactly reconstructed
+failed confirmation, with no negative-phase confirmations. Raw pair misses remain
+two of five cues; intended selection misses remain unidentifiable in acquisition data.
+
+In the new raw-recording comparison, the suspect Left at sample 4400 is now consumed
+as a return. Additional right candidates are also reserved; those intervals lack
+per-attempt intention labels, so suppression cannot be counted as either correct
+or missed user commands. The outgoing mixed/uncertain waveform is not turned into
+a confident Right. This change prevents a demonstrated mechanism; it is not a
+claim that all outward movement recognition or retry waits are fixed.
+
+Private evidence: `signal-comparison-return-guard-final/report.json`,
+`pulse-confirmation-return-guard.json`, and `live-return-guard-comparison.json` under
+recordings/. Synthetic regressions cover rejected outbound→long quiet→opposite,
+returns already inside capture, late classification, blink interference, recovery
+rebounds, explicit reset and input gaps. Exact replay now retains guard state.

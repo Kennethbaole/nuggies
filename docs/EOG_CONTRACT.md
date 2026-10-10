@@ -79,3 +79,9 @@ canonical app state and deduplicate selections; it must not run a second indepen
 wheel. `hud_bridge.py` is unchanged. Jetson deployment, serial routing, physical
 ESP32 protocol/optics, audio routing and reconnect behavior across hosts remain
 untested. Topology questions belong in the handoff before hardware integration.
+
+The optional `excursion_guard` setting (`--eog-return-guard` in the application,
+`--return-guard` in the headless CLI) adds a navigation veto. A `return` decision
+with reason `remembered_excursion` consumes an opposite pulse reserved by an
+earlier excursion, including an unaccepted one. It is never `gaze_accepted` and
+must not change the adapter's selected slot. Quiet alone does not clear ownership.

@@ -251,3 +251,17 @@ class GuidedEOGTests(unittest.TestCase):
         self.feed(d,30,h=5192)
         self.assertIsNotNone(d.detector.candidate)
         self.assertLess(min(h for h,v in d.detector.candidate['samples']),-800)
+
+    def test_rejected_excursion_return_cannot_become_opposite_command(self):
+        d=self.detector(excursion_guard=True);self.feed(d)
+        self.feed(d,40,h=11192)
+        self.assertIsNotNone(d.excursion.owner)
+        self.candidate(d,self.result('right',distance=.2))
+        self.assertEqual(d.phase,'retry')
+        self.feed(d,4000)
+        self.assertEqual(d.phase,'ready')
+        self.assertIsNotNone(d.excursion.owner)
+        self.assertEqual(self.candidate(d,self.result('left')),[])
+        self.assertEqual(d.last_result['label'],'return')
+        self.assertEqual(d.last_result['reason'],'remembered_excursion')
+        self.assertEqual(d.totals['accepted'],0)

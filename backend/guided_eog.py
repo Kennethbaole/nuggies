@@ -6,12 +6,14 @@ import statistics
 
 from .eog_waveform import DIRECTIONS, WaveformProfile
 from .blink_stream import BlinkPulseStream
+from .eog_excursion import ExcursionGuard
 from .temporal_eog import CausalFilter, EventSegmenter, SegmentConfig
 
 
 @dataclass(frozen=True)
 class GuidedConfig:
     pulse_confirmation: bool = False
+    excursion_guard: bool = False
     center_s: float = 3
     retry_s: float = 5
     direction_margin: float = 1.1
@@ -23,7 +25,7 @@ class GuidedConfig:
     def __post_init__(self):
         if any(not math.isfinite(x) or x <= 0 for x in (self.center_s,self.retry_s,self.direction_margin,self.recovery_s)) or not math.isfinite(self.haar_weight) or self.haar_weight<0:
             raise ValueError('Invalid guided EOG settings')
-        if type(self.pulse_confirmation) is not bool or type(self.reject_blinks) is not bool or not math.isfinite(self.blink_horizontal_min) or not 0<=self.blink_horizontal_min<=1:
+        if type(self.excursion_guard) is not bool or type(self.pulse_confirmation) is not bool or type(self.reject_blinks) is not bool or not math.isfinite(self.blink_horizontal_min) or not 0<=self.blink_horizontal_min<=1:
             raise ValueError('Invalid blink rejection settings')
 
 
@@ -47,6 +49,7 @@ class GuidedEOGTest:
         self.horizontal=self.vertical=0
         self.slot=None;self.direction=None;self.last_result=None
         self.blink_stream=BlinkPulseStream();self.last_blink_result=None
+        self.excursion=ExcursionGuard(self.profile.thresholds)
         self.last_classification=None;self._candidate_context=None
         self._frame_context=deque(maxlen=100)
         self.frame=0;self.previous_timestamp=None
@@ -99,6 +102,9 @@ class GuidedEOGTest:
         return len(self.clean)>=needed
 
     def _retry(self,reason,segment,result):
+        if self.config.excursion_guard and segment and result and result['label'] in DIRECTIONS:
+            onset=self.raw_index-(segment['emitted']-segment['onset'])*5
+            self.excursion.claim(result['label'],onset)
         self.totals['rejected']+=1;self.phase='retry';self.reason=reason;self.slot=None
         self.clean.clear();self.wait_started=self.frame;self.progress=0
         self.message='Look center / Retry. Reading uncertain; waiting for clean resting signal.'
@@ -121,12 +127,16 @@ class GuidedEOGTest:
         self.horizontal,self.vertical=value
         self.recent_frames.append((self.raw_index,*value))
         settled=self._clean_frame(value)
+        if self.config.excursion_guard and self.phase not in ('centering','signal_lost'):
+            self.excursion.observe(value[0]-self.rest_offset[0],value[1]-self.rest_offset[1],
+                                   self.raw_index,allow_new=self.phase=='ready')
         if self.phase in ('centering','retry'):
             self.blink_stream.reset()
             if settled:
                 # Robust resting residual/noise, separate from continuous DC removal.
                 self.rest_offset=tuple(statistics.median(x[1][i] for x in self.clean) for i in (0,1))
                 self.noise=tuple(1.4826*statistics.median(abs(x[1][i]-self.rest_offset[i]) for x in self.clean) for i in (0,1))
+                if self.phase=='centering':self.excursion.reset()
                 self.phase='ready';self.reason='ready';self.slot=None;self.direction=None
                 self.detector.reset(warmed_up=True);self.clean.clear();self.progress=1
                 self._audit('component_reset',component='segmenter',cause='center_ready',origin='sample')
@@ -185,6 +195,15 @@ class GuidedEOGTest:
             self.totals['blinks']+=1;self.mask_until=self.frame+25;self.clean.clear()
             self._event(label,'blink',segment,result)
             return None
+        onset=self.raw_index-(segment['emitted']-segment['onset'])*5
+        reserved=self.excursion.return_context(label,onset) if self.config.excursion_guard else None
+        if self.phase=='ready' and reserved:
+            self.phase='recovery';self.reason='return_center';self.direction=reserved['direction'];self.slot=None
+            self.recovery_started=self.frame;self.return_seen=True;self.return_sample=onset;self.clean.clear()
+            self.totals['returns']+=1
+            self.message='Return to center detected. Waiting for the signal to settle.'
+            self._event('return','remembered_excursion',segment,result)
+            return None
         if self.phase=='recovery':
             opposite={'left':'right','right':'left','up':'down','down':'up'}
             if label==opposite.get(self.direction):
@@ -201,6 +220,7 @@ class GuidedEOGTest:
             return None
         self.phase='recovery';self.reason='return_center';self.direction=label;self.slot=DIRECTIONS[label]
         self.recovery_started=self.frame;self.return_seen=False;self.return_sample=None;self.clean.clear()
+        if self.config.excursion_guard:self.excursion.claim(label,onset)
         self.totals['accepted']+=1
         self.message=f'{label.capitalize()} detected. Return to center before the next direction.'
         self._event(label,'accepted',segment,result)

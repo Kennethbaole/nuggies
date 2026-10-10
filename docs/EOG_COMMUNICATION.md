@@ -40,7 +40,10 @@ Gaze highlighting remains removed. A fixed Detected choice card above the wheel 
 shows the chosen label and Return to center / Ready to confirm status. The
 companion phone continues to show confirmed speech, not pending choices. A short label must not hide what will actually be spoken.
 
-## Confirmation rules
+## Legacy template confirmation rules
+
+These rules describe the mode without `--eog-pulse-confirmation`. The independent
+pulse mode and retry behavior below supersede its blink matching/cancellation rules.
 
 - A newly accepted gaze at an enabled item creates a pending choice.
 - Confirmation arms after navigation becomes Ready, or after a classified
@@ -280,3 +283,15 @@ protocols remain unknowable. Private comparison: `pulse-confirmation-retry.json`
 A synthetic retry-then-confirm check verifies one-shot behavior and unchanged expiry.
 No calibrated probability is claimed: the dataset cannot support calibration of
 intent confidence across sessions with the present class coverage.
+
+### Direction readiness and return protection
+
+The current branch listens immediately after guided Ready; it no longer hides a
+second one-second segmenter warmup. `--eog-return-guard` adds remembered-excursion
+return suppression, including rejected outward candidates and returns whose
+classification arrives after quiet recovery. It never generates a selection.
+See [direction investigation](EOG_DIRECTION_REGRESSION.md) for the counterfactual,
+failed prototype, selected replay results and remaining outward-match failures.
+The wearer reports more consistent double-blink selection; directional usability
+is still a blocker. Continue offline from the saved recordings, not another generic
+calibration protocol.

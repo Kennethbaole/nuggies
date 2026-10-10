@@ -17,7 +17,7 @@ def main():
     p.add_argument('--chrome');p.add_argument('--output',default='artifacts/browser-report/eog')
     args=p.parse_args();output=Path(args.output);output.mkdir(parents=True,exist_ok=True)
     with patch('backend.app.load_env'),patch('backend.speech.load_env'),patch('backend.suggestions.load_env'):
-        app=Application(source='serial',eog_profile=args.profile)
+        app=Application(source='serial',eog_profile=args.profile,eog_pulse_confirmation=True,eog_return_guard=True)
     app.speech.api_key=''  # Never call paid speech in this simulated browser check.
     app.token='';app.recording=True # UI harness only; no simulated recording is saved.
     stop=threading.Event()
@@ -91,7 +91,8 @@ def main():
             with app.lock:
                 # Simulated event tests HTTP/render/audio dispatch, not blink accuracy.
                 app.eog_confirmation.update(app.ring,d,dict(label='double_blink',reason='blink',
-                    onset_sample=d.raw_index,distance=.01,other_label_margin=3,horizontal_fraction=.01))
+                    onset_sample=d.raw_index,distance=.01,other_label_margin=3,horizontal_fraction=.01,
+                    source='pulse_stream',pulse_pair_valid=True,waveform_label='double_blink',direction_margin=4))
             expect(page.locator('#feedback')).to_contain_text('Speaking with browser voice',timeout=5000)
             assert page.evaluate('window.__spoken.length')==1
             assert app.ring.selection_id==1

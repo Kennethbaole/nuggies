@@ -28,7 +28,7 @@ VARIANTS = ('baseline', 'pulse-confirmation', 'extend1.6', 'lp10-notch60', 'lp15
             'median3', 'stable3', 'haar0.1', 'haar0.25', 'haar-multiscale',
             'second-half', 'nearest2', 'dtw4', 'lda', 'crosstalk', 'bounded-scale',
             'pulse-retry0.6', 'pulse-retry1', 'pulse-retry2', 'pulse-retry3',
-            'pulse-recovery1', 'pulse-recovery2')
+            'pulse-recovery1', 'pulse-recovery2', 'pulse-return-guard')
 
 
 class Biquad:
@@ -197,7 +197,7 @@ class AdaptiveSegmenter(EventSegmenter):
 
 
 def config_for_variant(variant):
-    settings=dict(pulse_confirmation=variant.startswith('pulse-'))
+    settings=dict(pulse_confirmation=variant.startswith('pulse-'),excursion_guard=variant=='pulse-return-guard')
     if variant.startswith('pulse-retry'):settings['retry_s']=float(variant[len('pulse-retry'):])
     if variant.startswith('pulse-recovery'):settings['recovery_s']=float(variant[len('pulse-recovery'):])
     return GuidedConfig(**settings)

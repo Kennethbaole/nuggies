@@ -16,8 +16,9 @@ def main():
     modes.add_argument('--csv');modes.add_argument('--serial-port')
     p.add_argument('--profile',required=True);p.add_argument('--communication',action='store_true')
     p.add_argument('--pulse-confirmation',action='store_true')
+    p.add_argument('--return-guard',action='store_true')
     args=p.parse_args()
-    pipeline=EOGPipeline(WaveformProfile.load(args.profile),GuidedConfig(pulse_confirmation=args.pulse_confirmation))
+    pipeline=EOGPipeline(WaveformProfile.load(args.profile),GuidedConfig(pulse_confirmation=args.pulse_confirmation,excursion_guard=args.return_guard))
     pipeline.set_choices({slot:dict(id=f'slot:{slot}',label=direction,enabled=True) for direction,slot in SLOTS.items()},0)
     previous=None
     try:

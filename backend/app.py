@@ -54,7 +54,7 @@ def audio_from_payload(payload):
 
 
 class Application:
-    def __init__(self, source="demo", calibration=None, sensor_actions=False, eog_profile=None, eog_pulse_confirmation=False):
+    def __init__(self, source="demo", calibration=None, sensor_actions=False, eog_profile=None, eog_pulse_confirmation=False, eog_return_guard=False):
         load_env()
         self.lock = threading.RLock()
         self.speech_lock = threading.Lock()
@@ -103,7 +103,7 @@ class Application:
         self.speed_attempts = {}
         if eog_profile and (source not in ("serial","replay") or sensor_actions):
             raise ValueError("Guided EOG requires serial/replay input with calibrated actions disabled")
-        self.wheel_detector = GuidedEOGTest(eog_profile,GuidedConfig(pulse_confirmation=eog_pulse_confirmation)) if eog_profile else LiveWheelTest()
+        self.wheel_detector = GuidedEOGTest(eog_profile,GuidedConfig(pulse_confirmation=eog_pulse_confirmation,excursion_guard=eog_return_guard)) if eog_profile else LiveWheelTest()
         self.eog_pipeline=EOGPipeline(self.wheel_detector.profile,self.wheel_detector.config,detector=self.wheel_detector,confirmation=self.eog_confirmation) if eog_profile else None
         self.eog_events=deque(maxlen=64)
         self.wheel_test_selections = deque(maxlen=128)
@@ -684,12 +684,15 @@ def main():
     parser.add_argument("--calibration")
     parser.add_argument("--eog-log", help="New private JSONL path for diagnostic transitions and decisions")
     parser.add_argument("--eog-pulse-confirmation", action="store_true", help="Experimental independent blink pairing; requires profile")
+    parser.add_argument("--eog-return-guard", action="store_true", help="Remember uncertain excursions and suppress their opposite return commands")
     parser.add_argument("--eog-profile", help="Private frozen waveform profile; enables guided cardinal diagnostic mode")
     parser.add_argument("--enable-sensor-actions", action="store_true")
     parser.add_argument("--lowpass-hz", type=float)
     args = parser.parse_args()
     if args.host not in ("127.0.0.1", "localhost", "::1") and not os.environ.get("APP_TOKEN"):
         parser.error("Set APP_TOKEN before binding to a LAN/public interface")
+    if args.eog_return_guard and not args.eog_profile:
+        parser.error("--eog-return-guard requires --eog-profile")
     if args.eog_pulse_confirmation and not args.eog_profile:
         parser.error("--eog-pulse-confirmation requires --eog-profile")
     if args.eog_log and not args.eog_profile:
@@ -700,7 +703,7 @@ def main():
         parser.error("Sensor actions require a calibration file and serial/replay source")
     try:
         calibration = Calibration.load(args.calibration) if args.calibration else None
-        app = Application("serial" if args.serial_port else "replay" if args.replay else "demo", calibration, args.enable_sensor_actions, args.eog_profile, args.eog_pulse_confirmation)
+        app = Application("serial" if args.serial_port else "replay" if args.replay else "demo", calibration, args.enable_sensor_actions, args.eog_profile, args.eog_pulse_confirmation, args.eog_return_guard)
         if args.lowpass_hz is not None:
             if calibration is None:
                 parser.error("--lowpass-hz requires --calibration")

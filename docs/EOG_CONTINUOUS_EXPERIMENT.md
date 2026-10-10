@@ -226,3 +226,21 @@ The direction parity check is in [EOG_DIRECTION_REGRESSION](EOG_DIRECTION_REGRES
 Direction metrics retain 20 scored trials and 275 s negative exposure. Phase time covers entire raw streams, averaged across the five fitted folds, and must not be divided by the 275 s scored exposure. True confirmation misses remain N/A for these acquisition protocols.
 
 Shorter retry increases false directions without recovering the four missed cues. One-second recovery loses five additional directions. Two-second recovery saves about 13.7 s of recovery across the full streams without changing the scored outcomes, but does not fix template rejection or demonstrate faster successful wearer interactions. Keep it an offline candidate; do not silently shorten the live return protection. Private report: `recordings/signal-comparison-retry/report.json`.
+
+## Ready timing and remembered returns
+
+The hidden segmenter warmup after Ready is removed. With that fix held constant,
+the following comparison adds only the remembered-excursion return veto:
+
+| Variant | Hits | Misses | Wrong | Duplicates | False directions / 275 s | False / min | Negative-phase confirmations | Median cue→emit |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Immediate Ready + pulse confirmation | 16 | 4 | 0 | 0 | 3 | .655 | 0 | 1.51 s |
+| Above + return guard | 16 | 4 | 0 | 0 | 3 | .655 | 0 | 1.51 s |
+
+The guard consumes the suspect Left return at sample 4400 in the separately saved
+live interaction. It does not convert the uncertain outbound waveform into an
+accepted Right. Other suppressions in that unlabeled file remain unscored by intent.
+See [direction investigation](EOG_DIRECTION_REGRESSION.md) for tradeoffs and a
+rejected prototype that produced 15 hits/five misses/four false directions. The
+selected flag is `--eog-return-guard`. Private report:
+`recordings/signal-comparison-return-guard-final/report.json`.

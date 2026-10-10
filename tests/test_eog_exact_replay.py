@@ -18,7 +18,7 @@ class ExactReplayTests(unittest.TestCase):
     def make_session(self,directory,pulse_mode=False):
         root=Path(directory);profile=root/'profile.json';profile.write_text(json.dumps(fixture_profile()))
         with patch('backend.app.load_env'),patch('backend.speech.load_env'),patch('backend.suggestions.load_env'):
-            app=Application(source='serial',eog_profile=profile,eog_pulse_confirmation=pulse_mode)
+            app=Application(source='serial',eog_profile=profile,eog_pulse_confirmation=pulse_mode,eog_return_guard=pulse_mode)
         csv_path=root/'synthetic.csv';log_path=root/'synthetic.events.jsonl'
         # Nonzero application coordinate exercises reconnect/CSV-origin mapping.
         app.received_samples=700
