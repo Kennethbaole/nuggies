@@ -31,3 +31,9 @@ with software fixtures. See [Signals and capture](docs/SIGNALS.md).
 
 The authoritative eight-slot ring supports Needs, More, spelling and explicit
 confirmation. See [Interaction](docs/INTERACTION.md).
+
+## Speech
+
+The ElevenLabs adapter, cache and explicit voice-upload helper are implemented.
+See [Speech](docs/SPEECH.md). Credentials use exported environment variables;
+automatic .env loading and microphone recording are not implemented.

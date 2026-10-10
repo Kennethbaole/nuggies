@@ -1,0 +1,11 @@
+{
+  "name": "Authorized speaker",
+  "speaker_reference": "Local identifier, not a public personal record",
+  "consent_record": "Keep the actual consent record privately",
+  "language": "en",
+  "samples": [
+    {"path": "../voicebank/conversation.wav", "transcript_path": "../voicebank/conversation.txt", "style": "natural conversation"},
+    {"path": "../voicebank/needs.wav", "transcript_path": "../voicebank/needs.txt", "style": "short everyday needs"}
+  ],
+  "note": "Example only. Transcripts are not sent to IVC; retain privately for evaluation and phrase personalization."
+}
