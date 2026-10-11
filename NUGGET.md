@@ -83,7 +83,7 @@ Use these evidence labels when discussing progress:
 | Reply generation | Ollama/Qwen produces preview suggestions from text. | Code and mocked tests checked. No Jetson inference measurements were captured here. |
 | Speech recognition | Browser microphone → application → Qwen ASR service is implemented. | Client/service tests use fake inference. Real CLI helper currently has a broken import. |
 | Speech output | ElevenLabs with cache and browser fallback are implemented. | Mocked checks pass. Audible output and real provider behavior were not tested here. Piper is installation-only. |
-| Contact personalization | Chat import, local profiles, example retrieval, and People UI are implemented. | Unit checks pass. This is retrieval and prompting, not model training. |
+| Contact personalization | Community page with per-member .txt notes, notes passed to the reply model, and a generation preview are implemented. Chat-export profiles remain CLI-only. | Unit checks pass with a fake model. This is prompting, not model training; effect on real Qwen output is unmeasured. |
 | Jetson | Owner reports the device works. | Exact software stack, service status, simultaneous model memory use, and full communication loop are not recorded. |
 | Glasses and physical HUD | ESP32 SH1106 firmware and a standalone serial bridge exist. | Glasses are unfinished; optical readability, fit, and final integrated display operation remain open. |
 | Packaging | A non-root Dockerfile and Jetson setup script exist. | Neither was executed during this audit. |
@@ -133,7 +133,20 @@ The firmware owns its own selection index and labels. Its default utility labels
 
 Serial protocol: `O:<comma-separated labels>`, `H:<slot>`, `T:<status>`, `n`, `p`, `s`. Firmware labels are bounded to ten characters. There are no session/revision IDs, acknowledgements establishing application agreement, or confirmed-utterance IDs in this protocol.
 
-Wi-Fi support is compiled off (`USE_WIFI=0`). Enabling its WebSocket client does not make it compatible with `backend.app`, even though both mention port 8765. A matching backend adapter/protocol is missing.
+Wi-Fi support is compiled off (`USE_WIFI=0`). Enabling its WebSocket client does not make it compatible with `backend.app`, which serves HTTP only. A matching WebSocket server is missing, so the display link is USB only for now.
+
+### Website-to-OLED mirror (added 2026-10-10)
+
+`backend/hud_sync.py` polls `/api/state` and sends the ESP32 one complete `W:` frame per change and once a second: highlighted slot (`-1` for none), eight labels (empty hides a slot) and three pre-wrapped centre lines. It follows `frontend/hud.js` for the centre text and for hiding the highlight during eye-driven modes, so the four-item communication layout appears as on the website. It is one-way: the display never sends actions to the website, and the first `W:` frame makes the firmware ignore its standalone `O`/`H`/`n`/`p`/`s` commands until reset.
+
+```sh
+python -m backend.hud_sync --port /dev/cu.usbserial-0001   # USB
+python -m backend.hud_sync --print                         # no hardware
+```
+
+Wi-Fi settings for the future link go in `firmware/esp32_hud/secrets.h` (ignored by Git; copy `secrets.example.h`). Labels are cut to 10 ASCII characters and centre text to at most 38.
+
+Evidence: 14 unit tests including the real `Application` over HTTP; the firmware frame parser was compiled on the host and fed real frames; both `USE_WIFI` variants compile for `esp32doit-devkit-v1` (core 3.3.2, WebSockets library by Markus Sattler). Flashed to the DevKit over USB on 2026-10-10 and team-reported as synced with the website on the bare OLED (keyboard-driven, demo input). Not yet checked: the large double-blink alert on the display, real eye input through the mirror, and readability of the 4x6 centre font through the optics. The EOG samples still reach the laptop over the Nano's USB cable; neither a wireless display link nor a wireless sample uplink is built.
 
 ## 4. Rules future changes must preserve
 
@@ -254,16 +267,17 @@ Claims are remembered before synthesis completes. This reduces duplicate claims 
 
 ### Personalization and data locations
 
-`/contacts` supports adding people, inspecting a UTF-8/WhatsApp ZIP export, choosing the user's speaker name, replacing/removing a profile, and previewing retrieved examples. It does not train the model. The source export is read in memory; the derived profile stores selected text exchanges on the backend machine.
+`/community` (formerly People, `/contacts` still works) supports adding members (name and relationship) and uploading one UTF-8 `.txt` notes file per member (at most 2,000 characters after whitespace cleanup). Pronouns, nicknames, age group and preferences live in the notes rather than separate fields. Saved notes are shown and can be replaced or removed. The selected member's notes are added to the reply-model context with instructions to use them for wording and tone, mention details only when relevant, and not treat them as the user's current wants or feelings; members without notes keep the default style examples. The preview asks the configured model for fresh suggestions to typed text without changing the ring, history or speech. Nothing is trained.
 
-Profiles retain at most 2000 short exchange pairs and 200 openers. Turns longer than 200 characters are excluded from the short-reply extraction. Four examples are retrieved using word overlap weighted by rarity, then filled with recent exchanges. Retrieval tokenization is English-oriented. Openers are stored but not currently included in the model example context. A per-contact profile falls back to `default`; having no profile does not disable Ollama generation.
+Chat-export profiles (`scripts.import_chat`, `scripts.try_suggest --contact`) are no longer used by the web app. Profiles retain at most 2000 short exchange pairs and 200 openers. Turns longer than 200 characters are excluded from the short-reply extraction. Four examples are retrieved using word overlap weighted by rarity, then filled with recent exchanges. Retrieval tokenization is English-oriented. Openers are stored but not currently included in the model example context. A per-contact profile falls back to `default`; having no profile does not disable Ollama generation.
 
 | Data | Location/lifetime | Important boundary |
 | --- | --- | --- |
 | Raw EOG and sidecars | `recordings/` on acquisition host | Ignored by Git; no automatic retention/deletion policy. |
 | Voice samples/transcripts | `voicebank/` | Ignored; explicit upload helper can send audio to ElevenLabs. |
-| Persona profiles | `config/persona.<id>.local.json` | Ignored; excerpts reach configured Ollama endpoint during generation. |
-| Added contacts | `config/contacts.local.json` | Ignored; survives backend restart. |
+| Member notes | `config/notes.<id>.local.json` | Ignored; full notes text reaches the configured Ollama endpoint for that member's suggestions and previews. |
+| Persona profiles (CLI only) | `config/persona.<id>.local.json` | Ignored; used by `scripts.try_suggest --contact`, not by the web app. |
+| Added members | `config/community.local.json` (earlier `contacts.local.json` is still read) | Ignored; survives backend restart. |
 | Calibration/voice profiles | `config/*.local.json` | Ignored; runtime configuration must be transferred privately if moving hosts. |
 | Generated TTS | `.cache/tts/` in the companion | Ignored, persistent audio cache, no eviction policy. |
 | Current ring/history/heard text | Backend memory | Lost on process restart; shared by connected clients. |
@@ -271,7 +285,7 @@ Profiles retain at most 2000 short exchange pairs and 200 openers. Turns longer 
 | Session token | Browser session storage and host environment | Not a per-person account or permission system. |
 | Training JSONL export | User-selected CLI path | Not automatically ignored unless placed under an ignored directory. No training pipeline exists. |
 
-“Local” means the configured machine(s), not necessarily the user's browser device. Remote `OLLAMA_URL` receives transcript, recent utterances and selected persona examples. `ASR_URL` receives audio. ElevenLabs receives confirmed text and voice configuration when enabled. Update privacy copy to reflect those destinations; the current unconditional “on this device” wording is too strong.
+“Local” means the configured machine(s), not necessarily the user's browser device. Remote `OLLAMA_URL` receives transcript, recent utterances and the selected member's notes. `ASR_URL` receives audio. ElevenLabs receives confirmed text and voice configuration when enabled. Update privacy copy to reflect those destinations; the current unconditional “on this device” wording is too strong.
 
 ## 7. API and state contracts
 
@@ -279,11 +293,11 @@ Profiles retain at most 2000 short exchange pairs and 200 openers. Turns longer 
 | --- | --- |
 | `GET /api/health` | Backend is answering; returns schema/session. Does not establish sensor/model readiness. |
 | `GET /api/state` | Shared ring plus input, recording, guided, hover, provider-configuration and recent-sample snapshot. |
-| `GET /api/people` | Contacts and profile summaries, default profile, session ID. |
+| `GET /api/community` | Members with their saved notes, whether suggestions are configured, session ID. |
 | `POST /api/action` | `action`, unique `event_id` (1–80 characters), optional `value`. |
 | `POST /api/suggest` | `session_id`, `heard_text` or base64 audio plus MIME type. Updates preview pool/transcript. |
 | `POST /api/transcribe` | `session_id`, `audio_b64`, optional `mime_type`. Returns transcript metadata without changing ring. |
-| `POST /api/persona` | `session_id`, action and relevant fields. Actions: `add_contact`, `inspect`, `save`, `remove`, `preview`. |
+| `POST /api/community` | `session_id`, action and relevant fields (body at most 64 KiB). Actions: `add_member`, `save_notes` (`member_id`, `file_b64`, `filename`), `remove_notes`, `preview` (`member_id`, `heard`; returns generated suggestions, ring untouched). |
 | `POST /api/speech` | `session_id`, confirmed `selection_id`. Returns MP3 or browser-speech text; duplicate claim returns 409. |
 
 Action names: `left`, `right`, `select`, `back`, `reset`, `focus`, `contact`, `repeat`, `demo`, `blink`, `label`, `wheel_test`, `guided_start`, `guided_stop`, `record_stop`, `suggestions_clear`.
@@ -421,7 +435,7 @@ All entries below were open at the audited commit. **Reproduced** means a focuse
 | ID | Priority / evidence | Gap, effect, and next useful check |
 | --- | --- | --- |
 | G01 | Jetson blocker; reproduced | `scripts/try_transcribe.py` imports nonexistent `record` from `scripts.try_suggest`. Even `--help` fails with ImportError. Restore a shared mic helper or replace the import; test all three CLI modes, including health without mic dependencies. |
-| G02 | Joint integration; inspected | ESP32 wheel/bridge bypass canonical companion state, confirmation and speech claims. Either label it a separate prototype or implement an explicit state adapter; verify phrase and utility parity. Optional WebSocket firmware has no server counterpart. |
+| G02 | Joint integration; partly addressed 2026-10-10 | `backend.hud_sync` now mirrors canonical state to the OLED (software-checked only; see section 3). Flashed and reported synced over USB; remaining: optical readability, the eye-driven mode on the display, and the standalone `hud_bridge` path below is unchanged. Original finding: ESP32 wheel/bridge bypass canonical companion state, confirmation and speech claims. Either label it a separate prototype or implement an explicit state adapter; verify phrase and utility parity. Optional WebSocket firmware has no server counterpart. |
 | G03 | EOG usability blocker; reproduced | Guided waveform/pulse paths are integrated. Hidden Ready warmup is fixed and uncertain returns can be reserved; outward template rejection and long retry still affect usability. Preserve current replay cases before further changes. Legacy hover remains a separate path. |
 | G04 | EOG workflow; reproduced | Replay permits duplicate receipt timestamps; calibration labels reject them. Fix alignment using sample identity/order with validation rather than guessing timestamp uniqueness. Preserve compatibility with existing recordings. |
 | G05 | Jetson integration; inspected | Frontend aborts at 18 s while Ollama may run 60 s, after ASR time. Backend work can continue and apply a result after the browser reports failure. Define bounded timing and request ownership/cancellation; test slow success and late result rejection. |
@@ -480,11 +494,12 @@ All tracked source and documentation were read during the audit. This map identi
 | `backend/scenarios.py`, `eog_scenarios.py` | Two different synthetic signal/label generators. |
 | `backend/main.py`, `simulator.py` | Terminal keyboard/raw/replay tools and keyboard sample/event sources. |
 | `backend/suggestions.py`, `transcribe.py`, `asr_server.py` | Ollama client, remote ASR client, Qwen/ffmpeg service. |
-| `backend/persona.py`, `envfile.py`, `speech.py` | Local contact/profile storage and retrieval, env loading, ElevenLabs/cache. |
+| `backend/community.py`, `persona.py`, `envfile.py`, `speech.py` | Community members and notes storage, CLI chat-profile retrieval, env loading, ElevenLabs/cache. |
 | `backend/hud.py`, `frontend/hud.js` | Snapshot image/canvas renderers. Neither drives physical optics. |
 | `backend/hud_bridge.py`, `config/hud_phrases.json` | Independent serial ESP32 event/speech flow. |
+| `backend/hud_sync.py` | One-way mirror of website state to the ESP32 OLED over USB. |
 | `frontend/index.html`, `app.js`, `styles.css`, `type.css`, `favicon.svg` | Companion/phone/browser-HUD shell, polling, controls, mic/audio, styling. System fonts need no download. |
-| `frontend/contacts.html`, `contacts.js`, `contacts.css` | People and profile-import interface. |
+| `frontend/community.html`, `community.js`, `community.css` | Community members, notes upload and reply preview. |
 | `firmware/nano_r4_eog_250hz/`, `nano_r4_two_channel/`, `esp32_hud/` | Current ADC acquisition, slow bench acquisition, SH1106 command-driven display. |
 | `scripts/dev.py`, `setup_jetson.sh`, `doctor.py` | Local process launcher, target setup, dependency/port report. |
 | `scripts/fit_calibration.py`, `browser_check.py` | Initial labeled calibration fitter; browser acceptance and screenshot writer. |
@@ -521,7 +536,7 @@ Standard checks from the project root:
 python -m unittest discover -s tests -v
 node --check frontend/app.js
 node --check frontend/hud.js
-node --check frontend/contacts.js
+node --check frontend/community.js
 ```
 
 Browser acceptance requires Playwright plus an installed browser and an isolated app session:

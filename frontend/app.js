@@ -94,7 +94,7 @@ function render(next) {
     speakSelection({...state});
   }
   const contact = state.contacts.find(contact => contact.id === state.contact);
-  if ($('contact').options.length !== state.contacts.length) {  // People can be added on /contacts.
+  if ($('contact').options.length !== state.contacts.length) {  // Members can be added on /community.
     $('contact').textContent = '';
     for (const item of state.contacts) {
       const option = document.createElement('option'); option.value = item.id; option.textContent = item.name;
@@ -102,8 +102,8 @@ function render(next) {
     }
   }
   $('contact').value = state.contact; $('avatar').textContent = contact.initials;
-  $('avatar').dataset.tone = String(state.contacts.indexOf(contact) % 3);
-  $('relationship').textContent = contact.relationship + (state.persona ? ' · personalised' : '');
+  $('avatar').dataset.tone = String(contact.tone ?? state.contacts.indexOf(contact) % 6);
+  $('relationship').textContent = [contact.relationship, contact.pronouns, state.has_notes && 'notes'].filter(Boolean).join(' · ');
   $('phone-contact').textContent = `With ${contact.name}`;
   $('screen-name').textContent = state.screen === 'spell' ? 'SPELL YOUR WORDS' : state.screen === 'needs' ? 'EVERYDAY NEEDS' : 'CONVERSATION';
   $('page-info').textContent = state.screen === 'spell' ? 'Two groups, one letter at a time' : `Phrase set ${state.page + 1} · ${PROVIDER_LABELS[state.suggestions_provider] || 'curated demo'}`;

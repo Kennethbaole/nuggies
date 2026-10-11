@@ -25,9 +25,7 @@ from .eog_diagnostics import DiagnosticLog
 from .eog_communication import EOGConfirmation
 from .eog_pipeline import EOGPipeline, SCHEMA_VERSION as EOG_SCHEMA_VERSION
 from .guided import GuidedTrial
-from .persona import (
-    DEFAULT_ID, ContactBook, PersonaStore, build_persona, chat_text, save_persona, speaker_counts,
-)
+from .community import MemberBook, NotesStore, notes_text, profile_fields
 from .ring import RingState
 from .speech import ElevenLabsSpeech, SpeechUnavailable
 from .state_machine import DoubleBlinkGate, GestureGate
@@ -38,7 +36,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
 MAX_BODY = 4096
 MAX_SUGGEST_BODY = 4 * 1024 * 1024  # base64 audio from the browser microphone
-MAX_PERSONA_BODY = 12 * 1024 * 1024  # base64 chat export (text or WhatsApp zip)
+MAX_COMMUNITY_BODY = 64 * 1024  # base64 notes file (a short .txt)
 MIN_SUGGEST_INTERVAL = 1.0
 
 
@@ -67,11 +65,11 @@ class Application:
         # Qwen speech-to-text on the Jetson (ASR_URL) is the only way audio becomes text;
         # the reply model only ever receives the transcript.
         self.transcriber = RemoteTranscriber()
-        self.personas = PersonaStore()  # Private per-contact profiles; see backend/persona.py.
-        self.contact_book = ContactBook()
-        self.ring.config["contacts"] = self.ring.config["contacts"] + [
-            contact for contact in self.contact_book.load()
-            if contact["id"] not in {known["id"] for known in self.ring.config["contacts"]}]
+        self.notes = NotesStore()  # Per-member notes that guide replies; see backend/community.py.
+        self.member_book = MemberBook()
+        self.ring.config["contacts"] = self.member_book.apply_profiles(self.ring.config["contacts"] + [
+            contact for contact in self.member_book.load()
+            if contact["id"] not in {known["id"] for known in self.ring.config["contacts"]}])
         self.suggest_lock = threading.Lock()
         self.last_suggest = 0.0
         self.log_timing = False  # main() turns this on: one line per suggestion request.
@@ -148,7 +146,7 @@ class Application:
                         speech_provider="elevenlabs" if self.speech.available else "browser",
                         suggest_available=self.suggester.available,
                         transcribe_available=self.transcriber.available,
-                        persona=self.personas.summary(self.ring.contact),
+                        has_notes=bool(self.notes.text(self.ring.contact)),
                         trial_label=self.trial_label,
                         recording=self.recording, guided=self.guided.snapshot(time.monotonic()),
                         samples=list(self.samples))
@@ -291,28 +289,31 @@ class Application:
             raise SuggestionUnavailable("No speech was heard; try again closer to the microphone")
         return text
 
-    def people(self):
-        """Contacts page: every contact, the default profile, and what each profile holds."""
+    def community(self):
+        """Community page: every member and the notes saved for each."""
         with self.lock:
-            contacts = [dict(contact) for contact in self.ring.config["contacts"]]
-        for contact in contacts:
-            contact["profile"] = self.personas.describe(contact["id"])
-        return dict(session_id=self.session_id, contacts=contacts,
-                    default=self.personas.describe(DEFAULT_ID), local_only=True)
+            members = [dict(member) for member in self.ring.config["contacts"]]
+        for member in members:
+            member["notes"] = self.notes.load(member["id"])
+        return dict(session_id=self.session_id, members=members, suggest_available=self.suggester.available)
 
-    def persona_command(self, payload):
-        """Manage contacts and their private profiles. Nothing here reaches a model or the network."""
+    def community_command(self, payload):
+        """Add and edit members and manage their notes; preview asks the reply model without touching the ring."""
         if payload.get("session_id") != self.session_id:
-            raise ValueError("Contacts session mismatch")
-        action, contact_id = payload.get("action"), payload.get("contact_id")
-        if action == "add_contact":
+            raise ValueError("Community session mismatch")
+        action, member_id = payload.get("action"), payload.get("member_id")
+        if action == "add_member":
             with self.lock:
-                contact = self.contact_book.add(payload.get("name"), payload.get("relationship"),
-                                                self.ring.config["contacts"])
-                self.ring.config["contacts"] = self.ring.config["contacts"] + [contact]
+                member = self.member_book.add(payload.get("name"), payload.get("relationship"),
+                                              self.ring.config["contacts"])
+                self.ring.config["contacts"] = self.ring.config["contacts"] + [member]
                 self.ring.revision += 1
-            return self.people()
-        if action in ("inspect", "save"):
+            return self.community()
+        with self.lock:
+            member = next((dict(m) for m in self.ring.config["contacts"] if m["id"] == member_id), None)
+        if member is None:
+            raise ValueError("Unknown member")
+        if action == "save_notes":
             file_b64 = payload.get("file_b64")
             if not isinstance(file_b64, str):
                 raise ValueError("file_b64 must be a string")
@@ -320,34 +321,42 @@ class Application:
                 data = base64.b64decode(file_b64, validate=True)
             except ValueError as error:
                 raise ValueError("file_b64 is not valid base64") from error
-            text = chat_text(data)
-            if action == "inspect":
-                names = speaker_counts(text)
-                if not names:
-                    raise ValueError('No messages found; expected a WhatsApp export or lines such as "Name: message"')
-                return dict(names=names)
-        with self.lock:
-            known = {contact["id"] for contact in self.ring.config["contacts"]} | {DEFAULT_ID}
-        if contact_id not in known:
-            raise ValueError("Unknown contact")
-        if action == "save":
-            if not isinstance(payload.get("me"), str):
-                raise ValueError("Choose which name is the user")
-            source = Path(str(payload.get("filename") or "")).name[:80]
-            persona = build_persona(text, payload["me"], contact_id, source)
-            save_persona(persona, self.personas.folder, replace=True)
-        elif action == "remove":
-            self.personas.remove(contact_id)
+            self.notes.save(member_id, notes_text(data), payload.get("filename"))
+        elif action == "remove_notes":
+            self.notes.remove(member_id)
+        elif action == "update_member":
+            fields = profile_fields(payload)
+            with self.lock:
+                self.member_book.save_profile(member_id, fields)
+                self.ring.config["contacts"] = [dict(m, **fields) if m["id"] == member_id else m
+                                                for m in self.ring.config["contacts"]]
         elif action == "preview":
-            heard = payload.get("heard")
-            if not isinstance(heard, str) or not heard.strip():
-                raise ValueError("Type something they might say")
-            return dict(context=self.personas.context(contact_id, heard[:300]))
+            return self.preview(member, payload.get("heard"))
         else:
-            raise ValueError("Unknown contacts action")
+            raise ValueError("Unknown community action")
         with self.lock:
-            self.ring.revision += 1  # Open companions refresh their profile indicator.
-        return self.people()
+            self.ring.revision += 1  # Open companions refresh their notes indicator.
+        return self.community()
+
+    def preview(self, member, heard):
+        """Fresh suggestions for something this member might say, shaped by their notes.
+        Nothing reaches the ring, history or speech."""
+        if not isinstance(heard, str) or not heard.strip():
+            raise ValueError("Type something they might say")
+        if not self.suggester.available:
+            raise SuggestionUnavailable("Reply suggestions are not configured (OLLAMA_MODEL), so there is nothing to preview")
+        if not self.suggest_lock.acquire(blocking=False):
+            raise SuggestionBusy("Suggestions are already being generated; try again in a moment")
+        try:
+            notes = self.notes.text(member["id"])
+            with self.lock:
+                examples = [p["text"] for p in self.ring.config["phrases"][:4]]
+            result = self.suggester.suggest(contact=member, heard_text=heard[:300],
+                                            style_examples=examples, notes=notes)
+        finally:
+            self.suggest_lock.release()
+        return dict(heard=result.heard, suggestions=[item["text"] for item in result.suggestions],
+                    used_notes=bool(notes), model=result.model, latency_ms=result.latency_ms)
 
     def suggest(self, payload):
         """Hear audio with Qwen, then ask the local model for reply previews.
@@ -382,9 +391,9 @@ class Application:
                 recent = [item["text"] for item in self.ring.history[:4]]
                 avoid = self.ring.shown + recent
                 examples = [p["text"] for p in self.ring.config["phrases"][:4]]
-                persona = self.personas.context(self.ring.contact, heard_text)
+                notes = self.notes.text(self.ring.contact)
             result = self.suggester.suggest(contact=contact, recent=recent, avoid=avoid,
-                                            heard_text=heard_text, style_examples=examples, persona=persona)
+                                            heard_text=heard_text, style_examples=examples, notes=notes)
             if self.log_timing:
                 print(f"Suggestions ({result.model}) {format_timing(result.timing)}", flush=True)
             with self.lock:
@@ -612,13 +621,13 @@ def make_handler(app):
                     return self.reply(401, dict(error="Enter the session token"))
                 if path == "/api/state":
                     return self.reply(200, app.state())
-                if path == "/api/people":
-                    return self.reply(200, app.people())
+                if path == "/api/community":
+                    return self.reply(200, app.community())
                 if path == "/api/health":
                     return self.reply(200, dict(ok=True, schema_version=1, session_id=app.session_id))
                 return self.reply(404, dict(error="Unknown endpoint"))
             requested = FRONTEND / ("index.html" if path in ("/", "/hud", "/phone") else
-                                    "contacts.html" if path == "/contacts" else path.lstrip("/"))
+                                    "community.html" if path in ("/community", "/contacts") else path.lstrip("/"))
             target = requested.resolve()
             if not target.is_relative_to(FRONTEND) or not target.is_file():
                 return self.reply(404, dict(error="File not found"))
@@ -636,7 +645,7 @@ def make_handler(app):
             try:
                 path = urlsplit(self.path).path
                 limit = {"/api/suggest": MAX_SUGGEST_BODY, "/api/transcribe": MAX_SUGGEST_BODY,
-                         "/api/persona": MAX_PERSONA_BODY}.get(path, MAX_BODY)
+                         "/api/community": MAX_COMMUNITY_BODY}.get(path, MAX_BODY)
                 length = int(self.headers.get("Content-Length", "0"))
                 if not 0 < length <= limit:
                     raise ValueError(f"Request must contain at most {limit} bytes")
@@ -649,8 +658,8 @@ def make_handler(app):
                     return self.reply(200, app.suggest(payload))
                 if path == "/api/transcribe":
                     return self.reply(200, app.transcribe(payload))
-                if path == "/api/persona":
-                    return self.reply(200, app.persona_command(payload))
+                if path == "/api/community":
+                    return self.reply(200, app.community_command(payload))
                 if path == "/api/speech":
                     # Only previously confirmed utterances may reach cloud TTS.
                     with app.lock:

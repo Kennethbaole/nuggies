@@ -10,6 +10,10 @@ the user talking to that particular person. Contacts without a profile use the
 Profiles are private: config/persona.<contact>.local.json is Git-ignored, and
 the only model that receives them runs on this device. Nothing is trained
 here; training_rows() exports the same exchanges for fine-tuning later.
+
+The Community page now personalizes with descriptive notes instead
+(backend/community.py); these conversation profiles are used by the CLI tools
+scripts.import_chat and scripts.try_suggest only.
 Standard library only.
 """
 
@@ -29,7 +33,6 @@ MAX_TURN_CHARS = 200     # Longer turns are stories or pasted text, not reply st
 MAX_PAIRS = 2000
 MAX_OPENERS = 200
 MAX_CHAT_BYTES = 8_000_000
-MAX_LOCAL_CONTACTS = 20
 EXAMPLE_COUNT = 4
 
 # "[10/9/26, 9:41:22 PM] Name: text" and "10/9/26, 9:41 PM - Name: text" (WhatsApp exports).
@@ -258,44 +261,3 @@ class PersonaStore:
                 return dict(profile=name, exchanges=len(persona["pairs"]))
         return None
 
-
-def contact_id_for(name, taken):
-    """A stable lowercase id from a display name, unique among existing contacts."""
-    base = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:30] or "contact"
-    candidate, number = base, 2
-    while candidate in taken or candidate == DEFAULT_ID:
-        candidate, number = f"{base}-{number}", number + 1
-    return candidate
-
-
-class ContactBook:
-    """Contacts added on this device, kept in config/contacts.local.json (Git-ignored)."""
-
-    def __init__(self, folder=None):
-        self.path = Path(folder or PERSONA_DIR) / "contacts.local.json"
-
-    def load(self):
-        try:
-            contacts = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return []
-        keys = ("id", "name", "relationship", "initials")
-        return [{key: contact[key] for key in keys} for contact in contacts if isinstance(contacts, list)
-                and isinstance(contact, dict) and all(isinstance(contact.get(key), str) for key in keys)]
-
-    def add(self, name, relationship, existing):
-        """Validate and store a new contact; existing is every contact already shown."""
-        name = " ".join(str(name or "").split())[:40]
-        relationship = " ".join(str(relationship or "").split())[:30] or "Friend"
-        if not name:
-            raise ValueError("Enter a name")
-        if name.lower() in {contact["name"].lower() for contact in existing}:
-            raise ValueError("A contact with this name already exists")
-        local = self.load()
-        if len(local) >= MAX_LOCAL_CONTACTS:
-            raise ValueError("The contact list is full")
-        initials = "".join(word[0] for word in name.split()[:2]).upper() if " " in name else name[:2].upper()
-        contact = dict(id=contact_id_for(name, {contact["id"] for contact in existing}), name=name,
-                       relationship=relationship, initials=initials)
-        self.path.write_text(json.dumps(local + [contact], indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
-        return contact
