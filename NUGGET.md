@@ -83,7 +83,7 @@ Use these evidence labels when discussing progress:
 | Reply generation | Ollama/Qwen produces preview suggestions from text. | Code and mocked tests checked. No Jetson inference measurements were captured here. |
 | Speech recognition | Browser microphone → application → Qwen ASR service is implemented. | Client/service tests use fake inference. Real CLI helper currently has a broken import. |
 | Speech output | ElevenLabs with cache and browser fallback are implemented. | Mocked checks pass. Audible output and real provider behavior were not tested here. Piper is installation-only. |
-| Contact personalization | Chat import, local profiles, example retrieval, and People UI are implemented. | Unit checks pass. This is retrieval and prompting, not model training. |
+| Contact personalization | Community page with per-member .txt notes, notes passed to the reply model, and a generation preview are implemented. Chat-export profiles remain CLI-only. | Unit checks pass with a fake model. This is prompting, not model training; effect on real Qwen output is unmeasured. |
 | Jetson | Owner reports the device works. | Exact software stack, service status, simultaneous model memory use, and full communication loop are not recorded. |
 | Glasses and physical HUD | ESP32 SH1106 firmware and a standalone serial bridge exist. | Glasses are unfinished; optical readability, fit, and final integrated display operation remain open. |
 | Packaging | A non-root Dockerfile and Jetson setup script exist. | Neither was executed during this audit. |
@@ -254,16 +254,17 @@ Claims are remembered before synthesis completes. This reduces duplicate claims 
 
 ### Personalization and data locations
 
-`/contacts` supports adding people, inspecting a UTF-8/WhatsApp ZIP export, choosing the user's speaker name, replacing/removing a profile, and previewing retrieved examples. It does not train the model. The source export is read in memory; the derived profile stores selected text exchanges on the backend machine.
+`/community` (formerly People, `/contacts` still works) supports adding members (name and relationship) and uploading one UTF-8 `.txt` notes file per member (at most 2,000 characters after whitespace cleanup). Pronouns, nicknames, age group and preferences live in the notes rather than separate fields. Saved notes are shown and can be replaced or removed. The selected member's notes are added to the reply-model context with instructions to use them for wording and tone, mention details only when relevant, and not treat them as the user's current wants or feelings; members without notes keep the default style examples. The preview asks the configured model for fresh suggestions to typed text without changing the ring, history or speech. Nothing is trained.
 
-Profiles retain at most 2000 short exchange pairs and 200 openers. Turns longer than 200 characters are excluded from the short-reply extraction. Four examples are retrieved using word overlap weighted by rarity, then filled with recent exchanges. Retrieval tokenization is English-oriented. Openers are stored but not currently included in the model example context. A per-contact profile falls back to `default`; having no profile does not disable Ollama generation.
+Chat-export profiles (`scripts.import_chat`, `scripts.try_suggest --contact`) are no longer used by the web app. Profiles retain at most 2000 short exchange pairs and 200 openers. Turns longer than 200 characters are excluded from the short-reply extraction. Four examples are retrieved using word overlap weighted by rarity, then filled with recent exchanges. Retrieval tokenization is English-oriented. Openers are stored but not currently included in the model example context. A per-contact profile falls back to `default`; having no profile does not disable Ollama generation.
 
 | Data | Location/lifetime | Important boundary |
 | --- | --- | --- |
 | Raw EOG and sidecars | `recordings/` on acquisition host | Ignored by Git; no automatic retention/deletion policy. |
 | Voice samples/transcripts | `voicebank/` | Ignored; explicit upload helper can send audio to ElevenLabs. |
-| Persona profiles | `config/persona.<id>.local.json` | Ignored; excerpts reach configured Ollama endpoint during generation. |
-| Added contacts | `config/contacts.local.json` | Ignored; survives backend restart. |
+| Member notes | `config/notes.<id>.local.json` | Ignored; full notes text reaches the configured Ollama endpoint for that member's suggestions and previews. |
+| Persona profiles (CLI only) | `config/persona.<id>.local.json` | Ignored; used by `scripts.try_suggest --contact`, not by the web app. |
+| Added members | `config/community.local.json` (earlier `contacts.local.json` is still read) | Ignored; survives backend restart. |
 | Calibration/voice profiles | `config/*.local.json` | Ignored; runtime configuration must be transferred privately if moving hosts. |
 | Generated TTS | `.cache/tts/` in the companion | Ignored, persistent audio cache, no eviction policy. |
 | Current ring/history/heard text | Backend memory | Lost on process restart; shared by connected clients. |
@@ -271,7 +272,7 @@ Profiles retain at most 2000 short exchange pairs and 200 openers. Turns longer 
 | Session token | Browser session storage and host environment | Not a per-person account or permission system. |
 | Training JSONL export | User-selected CLI path | Not automatically ignored unless placed under an ignored directory. No training pipeline exists. |
 
-“Local” means the configured machine(s), not necessarily the user's browser device. Remote `OLLAMA_URL` receives transcript, recent utterances and selected persona examples. `ASR_URL` receives audio. ElevenLabs receives confirmed text and voice configuration when enabled. Update privacy copy to reflect those destinations; the current unconditional “on this device” wording is too strong.
+“Local” means the configured machine(s), not necessarily the user's browser device. Remote `OLLAMA_URL` receives transcript, recent utterances and the selected member's notes. `ASR_URL` receives audio. ElevenLabs receives confirmed text and voice configuration when enabled. Update privacy copy to reflect those destinations; the current unconditional “on this device” wording is too strong.
 
 ## 7. API and state contracts
 
@@ -279,11 +280,11 @@ Profiles retain at most 2000 short exchange pairs and 200 openers. Turns longer 
 | --- | --- |
 | `GET /api/health` | Backend is answering; returns schema/session. Does not establish sensor/model readiness. |
 | `GET /api/state` | Shared ring plus input, recording, guided, hover, provider-configuration and recent-sample snapshot. |
-| `GET /api/people` | Contacts and profile summaries, default profile, session ID. |
+| `GET /api/community` | Members with their saved notes, whether suggestions are configured, session ID. |
 | `POST /api/action` | `action`, unique `event_id` (1–80 characters), optional `value`. |
 | `POST /api/suggest` | `session_id`, `heard_text` or base64 audio plus MIME type. Updates preview pool/transcript. |
 | `POST /api/transcribe` | `session_id`, `audio_b64`, optional `mime_type`. Returns transcript metadata without changing ring. |
-| `POST /api/persona` | `session_id`, action and relevant fields. Actions: `add_contact`, `inspect`, `save`, `remove`, `preview`. |
+| `POST /api/community` | `session_id`, action and relevant fields (body at most 64 KiB). Actions: `add_member`, `save_notes` (`member_id`, `file_b64`, `filename`), `remove_notes`, `preview` (`member_id`, `heard`; returns generated suggestions, ring untouched). |
 | `POST /api/speech` | `session_id`, confirmed `selection_id`. Returns MP3 or browser-speech text; duplicate claim returns 409. |
 
 Action names: `left`, `right`, `select`, `back`, `reset`, `focus`, `contact`, `repeat`, `demo`, `blink`, `label`, `wheel_test`, `guided_start`, `guided_stop`, `record_stop`, `suggestions_clear`.
@@ -480,11 +481,11 @@ All tracked source and documentation were read during the audit. This map identi
 | `backend/scenarios.py`, `eog_scenarios.py` | Two different synthetic signal/label generators. |
 | `backend/main.py`, `simulator.py` | Terminal keyboard/raw/replay tools and keyboard sample/event sources. |
 | `backend/suggestions.py`, `transcribe.py`, `asr_server.py` | Ollama client, remote ASR client, Qwen/ffmpeg service. |
-| `backend/persona.py`, `envfile.py`, `speech.py` | Local contact/profile storage and retrieval, env loading, ElevenLabs/cache. |
+| `backend/community.py`, `persona.py`, `envfile.py`, `speech.py` | Community members and notes storage, CLI chat-profile retrieval, env loading, ElevenLabs/cache. |
 | `backend/hud.py`, `frontend/hud.js` | Snapshot image/canvas renderers. Neither drives physical optics. |
 | `backend/hud_bridge.py`, `config/hud_phrases.json` | Independent serial ESP32 event/speech flow. |
 | `frontend/index.html`, `app.js`, `styles.css`, `type.css`, `favicon.svg` | Companion/phone/browser-HUD shell, polling, controls, mic/audio, styling. System fonts need no download. |
-| `frontend/contacts.html`, `contacts.js`, `contacts.css` | People and profile-import interface. |
+| `frontend/community.html`, `community.js`, `community.css` | Community members, notes upload and reply preview. |
 | `firmware/nano_r4_eog_250hz/`, `nano_r4_two_channel/`, `esp32_hud/` | Current ADC acquisition, slow bench acquisition, SH1106 command-driven display. |
 | `scripts/dev.py`, `setup_jetson.sh`, `doctor.py` | Local process launcher, target setup, dependency/port report. |
 | `scripts/fit_calibration.py`, `browser_check.py` | Initial labeled calibration fitter; browser acceptance and screenshot writer. |
@@ -521,7 +522,7 @@ Standard checks from the project root:
 python -m unittest discover -s tests -v
 node --check frontend/app.js
 node --check frontend/hud.js
-node --check frontend/contacts.js
+node --check frontend/community.js
 ```
 
 Browser acceptance requires Playwright plus an installed browser and an isolated app session:

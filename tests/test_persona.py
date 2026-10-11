@@ -1,4 +1,3 @@
-import base64
 import io
 import json
 import tempfile
@@ -6,9 +5,8 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from backend.app import Application
 from backend.persona import (
-    ContactBook, PersonaStore, chat_text, build_persona, parse_chat, persona_context, save_persona, similar_pairs, style_note, training_rows,
+    PersonaStore, chat_text, build_persona, parse_chat, persona_context, save_persona, similar_pairs, style_note, training_rows,
 )
 from backend.suggestions import OllamaSuggestions, context_text
 
@@ -137,34 +135,6 @@ class PromptTests(unittest.TestCase):
         self.assertIn("wouldnt miss it", calls[0][2]["messages"][1]["content"])
 
 
-class AppTests(unittest.TestCase):
-    def test_app_passes_the_current_contacts_persona_and_reports_it(self):
-        with tempfile.TemporaryDirectory() as folder:
-            app = Application()
-            app.personas = PersonaStore(folder)
-            contact = app.ring.contact
-            self.assertIsNone(app.state()["persona"])
-            save_persona(dict(persona(), contact_id=contact), folder)
-            self.assertEqual(app.state()["persona"], dict(profile=contact, exchanges=5))
-            seen = {}
-
-            class Suggester:
-                available = True
-
-                def suggest(self, **kwargs):
-                    seen.update(kwargs)
-                    raise ValueError("stop here")
-
-            app.suggester = Suggester()
-            with self.assertRaises(ValueError):
-                app.suggest(dict(session_id=app.session_id, heard_text="dinner tonight?"))
-            self.assertEqual(seen["persona"]["examples"][0]["me"], "yesss wouldnt miss it what time")
-
-
-def encoded(data):
-    return base64.b64encode(data).decode()
-
-
 def zipped(name="_chat.txt", text=PLAIN):
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
@@ -182,60 +152,6 @@ class UploadTests(unittest.TestCase):
         for data in (b"", b"PK not really a zip", zipped("notes.md"), b"\xff\xfe\x00binary", b"x" * 8_000_001):
             with self.assertRaises(ValueError):
                 chat_text(data)
-
-
-class ContactsPageTests(unittest.TestCase):
-    def setUp(self):
-        folder = tempfile.TemporaryDirectory()
-        self.addCleanup(folder.cleanup)
-        self.app = Application()
-        self.app.personas = PersonaStore(folder.name)
-        self.app.contact_book = ContactBook(folder.name)
-        self.first = self.app.ring.config["contacts"][0]["id"]
-
-    def send(self, action, **extra):
-        return self.app.persona_command(dict(session_id=self.app.session_id, action=action, **extra))
-
-    def test_inspect_then_save_then_preview_then_remove(self):
-        names = self.send("inspect", file_b64=encoded(zipped()))["names"]
-        self.assertEqual(names, [dict(name="Isa", messages=6), dict(name="Bella", messages=5)])
-        people = self.send("save", contact_id=self.first, me="Isa", file_b64=encoded(PLAIN.encode()),
-                           filename="../secret/chat.txt")
-        profile = people["contacts"][0]["profile"]
-        self.assertEqual((profile["exchanges"], profile["me"], profile["source"]), (5, "Isa", "chat.txt"))
-        preview = self.send("preview", contact_id=self.first, heard="dinner tonight?")
-        self.assertEqual(preview["context"]["examples"][0]["me"], "yesss wouldnt miss it what time")
-        self.assertIsNone(self.send("remove", contact_id=self.first)["contacts"][0]["profile"])
-        with self.assertRaises(ValueError):
-            self.send("remove", contact_id=self.first)
-
-    def test_default_profile_and_validation(self):
-        self.assertIsNone(self.app.people()["default"])
-        people = self.send("save", contact_id="default", me="Isa", file_b64=encoded(PLAIN.encode()))
-        self.assertEqual(people["default"]["exchanges"], 5)
-        for bad in (dict(action="save", contact_id="nobody", me="Isa", file_b64=encoded(PLAIN.encode())),
-                    dict(action="save", contact_id=self.first, me="Stranger", file_b64=encoded(PLAIN.encode())),
-                    dict(action="save", contact_id=self.first, me="Isa", file_b64="***"),
-                    dict(action="inspect", file_b64=encoded(b"no speakers here")),
-                    dict(action="preview", contact_id=self.first, heard=" "),
-                    dict(action="explode", contact_id=self.first)):
-            with self.assertRaises(ValueError):
-                self.app.persona_command(dict(session_id=self.app.session_id, **bad))
-        with self.assertRaises(ValueError):
-            self.app.persona_command(dict(session_id="other", action="remove", contact_id=self.first))
-
-    def test_added_contacts_are_selectable_and_survive_restart(self):
-        before = len(self.app.ring.config["contacts"])
-        people = self.send("add_contact", name="  Maya   Lopez ", relationship="Sister")
-        added = people["contacts"][-1]
-        self.assertEqual((added["id"], added["name"], added["initials"]), ("maya-lopez", "Maya Lopez", "ML"))
-        self.assertEqual(self.app.ring.action("contact", value="maya-lopez")["contact"], "maya-lopez")
-        self.assertEqual([c["id"] for c in ContactBook(self.app.contact_book.path.parent).load()], ["maya-lopez"])
-        with self.assertRaises(ValueError):
-            self.send("add_contact", name="maya lopez")
-        with self.assertRaises(ValueError):
-            self.send("add_contact", name="   ")
-        self.assertEqual(len(self.app.ring.config["contacts"]), before + 1)
 
 
 if __name__ == "__main__":

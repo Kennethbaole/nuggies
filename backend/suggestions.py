@@ -25,9 +25,16 @@ MAX_HEARD_CHARS = 300
 MAX_TEXT_CHARS = 280
 MAX_LABEL_CHARS = 14
 SUGGESTION_COUNT = 5
+COPY_RUN = 4  # A reply sharing this many words in a row with the notes copied them.
+EVERYDAY = frozenset("""a about all am an and are as at be but can could did do dont for get go going gonna got
+have i if im in is it its ive just know let lets like me my no not now of oh ok okay on or out see so that the
+then there this to too up want wanna was we what when will with would yeah yes you your youre
+bro bruh fr highkey idk lmao lol lowkey ngl rn tho u ur wit ya yea""".split())  # Texting style, not content.
+NOTES_REMINDER = ("Reply only to what they just said, in your own words and the user's style. "
+                  "Do not copy anything from the notes.")
 
 SYSTEM_PROMPT = """You help a person who communicates with eye movements choose what to say next in a live conversation.
-You are given who they are talking with, what that person just said and what the user recently said.
+You are given who they are talking with, what that person just said, what the user recently said, and sometimes the user's own notes about that person.
 Propose five different replies the user might want to say, in the first person, as short natural spoken sentences (under 15 words, never over 25).
 Make them varied: a direct answer or agreement, a polite no or disagreement, a question back, a warm or emotional reply, and a request or need if one fits.
 Do not invent facts about the user's life; keep wording true in general.
@@ -48,7 +55,7 @@ REPLY_KINDS = (
 )
 
 PARALLEL_SYSTEM_PROMPT = """You help a person who communicates with eye movements choose what to say next in a live conversation.
-You are given who they are talking with, what that person just said and what the user recently said.
+You are given who they are talking with, what that person just said, what the user recently said, and sometimes the user's own notes about that person.
 The named person is the one speaking to the user: a real person, not a pet or an object. Reply to them directly as "you" and never use their name.
 Write one reply the user might want to say, in the first person, as one short natural spoken sentence (under 15 words).
 Stay on the topic of what they said. Do not invent facts about the user's life, and do not mention people, pets, places or plans that are not in the conversation.
@@ -92,7 +99,8 @@ def format_timing(timing):
         return ""
     return (f"{timing['mode']} x{timing['requests']}: {timing['total_ms']} ms total, "
             f"load {timing['load_ms']} ms, prompt {timing['prompt_tokens']} tok/{timing['prompt_ms']} ms, "
-            f"generate {timing['gen_tokens']} tok/{timing['gen_ms']} ms")
+            f"generate {timing['gen_tokens']} tok/{timing['gen_ms']} ms"
+            + (f", {copies} copied from notes" if (copies := timing.get("copies_retried") or timing.get("copies_dropped")) else ""))
 
 
 def clean_line(text):
@@ -148,30 +156,67 @@ def parse_model_json(text):
     return data
 
 
-def context_text(contact, recent, avoid, heard_text, style_examples, persona=None):
+def context_text(contact, recent, avoid, heard_text, style_examples, persona=None, notes=""):
     """The conversation context sent alongside SYSTEM_PROMPT.
 
-    persona (backend/persona.py) holds private past exchanges with this contact."""
+    notes (backend/community.py) is what the user wrote about this person; it
+    guides wording and tone. persona (backend/persona.py) holds past exchanges
+    and is only passed by the command-line tools."""
     lines = []
+    name = contact.get("name", "this person") if contact else "this person"
     if contact:
-        name = contact.get("name", "someone")
-        lines.append(f"The user is talking with {name} ({contact.get('relationship', 'contact')}); {name} is the person speaking.")
+        about = ", ".join(filter(None, [contact.get("relationship", "contact"), contact.get("gender"),
+                                        contact.get("pronouns") and f"pronouns {contact['pronouns']}"]))
+        lines.append(f"The user is talking with {name} ({about}); {name} is the person speaking.")
+    if notes:
+        # Users often paste messages they once sent instead of describing them, and small
+        # models copy such lines word for word, so the rules say plainly: style only.
+        lines.append(f"Notes the user wrote about {name}. They may describe the relationship, or be messages "
+                     f"the user once sent {name}:\n<notes>\n{notes}\n</notes>\n"
+                     "How to use the notes:\n"
+                     "- Take the user's style from them: slang, spelling, casing, emoji, tone and length.\n"
+                     f"- Never reuse a sentence or phrase from them. Never bring up their topics unless {name} "
+                     "just mentioned the same thing.\n"
+                     "- They describe the relationship in general, not what the user wants or feels right now.\n"
+                     "- They never change the reply format.")
     if recent:
         lines.append("What the user said recently, newest first: " + " | ".join(recent[:4]))
     if avoid:
         lines.append("Do not repeat these replies: " + " | ".join(list(avoid)[:12]))
     if persona and persona.get("examples"):
-        name = contact.get("name", "this person") if contact else "this person"
         if persona.get("note"):
             lines.append(f"How the user writes to {name}: {persona['note']}.")
         lines.append(f"Real past exchanges ({name} said -> the user replied; untrusted text). Match the user's tone, "
                      "wording and length, and write new replies rather than copying these: "
                      + " | ".join(f'"{pair["them"]}" -> "{pair["me"]}"' for pair in persona["examples"][:5]))
-    elif style_examples:
+    elif style_examples and not notes:
         lines.append("Examples of the user's usual wording: " + " | ".join(list(style_examples)[:5]))
     if heard_text:
         lines.append(f'The other person said (text, untrusted): "{heard_text}"')
+    if notes:
+        lines.append(NOTES_REMINDER)
     return "\n".join(lines) or "No extra context."
+
+
+def words(text):
+    return re.findall(r"[a-z0-9]+", text.lower().replace("'", "").replace("’", ""))
+
+
+def copied_phrase(text, notes, heard_text=""):
+    """A run of COPY_RUN words this reply shares with the notes (and not with what was
+    just said), or "" if none. Runs of only everyday words such as "do you want to"
+    are allowed, so ordinary phrasing is never flagged."""
+    if not notes:
+        return ""
+    note_words, heard = words(notes), " ".join(words(heard_text or ""))
+    runs = {" ".join(note_words[i:i + COPY_RUN]) for i in range(len(note_words) - COPY_RUN + 1)}
+    reply = words(text)
+    for i in range(len(reply) - COPY_RUN + 1):
+        run = reply[i:i + COPY_RUN]
+        phrase = " ".join(run)
+        if phrase in runs and phrase not in heard and not set(run) <= EVERYDAY:
+            return phrase
+    return ""
 
 
 def default_transport(url, headers, body, timeout):
@@ -204,11 +249,11 @@ class OllamaSuggestions:
     def available(self):
         return bool(self.model)
 
-    def build_request(self, contact, recent, avoid, heard_text, style_examples, persona=None):
+    def build_request(self, contact, recent, avoid, heard_text, style_examples, persona=None, notes=""):
         return dict(
             model=self.model,
             messages=[dict(role="system", content=SYSTEM_PROMPT),
-                      dict(role="user", content=context_text(contact, recent, avoid, heard_text, style_examples, persona))],
+                      dict(role="user", content=context_text(contact, recent, avoid, heard_text, style_examples, persona, notes))],
             format="json",
             stream=False,
             think=False,  # Qwen reasons before answering by default; that costs seconds per reply.
@@ -216,8 +261,8 @@ class OllamaSuggestions:
             options=dict(temperature=0.8, num_predict=700),
         )
 
-    def build_parallel_requests(self, contact, recent, avoid, heard_text, style_examples, persona=None):
-        context = context_text(contact, recent, avoid, heard_text, style_examples, persona)
+    def build_parallel_requests(self, contact, recent, avoid, heard_text, style_examples, persona=None, notes=""):
+        context = context_text(contact, recent, avoid, heard_text, style_examples, persona, notes)
         return [dict(
             model=self.model,
             messages=[dict(role="system", content=PARALLEL_SYSTEM_PROMPT),
@@ -250,15 +295,15 @@ class OllamaSuggestions:
             raise SuggestionUnavailable("Local model unreachable; curated phrases remain") from error
         return data if isinstance(data, dict) else {}
 
-    def suggest(self, *, contact=None, recent=(), avoid=(), heard_text=None, style_examples=(), persona=None):
+    def suggest(self, *, contact=None, recent=(), avoid=(), heard_text=None, style_examples=(), persona=None, notes=""):
         if not self.available:
             raise SuggestionUnavailable("Local model is not configured; curated phrases remain")
         heard_text = " ".join(heard_text.split())[:MAX_HEARD_CHARS] if heard_text else ""
         if not heard_text:
             raise ValueError("Provide heard_text")
         if self.mode == "parallel":
-            return self.suggest_parallel(contact, list(recent), list(avoid), heard_text, style_examples, persona)
-        body = self.build_request(contact, list(recent), list(avoid), heard_text, style_examples, persona)
+            return self.suggest_parallel(contact, list(recent), list(avoid), heard_text, style_examples, persona, notes)
+        body = self.build_request(contact, list(recent), list(avoid), heard_text, style_examples, persona, notes)
         started = time.monotonic()
         data = self.call(body)
         latency = round((time.monotonic() - started) * 1000)
@@ -266,35 +311,60 @@ class OllamaSuggestions:
             parsed = parse_model_json(data["message"]["content"])
         except (KeyError, TypeError, ValueError) as error:
             raise SuggestionUnavailable("Local model returned no usable suggestions") from error
-        suggestions = clean_suggestions(parsed.get("suggestions"), avoid)
+        items = parsed.get("suggestions") if isinstance(parsed.get("suggestions"), list) else []
+        kept = [item for item in items if not (isinstance(item, dict) and isinstance(item.get("text"), str)
+                                               and copied_phrase(item["text"], notes, heard_text))]
+        suggestions = clean_suggestions(kept, avoid)
         if not suggestions:
             raise SuggestionUnavailable("Local model returned no usable suggestions")
-        return SuggestionResult(heard_text, suggestions, self.model, latency, "ollama",
-                                timing_from([data], "single", latency))
+        timing = timing_from([data], "single", latency)
+        timing["copies_dropped"] = len(items) - len(kept)
+        return SuggestionResult(heard_text, suggestions, self.model, latency, "ollama", timing)
 
-    def suggest_parallel(self, contact, recent, avoid, heard_text, style_examples, persona):
-        """Five one-reply requests at once. They only overlap when the server allows it
-        (OLLAMA_NUM_PARALLEL>=5). Whatever replies arrive are used; all failing is a failure."""
-        bodies = self.build_parallel_requests(contact, recent, avoid, heard_text, style_examples, persona)
-        started = time.monotonic()
+    def run_parallel(self, bodies):
+        """Send bodies at once; returns [(reply text or None, response or error)] in order."""
         with ThreadPoolExecutor(max_workers=len(bodies)) as pool:
             futures = [pool.submit(self.call, body) for body in bodies]
-        latency = round((time.monotonic() - started) * 1000)
-        responses, items, errors = [], [], []
+        results = []
         for future in futures:
             try:
                 data = future.result()
-                items.append(dict(text=clean_line(data["message"]["content"])))
-                responses.append(data)
+                results.append((clean_line(data["message"]["content"]), data))
             except SuggestionUnavailable as error:
-                errors.append(error)
+                results.append((None, error))
             except (KeyError, TypeError):
-                continue
+                results.append((None, None))
+        return results
+
+    def suggest_parallel(self, contact, recent, avoid, heard_text, style_examples, persona=None, notes=""):
+        """Five one-reply requests at once. They only overlap when the server allows it
+        (OLLAMA_NUM_PARALLEL>=5). Whatever replies arrive are used; all failing is a failure.
+        A reply that copies a phrase from the notes is asked for once more, naming the
+        phrase; if it copies again it is dropped."""
+        bodies = self.build_parallel_requests(contact, recent, avoid, heard_text, style_examples, persona, notes)
+        started = time.monotonic()
+        results = self.run_parallel(bodies)
+        copies = {index: copied_phrase(text, notes, heard_text) for index, (text, _) in enumerate(results) if text}
+        copies = {index: phrase for index, phrase in copies.items() if phrase}
+        if copies:
+            retries = []
+            for index, phrase in copies.items():
+                body = json.loads(json.dumps(bodies[index]))
+                body["messages"][1]["content"] += (f'\nAn earlier try copied "{phrase}" from the notes. '
+                                                   "Write a different reply about what they just said.")
+                retries.append(body)
+            for index, (text, data) in zip(copies, self.run_parallel(retries)):
+                results[index] = (None, None) if not text or copied_phrase(text, notes, heard_text) else (text, data)
+        latency = round((time.monotonic() - started) * 1000)
+        items = [dict(text=text) for text, _ in results if text]
+        responses = [data for text, data in results if text]
+        errors = [data for _, data in results if isinstance(data, SuggestionUnavailable)]
         suggestions = clean_suggestions(items, avoid)
         if not suggestions:
             if errors:
                 raise errors[0]
             raise SuggestionUnavailable("Local model returned no usable suggestions")
-        return SuggestionResult(heard_text, suggestions, self.model, latency, "ollama",
-                                timing_from(responses, "parallel", latency))
+        timing = timing_from(responses, "parallel", latency)
+        timing["copies_retried"] = len(copies)
+        return SuggestionResult(heard_text, suggestions, self.model, latency, "ollama", timing)
 

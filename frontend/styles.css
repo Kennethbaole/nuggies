@@ -46,9 +46,12 @@ body.signal-expanded-open{overflow:hidden}
 .avatar{height:44px;width:44px;flex:none;font-size:12px;font-weight:600;letter-spacing:.06em;color:#14211f;
   background:linear-gradient(135deg,var(--tone-a),var(--tone-b));box-shadow:0 0 0 3px #101c1c,0 0 0 4px var(--tone-a);
   transition:background .25s,box-shadow .25s}
-.avatar,.avatar[data-tone="0"]{--tone-a:#e4ad8f;--tone-b:#c98a6d}
-.avatar[data-tone="1"]{--tone-a:#b5d3c1;--tone-b:#86b29c}
-.avatar[data-tone="2"]{--tone-a:#c9b8e8;--tone-b:#9f8ccf}
+.avatar,[data-tone="0"]{--tone-a:#e4ad8f;--tone-b:#c98a6d}
+[data-tone="1"]{--tone-a:#b5d3c1;--tone-b:#86b29c}
+[data-tone="2"]{--tone-a:#c9b8e8;--tone-b:#9f8ccf}
+[data-tone="3"]{--tone-a:#a9cfe6;--tone-b:#73a6c6}
+[data-tone="4"]{--tone-a:#e8d391;--tone-b:#c9ae5f}
+[data-tone="5"]{--tone-a:#eeaabb;--tone-b:#cc8095}
 .contact-row select{appearance:none;-webkit-appearance:none;width:100%;max-width:none;cursor:pointer;
   font-family:Georgia,"Times New Roman",serif;font-size:19px;letter-spacing:-.2px;color:var(--text);
   padding:5px 30px 5px 10px;margin-left:-10px;border:1px solid transparent;border-radius:8px;

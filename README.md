@@ -38,8 +38,8 @@ confirmation. See [Interaction](docs/INTERACTION.md).
 
 The ElevenLabs adapter, cache and explicit voice-upload helper are implemented.
 Reply suggestions use local Qwen through Ollama; Gemini is no longer a provider.
-The Contacts page imports private chat examples to personalize replies without
-fine-tuning.
+The Community page takes a short notes file per person (pronouns, nicknames,
+tone) to personalize replies without fine-tuning.
 See [Speech](docs/SPEECH.md). Speech-to-text for heard replies runs Qwen3-ASR on the
 Jetson, reached from the laptop through ASR_URL; see [Jetson handoff](docs/JETSON_HANDOFF.md#4-speech-to-text-link-qwen-on-the-jetson-mic-on-the-laptop). Credentials use exported environment variables;
 the app supports .env loading and browser microphone recording.
