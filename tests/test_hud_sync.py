@@ -76,7 +76,7 @@ class FrameTests(unittest.TestCase):
         state.update(wheel_test=True, wheel_message="Look center")
         selected, _, center = fields(frame_for(state))
         self.assertEqual(selected, -1)
-        self.assertEqual(center[0], "Look center")
+        self.assertEqual(center[:2], ["Look", "center"])  # wraps inside the narrowed inner ellipse
 
     def test_highlight_dropped_when_selected_slot_is_hidden(self):
         state = RingState().snapshot()
