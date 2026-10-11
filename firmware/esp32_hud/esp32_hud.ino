@@ -71,7 +71,10 @@ char labels[N][MAX_LABEL + 1] = {"Food", "Warm", "Cool", "Move", "Back", "Light"
 
 // ---------- Ring geometry ----------
 const int CX = 64, CY = 32;
-const int ORX = 63, ORY = 31, IRX = 30, IRY = 14;
+// RING_PERCENT shrinks the outer ring from the full 128x64 panel (100 = edge to edge).
+// The inner ellipse stays fixed: hud_sync wraps the centre text to fit it.
+const int RING_PERCENT = 92;
+const int ORX = 63 * RING_PERCENT / 100, ORY = 31 * RING_PERCENT / 100, IRX = 30, IRY = 14;
 const int MRX = (ORX + IRX) / 2, MRY = (ORY + IRY) / 2;
 const float SEG = 2 * PI / N;
 const int BOOT_BTN = 0;
