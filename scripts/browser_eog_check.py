@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import threading
 import time
+from types import SimpleNamespace
 from http.server import ThreadingHTTPServer
 from unittest.mock import patch
 
@@ -124,6 +125,22 @@ def main():
                 mirrored = frame_for(app.state()).split('|')
                 assert mirrored[7] == 'Hello' and mirrored[3] == 'Goodbye'
             assert page.evaluate('window.__spoken.length') == 0
+            # Actual UI → /api/suggest → shared wheel, with a fake reply provider.
+            with patch.object(app.suggester, 'model', 'browser-test-model'), patch.object(
+                    app.suggester, 'suggest', return_value=SimpleNamespace(
+                        suggestions=[dict(id='test-tea', label='Tea please', text='Tea would be lovely.'),
+                                     dict(id='test-water', label='Water please', text='Water instead, please.')],
+                        heard='Would you like tea?', provider='ollama')):
+                page.wait_for_timeout(500)  # Let the 250 ms state poll expose the mocked provider.
+                expect(page.locator('#text-toggle')).to_be_enabled()
+                page.click('#text-toggle')
+                page.fill('#heard-input', 'Would you like tea?')
+                page.click('#text-send')
+                expect(page.locator('[data-slot="6"]')).to_have_text('Tea please')
+                expect(page.locator('#suggest-source')).to_have_text('On-device AI reply suggestions')
+                expect(page.locator('#heard')).to_contain_text('Would you like tea?')
+                assert page.evaluate('window.__spoken.length') == 0
+                assert app.eog_confirmation.target is None and app.ring.selection_id == 0
             with app.lock:app.eog_pipeline.paused=True
             expect(page.locator('body')).to_have_attribute('data-eog-cue','paused')
             expect(page.locator('#center-text')).to_have_text('Paused')
@@ -178,7 +195,7 @@ def main():
             browser.close()
         report=dict(ok=True,mode='HTTP/browser UI state simulation; not sensor accuracy',checks=[
             'light and dark themes','saved theme and cross-page sync','responsive wheel at 320–1440 px','wheel full screen','opt-in','center progress','ready','retry reason','prominent status','readiness-aware cues','recenter','stale signal',
-            'default choices reset without confirmation or detector reset','default choices mirrored to OLED frame',
+            'default choices reset without confirmation or detector reset','default choices mirrored to OLED frame','speech/text suggestions replace defaults without speaking',
             'homepage speed check','opt-in communication','four reachable positions','fixed detected-choice preview','explicit confirmation readiness','speech auto-enabled with communication','peripheral colour cues','reading pause shown','recording protocol startable from eye control','confirmed browser speech once','diagnostic speech disabled','gaze highlighting absent','HUD rendering','diagnostic mode cannot confirm','no JS errors'])
         (output/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report))
     finally:

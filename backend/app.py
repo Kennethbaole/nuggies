@@ -71,6 +71,7 @@ class Application:
             contact for contact in self.member_book.load()
             if contact["id"] not in {known["id"] for known in self.ring.config["contacts"]}])
         self.suggest_lock = threading.Lock()
+        self.suggestion_context_revision = 0  # Conversation changes, not cursor/default changes.
         self.last_suggest = 0.0
         self.log_timing = False  # main() turns this on: one line per suggestion request.
         self.samples = deque(maxlen=300)
@@ -162,6 +163,8 @@ class Application:
         with self.lock:
             if event_id in self.event_ids:
                 return self.state()
+            if action in ("contact", "reset", "suggestions_clear"):
+                self.suggestion_context_revision += 1
             if action == "demo":
                 if self.source != "demo":
                     raise ValueError("Synthetic scenario is available only in demo input mode")
@@ -339,6 +342,7 @@ class Application:
             raise ValueError("Unknown community action")
         with self.lock:
             self.ring.revision += 1  # Open companions refresh their notes indicator.
+            self.suggestion_context_revision += 1
         return self.community()
 
     def preview(self, member, heard):
@@ -382,26 +386,32 @@ class Application:
             if time.monotonic() - self.last_suggest < MIN_SUGGEST_INTERVAL:
                 raise SuggestionBusy("Please wait a moment before listening again")
             self.last_suggest = time.monotonic()
-            if audio is not None:
-                heard_text = self.hear(audio, payload.get("mime_type"))
-                if not self.suggester.available:
-                    with self.lock:
-                        self.ring.show_heard(heard_text)
-                        return self.state()
+            # Capture the conversation before ASR: navigation and explicit defaults
+            # must not discard a valid new reply, but another partner must.
             with self.lock:
-                contact = next((c for c in self.ring.config["contacts"] if c["id"] == self.ring.contact), None)
-                context_revision = self.ring.revision
+                context_revision = self.suggestion_context_revision
+                selection_id = self.ring.selection_id
+                contact = next((dict(c) for c in self.ring.config["contacts"] if c["id"] == self.ring.contact), None)
                 recent = [item["text"] for item in self.ring.history[:4]]
                 avoid = self.ring.shown + recent
                 examples = [p["text"] for p in self.ring.config["phrases"][:4]]
                 notes = self.notes.text(self.ring.contact)
+            if audio is not None:
+                heard_text = self.hear(audio, payload.get("mime_type"))
+                with self.lock:
+                    if self.suggestion_context_revision != context_revision or self.ring.selection_id != selection_id:
+                        raise SuggestionUnavailable("Conversation changed while speech was transcribed; request fresh suggestions")
+                    if not self.suggester.available:
+                        self.ring.show_heard(heard_text)
+                        return self.state()
             result = self.suggester.suggest(contact=contact, recent=recent, avoid=avoid,
                                             heard_text=heard_text, style_examples=examples, notes=notes)
             if self.log_timing:
                 print(f"Suggestions ({result.model}) {format_timing(result.timing)}", flush=True)
             with self.lock:
-                if self.ring.revision != context_revision:
+                if self.suggestion_context_revision != context_revision or self.ring.selection_id != selection_id:
                     raise SuggestionUnavailable("Conversation changed while replies were generated; request fresh suggestions")
+                self.eog_confirmation.clear()
                 self.ring.set_suggestions(result.suggestions, result.heard, result.provider)
                 return self.state()
         finally:

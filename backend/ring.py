@@ -36,8 +36,8 @@ class RingState:
         self.heard = heard
         self.shown = (self.shown + [item["text"] for item in items])[-30:]
         self.pages["home"] = 0
-        if self.screen == "home":
-            self.selected = 0
+        self.screen = "home"
+        self.selected = 6 if self.cardinal_layout else 0
         self.revision += 1
 
     def show_heard(self, heard):

@@ -365,3 +365,21 @@ horizontal fraction <= .15) while Ready or in recovery. Pausing is unchanged and
 still needs the strict pulse match. A false resume only re-enables tracking; it
 cannot select. Replaying that recording from the pause, the new rule resumes at the
 second attempt (sample 98269; logged attempt at 98272). Not yet tried live.
+
+## Speech suggestions take precedence (2026-10-11)
+
+Defaults are a fallback, not a locked mode. New Listen/Text replies replace them
+and open Home on the first reply page. Navigation while generation runs no longer
+discards replies. If Default choices is pressed during generation, it restores
+presets immediately; the pending successful speech/text result then replaces them.
+Switching contacts, resetting the session view, clearing suggestions, changing
+member notes/profile or confirming words while the request runs invalidates the
+old request. Conversation context is captured before transcription, so speech
+cannot silently move to a newly selected partner. No model configuration or
+generation failure is hidden: without a reply model, ASR displays only a transcript
+and retains existing choices. Success clears the pending EOG confirmation and
+never selects or speaks by itself. Detector thresholds and filtering are unchanged.
+
+Regression coverage includes audio→defaults replacement, gaze during generation,
+default reset during generation, contact change during ASR, secondary-screen return
+to Home and no automatic selection. Model/ASR responses are mocked in these tests.

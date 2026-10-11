@@ -1,7 +1,9 @@
 import base64
 import json
+import os
 import threading
 import unittest
+from unittest.mock import patch
 from http.server import ThreadingHTTPServer
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -39,7 +41,8 @@ def provider(response=None, error=None, model="qwen3:1.7b", mode="single"):
             raise error
         return response
 
-    suggester = OllamaSuggestions(transport=transport, mode=mode)
+    with patch("backend.suggestions.load_env"), patch.dict(os.environ, {"OLLAMA_URL": "http://127.0.0.1:11434"}):
+        suggester = OllamaSuggestions(transport=transport, mode=mode)
     suggester.model = model
     return suggester, calls
 
@@ -224,16 +227,56 @@ class AppIntegrationTests(unittest.TestCase):
         self.assertEqual((state["selection_id"], state["confirmed"], state["history"]),
                          (previous["selection_id"], previous["confirmed"], previous["history"]))
 
-    def test_default_choices_invalidate_an_inflight_generation(self):
+    def test_speech_suggestions_take_precedence_over_defaults_during_generation(self):
         app = self.make_app()
         def restore_during_generation(*args):
             app.command(dict(action="default_choices", event_id="restore-inflight"))
             return reply(GOOD)
         app.suggester.transport = restore_during_generation
+        state = app.suggest(dict(session_id=app.session_id, heard_text="Tea?"))
+        self.assertEqual(state["slots"][0]["text"], "Yes, tea would be lovely.")
+        self.assertEqual(state["suggestions_provider"], "ollama")
+        self.assertEqual(state["selection_id"], 0)
+
+    def test_audio_replies_replace_defaults_and_navigation_does_not_discard_them(self):
+        app = self.make_app()
+        app.ring.cardinal_layout = True
+        app.command(dict(action="default_choices", event_id="defaults-before-listening"))
+        app.transcriber.url = "http://jetson:8000"
+        app.transcriber.transport = lambda *args: dict(text="Do you want some tea?")
+        def navigate_during_generation(*args):
+            app.ring.action("focus", value=2)
+            app.eog_confirmation.focus(app.ring, 1000)
+            return reply(GOOD)
+        app.suggester.transport = navigate_during_generation
+        state = app.suggest(dict(session_id=app.session_id, mime_type="audio/webm",
+                                 audio_b64=base64.b64encode(b"test audio").decode()))
+        self.assertEqual(state["suggestions_provider"], "ollama")
+        self.assertEqual((state["screen"], state["selected"]), ("home", 6))
+        self.assertEqual(state["slots"][6]["text"], "Yes, tea would be lovely.")
+        self.assertEqual(state["heard"], "Do you want some tea?")
+        self.assertIsNone(app.eog_confirmation.target)
+        self.assertEqual((state["selection_id"], state["confirmed"]), (0, ""))
+
+    def test_contact_change_during_asr_does_not_attribute_audio_to_new_partner(self):
+        app = self.make_app()
+        app.transcriber.url = "http://jetson:8000"
+        def switch_partner(*args):
+            app.command(dict(action="contact", value=app.ring.config["contacts"][1]["id"], event_id="switch-during-asr"))
+            return dict(text="Tea?")
+        app.transcriber.transport = switch_partner
         with self.assertRaisesRegex(SuggestionUnavailable, "Conversation changed"):
-            app.suggest(dict(session_id=app.session_id, heard_text="Tea?"))
-        self.assertEqual(app.ring.slots()[0]["label"], "Hello")
-        self.assertEqual(app.ring.suggestions_provider, "preset")
+            app.suggest(dict(session_id=app.session_id, mime_type="audio/webm",
+                             audio_b64=base64.b64encode(b"test audio").decode()))
+        self.assertEqual(self.calls, [])
+        self.assertEqual(app.state()["heard"], "")
+
+    def test_new_replies_return_from_secondary_screen_to_home(self):
+        app = self.make_app()
+        app.ring.screen = "needs"
+        state = app.suggest(dict(session_id=app.session_id, heard_text="Tea?"))
+        self.assertEqual(state["screen"], "home")
+        self.assertEqual(state["slots"][0]["text"], "Yes, tea would be lovely.")
 
     def test_clear_contact_change_and_session_check(self):
         app = self.make_app()

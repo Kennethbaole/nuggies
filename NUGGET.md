@@ -1,5 +1,10 @@
 # NUGGET — project truth and agent handoff
 
+2026-10-11 suggestions: speech/text replies supersede defaults even if the wheel
+moves during generation. New replies open Home and cancel pending confirmation;
+contact/context changes still reject stale requests. See
+[communication flow](docs/EOG_COMMUNICATION.md).
+
 2026-10-11 frontend branch: `feat/wheel-ui-and-left-detection` adds a wheel-first
 white/cyan interface and browser-persisted dark mode shared with Community.
 Detection rules are unchanged by this UI commit. See [interface](docs/UI_LAYOUT.md).
