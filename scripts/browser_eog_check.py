@@ -76,18 +76,23 @@ def main():
             expect(page.locator('#eog-communication-status')).to_contain_text('Look center / Retry')
             expect(page.locator('#center-text')).to_have_text('Choose a reply',timeout=10000)
             expect(page.locator('body')).to_have_attribute('data-eog-cue','ready')
+            with app.lock:app.eog_pipeline.paused=True
+            expect(page.locator('body')).to_have_attribute('data-eog-cue','paused')
+            expect(page.locator('#center-text')).to_have_text('Paused')
+            with app.lock:app.eog_pipeline.paused=False
+            expect(page.locator('body')).to_have_attribute('data-eog-cue','ready')
             assert all(not app.ring.slots()[i]['enabled'] for i in (1,3,5,7))
             # Starting communication is the audio gesture; speech must already be on.
             expect(page.locator('#audio-toggle')).to_have_attribute('aria-pressed','true')
             with app.lock:
                 d=app.wheel_detector
-                app.ring.action('focus','eog-communication',0)
+                app.ring.action('focus','eog-communication',6)
                 app.eog_confirmation.focus(app.ring,d.raw_index)
                 app.eog_confirmation.update(app.ring,d)
             expect(page.locator('#preview-label')).to_have_text('DETECTED CHOICE · NOT YET SELECTED')
             expect(page.locator('#center-footer')).to_have_text('Ready to confirm · double blink')
             expect(page.locator('body')).to_have_attribute('data-eog-cue','confirm')
-            assert page.locator('#preview-text').inner_text()==app.ring.slots()[0]['text']
+            assert page.locator('#preview-text').inner_text()==app.ring.slots()[6]['text']
             assert page.locator('.preview').bounding_box()['y'] < page.locator('#wheel').bounding_box()['y']
             page.screenshot(path=str(output/'detected-choice.png'),full_page=True)
             with app.lock:
@@ -101,6 +106,16 @@ def main():
             assert app.ring.selection_id==1
             assert page.locator('.slot.selected').count()==0
             page.screenshot(path=str(output/'communication.png'),full_page=True)
+            # A recording protocol must be startable while eye control is on: it stops control first.
+            page.evaluate("document.querySelector('.signal-details').open=true")
+            page.select_option('#guided-protocol','vertical')
+            expect(page.locator('#guided-start')).to_be_enabled()
+            page.click('#guided-start')
+            expect(page.locator('#center-label')).to_have_text('GUIDED RECORDING',timeout=5000)
+            assert app.guided.mode=='vertical' and app.guided.status=='running' and not app.wheel_test
+            page.click('#guided-stop')
+            page.click('#wheel-test-toggle')
+            expect(page.locator('#wheel-test-toggle')).to_have_attribute('aria-pressed','true')
             stop.set();feeder.join(timeout=2)
             expect(page.locator('#wheel-test-status')).to_contain_text('Signal interrupted',timeout=5000)
             expect(page.locator('#eog-recenter')).to_be_disabled()
@@ -113,7 +128,7 @@ def main():
             browser.close()
         report=dict(ok=True,mode='HTTP/browser UI state simulation; not sensor accuracy',checks=[
             'opt-in','center progress','ready','retry reason','prominent status','readiness-aware cues','recenter','stale signal',
-            'homepage speed check','opt-in communication','four reachable positions','fixed detected-choice preview','explicit confirmation readiness','speech auto-enabled with communication','peripheral colour cues','confirmed browser speech once','diagnostic speech disabled','gaze highlighting absent','HUD rendering','diagnostic mode cannot confirm','no JS errors'])
+            'homepage speed check','opt-in communication','four reachable positions','fixed detected-choice preview','explicit confirmation readiness','speech auto-enabled with communication','peripheral colour cues','reading pause shown','recording protocol startable from eye control','confirmed browser speech once','diagnostic speech disabled','gaze highlighting absent','HUD rendering','diagnostic mode cannot confirm','no JS errors'])
         (output/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report))
     finally:
         stop.set();feeder.join(timeout=2);server.shutdown();server.server_close();worker.join(timeout=2)

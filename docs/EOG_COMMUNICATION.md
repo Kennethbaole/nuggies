@@ -25,10 +25,14 @@ The communication wheel exposes only four positions:
 
 | Gaze | Item |
 | --- | --- |
-| Up | First reply on this page |
+| Left | First reply on this page |
 | Right | Second reply on this page |
-| Left | More replies, disabled on the final page |
+| Up | More replies, disabled on the final page |
 | Down | Back, using the existing application's navigation behavior |
+
+Changed 2026-10-10 evening (was up/right replies, left More). In live use left/right
+were accepted reliably while up/down were often rejected or confused with blinks,
+which share the vertical channel. Replies now need only the horizontal axis.
 
 Two replies per page make all phrase options reachable without diagonal
 classification. Diagonal slots and spelling are unavailable in this temporary
@@ -317,3 +321,28 @@ Sessions 4/5 are the profile's own training data, and evening intent is unlabell
 this is a demonstration trade (fewer rejections, more false directions), not an
 accuracy result. A false direction only changes the pending choice; speaking still
 requires the armed double blink.
+
+Follow-up the same evening: with the demo tolerance live, left/right worked but
+up/down were still mostly rejected, as `blink_overlap` with blink margins 1.33–1.44
+against 1.5 (direction margins 3–5). The demo preset now uses a per-direction blink
+margin of 1.3 for Up and 1.2 for Down. Replay of four evening live recordings
+(unlabelled): down 4 -> 6, up 5 -> 8; Up at 1.2 jumped to 18, consistent with blinks
+read as Up, so it was not used. Cued sessions 4/5/6 were unchanged except one more
+accepted direction outside cues in session 6. The gain is small: remaining vertical
+rejections are distant matches against the morning templates, which points to
+re-recording the vertical examples rather than further loosening.
+
+### Reading pause (2026-10-10)
+
+In communication mode, a valid pulse-stream double blink while Ready with **no pending
+choice** toggles a reading pause instead of doing nothing. While paused, accepted gaze
+directions are reported as candidates with `paused: true` and never focus or arm a
+choice, so the wearer can look at the options. A second centred double blink resumes.
+A double blink with a pending armed choice still selects. A two-second guard after any
+selection or toggle prevents a repeated blink from flipping the state. Stopping
+communication or recentering clears the pause. The contract adds event type `pause`
+(`paused` boolean) and `state.paused`; the app exposes `eog_paused`. Pulse-pair detection
+is unavailable during centering/retry, so the wearer must be Ready (centred, settled)
+to pause or resume. A natural double blink can toggle the pause; the grey frame shows it.
+Software-tested only; no live wearer result yet.
+

@@ -180,3 +180,14 @@ body[data-eog-cue=confirm]::after,body[data-eog-cue=confirm] .wheel-center{anima
 .eog-cue-legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin:0;padding:0;list-style:none;font-size:13px;color:var(--muted)}
 .eog-cue-legend li::before{content:"";display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:-1px;background:var(--dot)}
 .eog-cue-legend [data-cue=wait]{--dot:#e0a030}.eog-cue-legend [data-cue=ready]{--dot:#35d07f}.eog-cue-legend [data-cue=detected]{--dot:#4aa3ff}.eog-cue-legend [data-cue=confirm]{--dot:#d86bff}.eog-cue-legend [data-cue=retry]{--dot:#ff4d4f}.eog-cue-legend [data-cue=selected]{--dot:#fff}
+.guided-why{margin:10px 0 0;font-size:14px;color:var(--accent)}
+/* Choice position: unit direction from app.js times a radius. Eye control pulls choices in and enlarges them. */
+.slot{left:calc(50% + var(--sx,0)*var(--slot-radius,38%));top:calc(50% + var(--sy,0)*var(--slot-radius,38%))}
+.homepage.communication-active .wheel{--slot-radius:30%}
+.homepage.communication-active .wheel-center{width:32%;height:32%;padding:10px}
+.homepage.communication-active .wheel-center p{font-size:clamp(18px,1.7vw,26px);margin:8px 0}
+.homepage.communication-active .slot{font-size:24px;font-weight:600;min-width:120px;max-width:170px;min-height:68px;padding:14px 16px}
+.homepage.communication-active .slot.utility{font-size:21px;min-width:110px}
+@media(max-width:760px){.homepage.communication-active .slot{font-size:17px;min-width:84px;max-width:110px;min-height:52px;padding:10px}.homepage.communication-active .slot.utility{font-size:15px;min-width:76px}}
+.homepage.communication-active .wheel-center .eyebrow{display:none}
+body[data-eog-cue=paused]{--cue:#9aa3a0}.eog-cue-legend [data-cue=paused]{--dot:#9aa3a0}

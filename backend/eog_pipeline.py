@@ -6,7 +6,7 @@ from .eog_communication import EOGConfirmation
 
 SCHEMA_VERSION = 1
 SLOTS = {'up': 0, 'right': 2, 'down': 4, 'left': 6}
-EVENT_TYPES = {'gaze_candidate','gaze_accepted','return','blink','double_blink','selection','fault','reset'}
+EVENT_TYPES = {'gaze_candidate','gaze_accepted','return','blink','double_blink','selection','fault','reset','pause'}
 
 
 def validate_event(event):
@@ -31,6 +31,8 @@ class EOGPipeline:
         self.choices={};self.selected=None;self.sequence=0;self.pending_events=[]
         self.communication=False
         self.input_index=-1
+        # Reading pause: a centred double blink with no pending choice suspends gaze choices.
+        self.paused=False;self.pause_guard_sample=-10**9
 
     def set_choices(self, choices, selected):
         self.choices={int(slot):dict(choice) for slot,choice in choices.items()}
@@ -58,6 +60,7 @@ class EOGPipeline:
 
     def reset(self, cause='manual'):
         self.detector.reset(cause=cause);self.confirmation.clear()
+        self.paused=False
         self._emit('reset',cause=cause)
 
     def fault(self, reason):
@@ -68,6 +71,7 @@ class EOGPipeline:
         offset=self.input_index-self.detector.raw_index
         return dict(schema_version=SCHEMA_VERSION,sample_index=self.input_index,
                     phase=self.detector.phase,reason=self.detector.reason,
+                    paused=self.paused,
                     pending=self.confirmation.target is not None,
                     armed=self.confirmation.ready_sample is not None,
                     armed_sample=self.confirmation.ready_sample+offset if self.confirmation.ready_sample is not None else None,
@@ -79,6 +83,7 @@ class EOGPipeline:
 
     def process(self,h,v,timestamp_ms=None,*,sample_index=None,communication=None):
         if communication is not None:self.communication=bool(communication)
+        if not self.communication:self.paused=False
         self.input_index=self.input_index+1 if sample_index is None else sample_index
         prior=self.detector.last_result;prior_pair=self.detector.last_blink_result
         faults=self.detector.totals['faults']
@@ -87,6 +92,8 @@ class EOGPipeline:
         event=self.detector.last_result if self.detector.last_result is not prior or slot is not None else None
         if event:
             label=event['label']
+            if self.paused and slot is not None:
+                slot=None;event=dict(event,paused=True)  # Looking around while paused chooses nothing.
             kind='gaze_accepted' if slot is not None else label if label in ('return','blink','double_blink') else 'gaze_candidate'
             self._emit(kind,decision=dict(event),slot=slot)
         if slot is not None:
@@ -99,13 +106,28 @@ class EOGPipeline:
         fresh_pair=pair is not None and pair is not prior_pair
         if fresh_pair:self._emit('double_blink',decision=dict(pair),slot=None)
         choice=self.choices.get(self.selected,{})
-        if self.communication:
+        toggled=False
+        if (self.communication and fresh_pair and self.confirmation.target is None
+                and self.detector.raw_index-self.pause_guard_sample>=500
+                and self.detector.phase in (('ready','recovery') if self.paused else ('ready',))
+                and self.confirmation.pulse_match(pair)):
+            self.paused=not self.paused;toggled=True
+            self.pause_guard_sample=self.detector.raw_index
+            pair['confirmation_result']='paused' if self.paused else 'resumed'
+            self.confirmation.clear()
+            self.confirmation.message=('Paused. Look around freely; double blink at center to resume.' if self.paused
+                                       else 'Resumed. Look at a choice, then return to center.')
+            self._emit('pause',paused=self.paused,onset_sample=pair['onset_sample'])
+        if self.communication and self.paused:
+            self.confirmation.target=None;self.confirmation.ready_sample=None
+        elif self.communication and not toggled:
             for candidate in ([event,pair] if fresh_pair else [event]):
                 if self.confirmation.update_choice(choice.get('id'),choice.get('label','choice'),self.detector,candidate):
                     candidate['communication_selected']=True
                     self._emit('selection',slot=self.selected,choice_id=choice['id'],
                                onset_sample=candidate['onset_sample'],confirmation='double_blink')
-        else:self.confirmation.clear()
+                    self.pause_guard_sample=self.detector.raw_index  # A repeat blink must not pause right after selecting.
+        elif not self.communication:self.confirmation.clear()
         result=dict(state=self.state(),events=self.pending_events)
         self.pending_events=[]
         return result

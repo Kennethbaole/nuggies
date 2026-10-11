@@ -17,8 +17,9 @@ const slotButtons = [];
 for (let i = 0; i < 8; i++) {
   const button = document.createElement('button'); button.className = 'slot'; button.dataset.slot = String(i);
   const angle = i * Math.PI / 4;
-  button.style.left = `${50 + Math.sin(angle) * 38}%`;
-  button.style.top = `${50 - Math.cos(angle) * 38}%`;
+  // Unit direction; CSS sets the radius so eye-control mode can pull choices toward the centre.
+  button.style.setProperty('--sx', Math.sin(angle).toFixed(4));
+  button.style.setProperty('--sy', (-Math.cos(angle)).toFixed(4));
   button.addEventListener('click', () => command('focus', i));
   $('slots').append(button); slotButtons.push(button);
 }
@@ -174,7 +175,8 @@ function render(next) {
     const choice = state.slots[state.selected];
     const pending = Boolean(state.eog_choice_pending);
     $('center-text').textContent = pending ? choice.label : gaze?.phase === 'ready' ? 'Choose a reply' : gaze?.needs_retry ? 'Look center / Retry' : 'Look straight ahead';
-    $('center-footer').textContent = state.eog_confirmation_ready ? 'Ready to confirm · double blink' : pending ? 'Detected · return to center' : gaze?.phase === 'ready' ? 'Look up or right for a reply' : `${Math.round((gaze?.progress || 0) * 100)}% clean rest`;
+    $('center-footer').textContent = state.eog_confirmation_ready ? 'Ready to confirm · double blink' : pending ? 'Detected · return to center' : gaze?.phase === 'ready' ? 'Look left or right for a reply' : `${Math.round((gaze?.progress || 0) * 100)}% clean rest`;
+    if (state.eog_paused) { $('center-text').textContent = 'Paused'; $('center-footer').textContent = 'Look around · double blink at center to resume'; }
     $('preview-label').textContent = pending ? 'DETECTED CHOICE · NOT YET SELECTED' : 'NO PENDING CHOICE';
     $('preview-text').textContent = pending ? choice.text || choice.label : 'Look at an option. Your detected choice will appear here before you confirm.';
     document.querySelector('.preview').classList.toggle('confirmation-ready', Boolean(state.eog_confirmation_ready));
@@ -185,6 +187,7 @@ function render(next) {
   // One peripheral-vision colour per interaction state; text alone is unreadable while gazing elsewhere.
   const eogCue = !state.wheel_test || !guidedEOG || !state.connected ? ''
     : Date.now() < selectedFlashUntil ? 'selected'
+    : state.eog_paused ? 'paused'
     : gaze?.phase === 'retry' ? 'retry'
     : gaze?.phase !== 'ready' && gaze?.phase !== 'recovery' ? 'wait'
     : state.eog_confirmation_ready ? 'confirm'
@@ -220,7 +223,17 @@ function render(next) {
   $('guided-start').disabled = guidedRunning || !state.recording || !state.connected || (diagnosticCheck
     ? !guidedEOG || !state.wheel_test || gaze?.phase !== 'ready' : state.sensor_actions);
   $('guided-stop').disabled = !guidedRunning;
+  $('guided-why').textContent = guidedRunning ? '' : !state.connected ? 'Start is off: the Nano is not connected.'
+    : !state.recording ? 'Start is off: recording has stopped. Restart the server to record again.'
+    : diagnosticCheck && (!state.wheel_test || gaze?.phase !== 'ready') ? 'This check needs eye control on and showing Ready. For up/down or left/right recordings, pick one of the recording tests instead.'
+    : !diagnosticCheck && state.wheel_test ? 'Starting this recording will switch eye control off first.' : '';
   $('guided-cue').textContent = guided.cue || 'Live recording required to start a guided test.';
+  if (guidedRunning && !state.wheel_test) {  // Acquisition cues must be readable from the wheel, not a side panel.
+    $('center-label').textContent = 'GUIDED RECORDING';
+    $('center-text').textContent = guided.cue;
+    $('center-footer').textContent = `${guided.remaining_s}s · step ${guided.step}/${guided.total_steps}`;
+    fitCenterText();
+  }
   $('guided-progress').textContent = guidedRunning ? `${guided.remaining_s}s · Step ${guided.step}/${guided.total_steps} · ${guided.trial_id}` : guided.status;
 
   $('signal-info').textContent = `${state.samples.length} recent samples · raw ADC counts${state.calibrated ? ' · calibration loaded' : ''}`;
@@ -416,7 +429,12 @@ signalWorkspace.addEventListener('toggle', () => {
   if (!signalWorkspace.open) setSignalExpanded(false);
 });
 
-$('guided-start').onclick = () => command('guided_start', $('guided-protocol').value);
+$('guided-start').onclick = () => {
+  const protocol = $('guided-protocol').value;
+  // Recording protocols are refused while eye control runs; stop it rather than leave a dead button.
+  if (!['diagnostic', 'speed'].includes(protocol) && state?.wheel_test) command('wheel_test', false);
+  command('guided_start', protocol);
+};
 $('guided-stop').onclick = () => command('guided_stop');
 
 $('record-stop').onclick = () => command('record_stop');

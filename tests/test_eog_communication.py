@@ -14,7 +14,7 @@ from test_guided_eog import fixture_profile
 
 class ConfirmationTests(unittest.TestCase):
     def setUp(self):
-        self.ring=RingState();self.ring.cardinal_layout=True
+        self.ring=RingState();self.ring.cardinal_layout=True;self.ring.selected=6  # left = first reply
         self.gate=EOGConfirmation()
         self.detector=SimpleNamespace(phase='recovery',raw_index=1000)
         self.gate.focus(self.ring,1000)
@@ -121,9 +121,10 @@ class ConfirmationTests(unittest.TestCase):
         while True:
             slots=self.ring.slots()
             self.assertFalse(any(slots[i]['enabled'] for i in (1,3,5,7)))
-            labels.extend(s['text'] for s in slots if s['action']=='phrase')
-            if not slots[6]['enabled']:break
-            self.ring.action('focus',value=6);self.ring.action('select')
+            labels.extend(slots[i]['text'] for i in (6,2) if slots[i]['action']=='phrase')
+            self.assertEqual([slots[i]['action'] for i in (6,2,0,4)][2:],['more','back'])
+            if not slots[0]['enabled']:break
+            self.ring.action('focus',value=0);self.ring.action('select')
         self.assertEqual(labels,[p['text'] for p in self.ring.config['phrases']])
 
     def test_application_ingest_dispatches_real_detector_event_only_in_opt_in_mode(self):
@@ -135,8 +136,8 @@ class ConfirmationTests(unittest.TestCase):
             d=app.wheel_detector
             def focus(*args):
                 d.phase='recovery';d.raw_index=1000
-                d.last_result=dict(label='up',reason='accepted')
-                return 0
+                d.last_result=dict(label='left',reason='accepted')
+                return 6
             with patch.object(d,'process',side_effect=focus):app.ingest(ADCSample(8192,8192,1004,'test'))
             def rest(*args):d.phase='ready';d.raw_index=1500
             with patch.object(d,'process',side_effect=rest):app.ingest(ADCSample(8192,8192,1008,'test'))

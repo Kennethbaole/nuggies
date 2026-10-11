@@ -24,18 +24,22 @@ class GuidedConfig:
     # Acceptance cutoffs; the defaults are the reviewed-replay settings.
     direction_distance: float = .08
     blink_margin: float = 1.5
+    # Optional per-direction overrides: vertical glances share the blink channel.
+    blink_margin_up: float = 0
+    blink_margin_down: float = 0
 
     @classmethod
     def demo(cls, **overrides):
         """Looser demonstration tolerance: more accepted glances, more false directions.
 
         A wrong direction only changes the pending choice; selection still needs a double blink.
-        The blink-overlap margin stays strict: loosening it read blinks as Up in replay.
+        Up/down get a slightly lower blink-overlap margin (they share the blink channel);
+        1.2 for Up read blinks as Up in replay, so Up stays at 1.3.
         """
-        return cls(**{**dict(direction_distance=.15,retry_s=1.5),**overrides})
+        return cls(**{**dict(direction_distance=.15,retry_s=1.5,blink_margin_up=1.3,blink_margin_down=1.2),**overrides})
 
     def __post_init__(self):
-        if any(not math.isfinite(x) or x <= 0 for x in (self.center_s,self.retry_s,self.direction_margin,self.recovery_s,self.direction_distance,self.blink_margin)) or not math.isfinite(self.haar_weight) or self.haar_weight<0:
+        if any(not math.isfinite(x) or x <= 0 for x in (self.center_s,self.retry_s,self.direction_margin,self.recovery_s,self.direction_distance,self.blink_margin)) or any(not math.isfinite(x) or x<0 for x in (self.blink_margin_up,self.blink_margin_down)) or not math.isfinite(self.haar_weight) or self.haar_weight<0:
             raise ValueError('Invalid guided EOG settings')
         if type(self.excursion_guard) is not bool or type(self.pulse_confirmation) is not bool or type(self.reject_blinks) is not bool or not math.isfinite(self.blink_horizontal_min) or not 0<=self.blink_horizontal_min<=1:
             raise ValueError('Invalid blink rejection settings')
@@ -225,7 +229,7 @@ class GuidedEOGTest:
             self._event('return','recovering',segment,result)
             return None
         reason=('distant_match' if result['distance']>self.config.direction_distance else
-                'blink_overlap' if result['blink_margin']<self.config.blink_margin else
+                'blink_overlap' if result['blink_margin']<(getattr(self.config,'blink_margin_'+label,0) or self.config.blink_margin) else
                 'direction_overlap' if result['direction_margin']<self.config.direction_margin else None)
         if reason:
             self._retry(reason,segment,result)
