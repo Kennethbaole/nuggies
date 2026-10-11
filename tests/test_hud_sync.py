@@ -39,14 +39,14 @@ class FrameTests(unittest.TestCase):
         state = RingState().snapshot()
         selected, labels, center = fields(frame_for(state))
         self.assertEqual(selected, 0)
-        self.assertEqual(labels, [slot["label"] for slot in state["slots"]])
+        self.assertEqual(labels, [slot["label"] if slot["enabled"] else "" for slot in state["slots"]])
+        self.assertEqual(labels[7], "")  # Spell was removed from the wheel
         self.assertEqual(labels[4], "Back")
         self.assertEqual(center, ["Ready", "", ""])
 
     def test_frame_always_has_twelve_ascii_fields(self):
         ring = RingState()
-        ring.action("focus", value=7)
-        ring.action("select")  # Spell: labels contain an en dash, slots 2/3 may be empty
+        ring.open_spelling()  # Spell: labels contain an en dash, slots 2/3 may be empty
         frame = frame_for(ring.snapshot())
         self.assertEqual(len(frame[2:].split("|")), 12)
         self.assertTrue(frame.isascii())

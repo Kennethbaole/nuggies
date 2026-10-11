@@ -110,6 +110,7 @@ function render(next) {
   state.slots.forEach((slot, index) => {
     const button = slotButtons[index];
     button.textContent = slot.label; button.disabled = !slot.enabled;
+    button.style.visibility = slot.action === 'none' ? 'hidden' : '';  // e.g. the removed Spell position
     button.classList.toggle('selected', !state.wheel_test && state.selected === index);
     button.classList.toggle('utility', ['more', 'spell', 'back', 'space', 'delete', 'speak'].includes(slot.action));
     button.setAttribute('aria-pressed', String(!state.wheel_test && state.selected === index));

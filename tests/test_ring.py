@@ -15,8 +15,9 @@ class RingTests(unittest.TestCase):
         self.assertEqual(len(self.ring.slots()), 8)
         self.assertEqual(self.ring.slots()[4]["label"], "Back")
         self.assertEqual(self.ring.slots()[6]["label"], "More")
-        self.assertEqual(self.ring.slots()[7]["label"], "Spell")
-        self.assertEqual(self.ring.action("left")["selected"], 7)
+        self.assertFalse(self.ring.slots()[7]["enabled"])  # Spell was removed from the wheel
+        self.assertNotIn("spell", [s["action"] for s in self.ring.slots()])
+        self.assertEqual(self.ring.action("left")["selected"], 6)
         self.assertEqual(self.ring.action("right")["selected"], 0)
 
     def test_more_never_repeats_and_exhausts(self):
@@ -30,7 +31,7 @@ class RingTests(unittest.TestCase):
         self.assertEqual(len(seen), 15)
         self.assertFalse(self.ring.slots()[6]["enabled"])
         self.ring.action("focus", value=5)
-        self.assertEqual(self.ring.action("right")["selected"], 7)
+        self.assertEqual(self.ring.action("right")["selected"], 0)  # empty slot 7 is skipped
 
     def test_confirmation_is_explicit_and_shared(self):
         self.ring.action("right")
@@ -48,7 +49,7 @@ class RingTests(unittest.TestCase):
         self.assertEqual(self.choose(4)["screen"], "home")
 
     def test_spelling_groups_word_completion_delete_and_speak(self):
-        self.choose(7)
+        self.ring.open_spelling()
         for letter in "WA":
             while True:
                 index = next(i for i, s in enumerate(self.ring.slots()) if s["action"] == "letters" and letter in s["value"])
@@ -67,7 +68,7 @@ class RingTests(unittest.TestCase):
         self.assertEqual(self.choose(4)["screen"], "home")
 
     def test_back_rewinds_letter_group_and_contact_resets_pages(self):
-        self.choose(7); self.choose(0)
+        self.ring.open_spelling(); self.choose(0)
         self.assertEqual(self.ring.letters, "ABCDEFGHIJKLM")
         self.choose(4)
         self.assertEqual(self.ring.letters, "ABCDEFGHIJKLMNOPQRSTUVWXYZ")

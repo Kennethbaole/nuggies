@@ -85,9 +85,15 @@ class RingState:
             for index, phrase in zip(phrase_slots, pool[page * page_size:page * page_size + page_size]):
                 slots[index] = self._slot(phrase["label"], "phrase", phrase["text"], value=phrase["id"])
             slots[0 if self.cardinal_layout else 6] = self._slot("More", "more", enabled=(page + 1) * page_size < len(pool))
-            if not self.cardinal_layout:
-                slots[7] = self._slot("Spell", "spell")
+            # Spelling is no longer offered from the wheel; slot 7 stays empty.
         return slots
+
+    def open_spelling(self):
+        """Spelling screen entry. No wheel slot offers it now; kept for a later return."""
+        self.return_screen = self.screen
+        self.screen, self.selected = "spell", 0
+        self.letters, self.letter_stack = "ABCDEFGHIJKLMNOPQRSTUVWXYZ", []
+        self.revision += 1
 
     def snapshot(self):
         slots = self.slots()
@@ -146,9 +152,7 @@ class RingState:
                     self.pages[self.screen] += 1  # No previously shown phrases in this context.
                     self.selected = 0
                 elif operation == "spell":
-                    self.return_screen = self.screen
-                    self.screen, self.selected = "spell", 0
-                    self.letters, self.letter_stack = "ABCDEFGHIJKLMNOPQRSTUVWXYZ", []
+                    self.open_spelling()
                 elif operation == "back":
                     if self.screen == "spell" and self.letter_stack:
                         self.letters = self.letter_stack.pop()

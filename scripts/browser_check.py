@@ -52,13 +52,8 @@ def main():
         page.click('[data-slot="6"]'); page.keyboard.press("Space")
         expect(page.locator('[data-slot="0"]')).to_have_text("Day")
         assert positions == page.locator(".slot").evaluate_all("nodes => nodes.map(n => [n.style.left,n.style.top])")
-        page.click('[data-slot="7"]'); page.keyboard.press("Space")
-        expect(page.locator("#screen-name")).to_have_text("SPELL YOUR WORDS")
-        page.click('[data-slot="0"]'); page.keyboard.press("Space")
-        expect(page.locator('[data-slot="0"]')).to_have_text("A–G")
-        page.keyboard.press("Escape")
-        expect(page.locator('[data-slot="0"]')).to_have_text("A–M")
-        page.keyboard.press("Escape")
+        # Spell was removed from the wheel: its position is empty and hidden.
+        expect(page.locator('[data-slot="7"]')).to_be_hidden()
         expect(page.locator("#screen-name")).to_have_text("CONVERSATION")
         page.keyboard.press("Escape")
         expect(page.locator("#screen-name")).to_have_text("EVERYDAY NEEDS")
@@ -84,7 +79,7 @@ def main():
         page.screenshot(path=str(output / "companion-mobile.png"), full_page=True)
         assert not errors, errors
         print(json.dumps(dict(ok=True, checks=["trial labeling", "navigation", "explicit selection", "phone mirror",
-              "HUD shared state", "stationary ring", "fresh More page", "spell groups", "Back behavior",
+              "HUD shared state", "stationary ring", "fresh More page", "spell removed", "Back behavior",
               "browser speech fallback", "highlight stays silent", "mobile overflow", "no browser exceptions"], screenshots=str(output)), indent=2))
         browser.close()
 
