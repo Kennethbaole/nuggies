@@ -55,7 +55,7 @@ class CleanTests(unittest.TestCase):
         cleaned = clean_suggestions(items, avoid=["already said."])
         self.assertEqual([item["text"] for item in cleaned], ["Hello there.", "Thanks a lot."])
         self.assertLessEqual(len(cleaned[0]["label"]), 14)
-        self.assertEqual(cleaned[1]["label"], "Thanks a lot")
+        self.assertEqual(cleaned[1]["label"], "Thanks a")
         self.assertTrue(cleaned[0]["id"].startswith("ai-"))
 
     def test_labels_come_from_reply_text_not_model(self):
@@ -63,7 +63,20 @@ class CleanTests(unittest.TestCase):
                  dict(label="Agree", text="Yes, please."),
                  dict(text="Unbelievably wonderful news!"), dict(text="Congratulations, everyone!")]
         self.assertEqual([item["label"] for item in clean_suggestions(items)],
-                         ["Can you call", "Yes", "Unbelievably", "Congratulation"])
+                         ["Can you", "Yes", "Unbelievably", "Congrats"])
+
+    def test_meaning_labels_are_short_without_shortening_spoken_text(self):
+        sentence = "Could you stay with me a little longer, please?"
+        items = clean_suggestions([dict(label="Stay", text=sentence),
+                                   dict(label="An overly long model label", text="Thank you for coming to see me.")])
+        self.assertEqual(items[0]["label"], "Stay")
+        self.assertEqual(items[0]["text"], sentence)
+        self.assertTrue(all(len(x["label"].split()) <= 2 for x in items))
+
+    def test_misleading_answer_label_and_first_person_echo_are_rejected(self):
+        item = clean_suggestions([dict(label="Later", text="What did you study for?")])[0]
+        self.assertNotEqual(item["label"], "Later")
+        self.assertTrue(echoes_incoming("I passed my exam today too.", "I passed my exam today."))
 
     def test_limits_to_five_and_tolerates_non_lists(self):
         many = [dict(label=str(i), text=f"Reply number {i}.") for i in range(9)]
@@ -77,10 +90,10 @@ class ProviderTests(unittest.TestCase):
             with self.subTest(mode=mode):
                 suggester, calls = provider(error=URLError("not needed"), mode=mode)
                 result = suggester.suggest(heard_text="Do you want to eat?", notes="Old unrelated news.",
-                                          avoid=["Yes, I would like to eat."])
+                                          avoid=["Yes, I would like to eat, thank you."])
                 self.assertEqual([x["label"] for x in result.suggestions], ["Yes", "No", "Later"])
-                self.assertEqual(result.suggestions[0]["text"], "Yes, I would like to eat.")
-                self.assertTrue(all("eat" in x["text"] for x in result.suggestions))
+                self.assertEqual(result.suggestions[0]["text"], "Yes, I would like to eat, thank you.")
+                self.assertIn("eat", result.suggestions[2]["text"])
                 self.assertEqual((result.provider, calls), ("quick-replies", []))
                 self.assertEqual(result.heard, "Do you want to eat?")
         for text in ("Do you want to eat or go out?", "Do you not want to eat?",
@@ -102,7 +115,7 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(result.heard, "Do you want tea?")
         self.assertEqual(len(result.suggestions), 5)
         self.assertEqual(result.suggestions[0]["label"], "Yes")  # From the reply, not the model.
-        self.assertNotIn("label", body["messages"][0]["content"])  # The model is not asked to write labels.
+        self.assertIn("label", body["messages"][0]["content"])
 
     def test_current_turn_is_last_and_prior_suggestions_are_not_prompt_topics(self):
         suggester, calls = provider(reply(GOOD))
@@ -180,9 +193,9 @@ class ParallelTests(unittest.TestCase):
         result = suggester.suggest(contact=dict(name="Alex", relationship="Family"), heard_text="Tea?")
         self.assertEqual(len(calls), len(REPLY_KINDS))
         for body in calls:
-            self.assertNotIn("format", body)
-            self.assertEqual((body["stream"], body["think"], body["options"]["stop"]), (False, False, ["\n"]))
-            self.assertLessEqual(body["options"]["num_predict"], 80)
+            self.assertEqual(body["format"], "json")
+            self.assertEqual((body["stream"], body["think"]), (False, False))
+            self.assertLessEqual(body["options"]["num_predict"], 120)
             self.assertIn('"Tea?"', body["messages"][1]["content"])
         prefixes = {body["messages"][1]["content"].rsplit("\n", 1)[0] for body in calls}
         self.assertEqual(len(prefixes), 1)  # Shared prefix; only the reply kind differs.
@@ -192,6 +205,23 @@ class ParallelTests(unittest.TestCase):
         self.assertEqual((result.timing["mode"], result.timing["requests"], result.timing["gen_tokens"],
                           result.timing["gen_ms"]), ("parallel", 5, 60, 400))
         self.assertIn("parallel x5", format_timing(result.timing))
+
+    def test_parallel_json_keeps_meaning_label_and_full_warm_sentence(self):
+        suggester, _ = provider(mode="parallel")
+        lines = [dict(label="Stay", text="Could you stay with me a little longer, please?"),
+                 dict(label="Yes", text="Yes, I would love that, thank you."),
+                 dict(label="Later", text="Later, please. I need a little time.")]
+        counter = iter(lines + lines[:2])
+        lock = threading.Lock()
+        def transport(*args):
+            with lock:
+                item = next(counter)
+            return reply(item)
+        suggester.transport = transport
+        result = suggester.suggest(heard_text="Can I keep you company?")
+        stay = next(x for x in result.suggestions if x["label"] == "Stay")
+        self.assertEqual(stay["text"], lines[0]["text"])
+        self.assertTrue(all(len(x["label"].split()) <= 2 for x in result.suggestions))
 
     def test_partial_failure_keeps_the_rest_and_total_failure_raises(self):
         suggester, _ = self.parallel(fail=("polite no", "warm or caring"))
@@ -256,14 +286,14 @@ class AppIntegrationTests(unittest.TestCase):
         self.assertEqual(state["selection_id"], 0)
         app.ring.action("focus", value=6)
         app.ring.action("select")
-        self.assertEqual(app.ring.confirmed, "Yes, I would like to eat.")
+        self.assertEqual(app.ring.confirmed, "Yes, I would like to eat, thank you.")
         app.ring.action("focus", value=0)
         app.ring.action("select")
         self.assertEqual(app.ring.slots()[6]["label"], "Later")
         self.assertFalse(app.ring.slots()[2]["enabled"])
         app.ring.action("focus", value=6)
         app.ring.action("select")
-        self.assertEqual(app.ring.confirmed, "Later, please. I would like to eat later.")
+        self.assertEqual(app.ring.confirmed, "Later, please. I would like to eat in a little while.")
 
     def test_default_choices_restore_home_and_cancel_pending_choice_without_selection(self):
         app = self.make_app()

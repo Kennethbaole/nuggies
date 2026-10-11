@@ -400,7 +400,7 @@ this policy change.
 ## Reply perspective and current-turn priority (2026-10-11)
 
 Both suggestion modes explicitly distinguish CONTACT speech from USER replies.
-Examples contrast a genuine response with paraphrasing the contact. The latest
+Explicit role instructions distinguish responses from paraphrasing. The latest
 transcript is placed after notes/history in a CURRENT INCOMING TURN block.
 Previously offered suggestions are excluded from model context and still filtered
 locally for duplicates; notes remain style guidance, not a question to answer.
@@ -411,8 +411,10 @@ verify role and turn placement, not model quality on real conversations.
 ## Short answer labels and direct offers (2026-10-11)
 
 Reply text and wheel labels are separate: explicit Yes/No/Later openings use those
-short labels, while confirmation speaks the complete sentence. Labels are derived
-from the reply text, never accepted blindly from a model-supplied label.
+short labels, while confirmation speaks the complete sentence. Explicit answer labels come from the reply text. Other meaning labels are generated
+separately and validated to one or two words and at most 14 characters; invalid
+labels fall back to at most two opening words. Model labels can still misrepresent
+a nuanced reply, so the full sentence remains the confirmation preview.
 
 Complete simple questions matching `Do you want to` / `Would you like to` followed
 by eat, drink, rest or sleep get three deterministic contextual choices. Optional
@@ -421,8 +423,8 @@ is allowed. For `Do you want to eat?`:
 
 | Page | Left label → spoken sentence | Right label → spoken sentence |
 | --- | --- | --- |
-| 1 | Yes → Yes, I would like to eat. | No → No, thank you. I do not want to eat right now. |
-| 2 | Later → Later, please. I would like to eat later. | Disabled |
+| 1 | Yes → Yes, I would like to eat, thank you. | No → No, thank you. Maybe another time. |
+| 2 | Later → Later, please. I would like to eat in a little while. | Disabled |
 
 Up remains More and Down remains Back; the existing gaze/return/double-blink
 confirmation rules are unchanged. These direct replies do not call the model and
@@ -434,3 +436,15 @@ enable the suggestion service. General prompts now prioritize Yes/No/Later for
 offers and avoid unrelated congratulatory/emotional answers to ordinary questions.
 Synthetic tests cover both modes, exclusions, page mapping and full-text selection;
 they do not establish relevance of all model-generated conversation replies.
+
+
+Warm spoken replies retain complete sentences; only wheel labels are abbreviated.
+Both model modes request separate `label` and `text` fields. Parallel generation
+now uses JSON and a 120-token budget per reply so labels do not truncate speech;
+legacy plain-text output is still accepted. No paid TTS runs in verification.
+
+Live synthetic Jetson checks exposed copied prompt examples and unsupported claims
+about sharing the speaker’s experience. Concrete topic examples were removed;
+first-person transcript echoes with added suffixes are rejected. Misleading
+Yes/No/Later model labels cannot override a sentence without the corresponding
+opening. This does not establish general semantic correctness of model replies.
