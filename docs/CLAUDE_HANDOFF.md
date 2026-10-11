@@ -2,7 +2,9 @@
 
 ## Current branch and interface follow-up
 
-Work is now on `feat/wheel-ui-and-left-detection`; do not merge to main.
+Kenneth now requires all work directly on `main`. Feature branch changes have
+been consolidated. Do not create branches unless he changes this instruction.
+Read [agent workflow](../AGENTS.md); older branch restrictions are superseded.
 The project name is Glint; the GitHub repo remains Kennethbaole/nuggies.
 `1643651` adds the full-width centered wheel, stronger readiness cues, blank
 homepage tagline, blue/violet themes, motion and team/project tabs including Bella.
@@ -14,8 +16,8 @@ the pending choice for a fresh retry; the early pair still cannot select.
 
 The local wrapper was safely restarted from this branch after e1c64bc; Nano was
 disconnected, recording and eye control were off. No new wearer test was requested.
-Any subsequent backend change needs another safe restart to become live. Existing
-offline Left-analysis files remain uncommitted; no direction threshold was changed.
+Any subsequent backend change needs another safe restart to become live. The offline Left-analysis files are preserved in `a0dc9b4`; no live direction
+threshold was changed. The horizontal-axis alternative did not improve replay.
 The sections below are historical unless superseded here. OLED fit work remains
 outstanding; frontend appearance does not establish physical display readability.
 
@@ -31,7 +33,7 @@ These remain undecided. Do not invent a topology or claim Jetson/OLED validation
 ## Current priority and working rules
 
 Work in `/private/tmp/nuggies`, remote `Kennethbaole/nuggies`, branch
-`experiment/eog-continuous-detection`. **Do not merge to main.** Kenneth authorizes
+`main`. Kenneth authorizes
 changes, incremental commits and pushes. Commit one concern with its documentation;
 run the complete suite before every push and check status for private files.
 Never commit recordings, profiles, `.env`, speech caches or participant waveforms.

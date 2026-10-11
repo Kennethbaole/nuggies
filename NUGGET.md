@@ -1,5 +1,10 @@
 # NUGGET — project truth and agent handoff
 
+2026-10-11 workflow: **all changes now go directly to `main`**. All feature
+branch work has been consolidated; stale branches are being removed after
+ancestry checks. Read [agent workflow](AGENTS.md). Earlier instructions to stay
+on experiment branches or not merge to main are superseded by Kenneth.
+
 2026-10-11 branding: the project is **Glint**, with the homepage tagline left blank.
 The GitHub repository remains `Kennethbaole/nuggies`. The centered full-width wheel
 uses stronger readiness colors; project/team tabs include Bella Le. Blue/violet
@@ -25,8 +30,8 @@ Validation: 268 tests run, one optional skip; isolated browser check passes,
 including pending-choice cancellation, unchanged detector instance and OLED frame
 content. Synthetic browser evidence does not establish hardware readability.
 
-Updated 2026-10-10. Current EOG work is on `experiment/eog-continuous-detection`;
-**do not merge to main**. The general architecture audit below began at `b1ceaa0`;
+Historical context from 2026-10-10: EOG work originally used
+`experiment/eog-continuous-detection`. Current development is on `main`. The general architecture audit below began at `b1ceaa0`;
 its historical experiment notes are superseded by the current sections and
 [development handoff](docs/CLAUDE_HANDOFF.md).
 
