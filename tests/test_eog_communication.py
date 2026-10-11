@@ -67,11 +67,39 @@ class ConfirmationTests(unittest.TestCase):
         event=self.event();event['onset_sample']=1400
         self.assertTrue(self.gate.update(self.ring,d,event))
 
-    def test_new_movement_after_arming_cancels_old_choice(self):
-        self.ready()
-        self.assertFalse(self.gate.update(self.ring,self.detector,
+    def test_return_after_arming_keeps_choice_and_requires_fresh_settling(self):
+        self.ready();original=self.gate.target
+        d=self.detector;d.phase='recovery';d.return_sample=1400;d.raw_index=1800
+        d.direction='right';d.horizontal=900;d.vertical=0
+        self.assertFalse(self.gate.update(self.ring,d,
             dict(label='return',reason='recovering',onset_sample=1600)))
-        self.assertIsNone(self.gate.target)
+        self.assertEqual(self.gate.target,original)
+        self.assertIsNone(self.gate.ready_sample)
+        self.assertFalse(self.gate.update(self.ring,d,self.event()))
+        d.horizontal=0;d.raw_index=1900;self.gate.update(self.ring,d)
+        d.raw_index=1963;self.gate.update(self.ring,d)
+        event=self.event();event['onset_sample']=2000;d.raw_index=2200
+        self.assertTrue(self.gate.update(self.ring,d,event))
+        self.assertEqual(self.ring.selection_id,1)
+
+    def test_retry_keeps_choice_without_extending_expiry_or_early_confirmation(self):
+        self.ready();original=self.gate.target
+        self.detector.phase='retry';self.detector.raw_index=1800
+        self.assertFalse(self.gate.update(self.ring,self.detector,self.event()))
+        self.assertEqual(self.gate.target,original)
+        self.assertIsNone(self.gate.ready_sample)
+        self.detector.phase='ready';self.detector.raw_index=2000
+        self.gate.update(self.ring,self.detector)
+        self.assertFalse(self.gate.update(self.ring,self.detector,self.event()))
+        self.assertEqual(self.ring.selection_id,0)
+
+    def test_retry_still_expires_and_content_changes_still_cancel(self):
+        for change in ('expiry','content'):
+            self.setUp();self.ready();self.detector.phase='retry'
+            if change=='expiry':self.detector.raw_index=3501
+            else:self.ring.action('focus',value=2)
+            self.assertFalse(self.gate.update(self.ring,self.detector,self.event()))
+            self.assertIsNone(self.gate.target)
 
     def test_no_return_or_horizontal_activity_cannot_arm_recovery(self):
         d=self.detector;d.direction='right';d.horizontal=20;d.return_sample=None
@@ -105,7 +133,7 @@ class ConfirmationTests(unittest.TestCase):
                 self.assertIsNone(self.gate.target)
 
     def test_retry_gap_expiry_or_content_change_invalidates(self):
-        for change in ('retry','signal_lost','centering','expiry','suggestions','contact','manual_focus'):
+        for change in ('signal_lost','centering','expiry','suggestions','contact','manual_focus'):
             with self.subTest(change=change):
                 self.setUp();self.ready()
                 if change in ('retry','signal_lost','centering'):self.detector.phase=change

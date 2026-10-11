@@ -50,8 +50,9 @@ armed, armed_sample, expires_sample, confirmation prompt, selected_slot, nominal
 sample rates, profile digest and settings. Only explicit accepted gaze creates a
 pending choice. It arms after return/settling, expires after 2500 raw samples,
 and is consumed before emitting selection. Uncertain pulse matching permits retry
-without extending expiry. Faults, recenter, early blinks and changed choices clear
-it. Electrical settling is not proof of physically looking center.
+without extending expiry. Ordinary retry and later return events preserve the
+choice but suspend arming until recovery settles. Faults, recenter, early blinks
+and changed choices clear it. Electrical settling is not proof of physically looking center.
 
 ## Application and adapters
 

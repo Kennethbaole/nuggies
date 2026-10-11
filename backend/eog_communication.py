@@ -63,7 +63,7 @@ class EOGConfirmation:
             event=None  # Legacy window labels cannot confirm while pulse mode is active.
         double = event and event.get('label') == 'double_blink' and event.get('reason') == 'blink'
         if double:event['confirmation_result']='no_pending_choice'
-        if detector.phase in ('retry', 'signal_lost', 'centering'):
+        if detector.phase in ('signal_lost', 'centering'):
             self.clear()
             self.message = 'Look center / Retry. Choose again when Ready.'
             return False
@@ -76,10 +76,21 @@ class EOGConfirmation:
             self.clear()
             self.message = 'Choice expired or changed. Look at a choice again.'
             return False
+        # An uncertain excursion does not discard the reply. Suspend confirmation
+        # until recovery settles; preserve the original identity and expiry.
+        if detector.phase == 'retry':
+            self.ready_sample = None
+            self.confirmation_quiet_since = None
+            self.settle_after_sample = detector.raw_index
+            self.message = f'Choice kept: {label}. Return to center, then double blink.'
+            if double:event['confirmation_result']='return_to_center_first'
+            return False
         if (event and event.get('label')=='return' and self.ready_sample is not None
                 and event.get('onset_sample',-1)>=self.ready_sample):
-            self.clear()
-            self.message='Movement changed. Look at the choice again.'
+            self.ready_sample = None
+            self.confirmation_quiet_since = None
+            self.settle_after_sample = detector.raw_index
+            self.message = f'Choice kept: {label}. Return to center, then double blink.'
             return False
         # Arm after an observed opposite return plus a short settling period.
         # Once armed, vertical blink activity must not restart that period.
