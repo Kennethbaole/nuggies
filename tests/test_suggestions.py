@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 
 from backend.app import Application, make_handler
 from backend.suggestions import (REPLY_KINDS, OllamaSuggestions, SuggestionBusy, SuggestionUnavailable,
-                                 clean_line, clean_suggestions, format_timing)
+                                 clean_line, clean_suggestions, format_timing, echoes_incoming)
 
 
 def reply(payload):
@@ -87,6 +87,32 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(len(result.suggestions), 5)
         self.assertEqual(result.suggestions[0]["label"], "Yes, tea would")  # From the reply, not the model.
         self.assertNotIn("label", body["messages"][0]["content"])  # The model is not asked to write labels.
+
+    def test_current_turn_is_last_and_prior_suggestions_are_not_prompt_topics(self):
+        suggester, calls = provider(reply(GOOD))
+        suggester.suggest(contact=dict(name='AJ'), recent=['Earlier confirmed reply.'],
+                          avoid=['Old swimming suggestion.'], heard_text='Would you like water?',
+                          notes='Old exchange: Are you coming swimming? I like casual wording.')
+        body=calls[0][2]
+        system=body['messages'][0]['content'];context=body['messages'][1]['content']
+        self.assertIn("not a rewrite",system)
+        self.assertNotIn('Old swimming suggestion.',context)
+        self.assertGreater(context.index('CURRENT INCOMING TURN'),context.index('</notes>'))
+        self.assertTrue(context.endswith('do not rewrite it or answer background examples.'))
+        self.assertIn('"Would you like water?"',context)
+
+    def test_exact_incoming_echo_is_dropped_in_both_modes(self):
+        for mode in ('single','parallel'):
+            content=reply({'suggestions':[{'text':'Would you like water?'},{'text':'Yes please.'}]}) if mode=='single' else reply('Would you like water?')
+            suggester,_=provider(content,mode=mode)
+            if mode=='single':
+                result=suggester.suggest(heard_text='Would you like water?')
+                self.assertEqual([s['text'] for s in result.suggestions],['Yes please.'])
+                self.assertEqual(result.timing['echoes_dropped'],1)
+            else:
+                with self.assertRaises(SuggestionUnavailable):suggester.suggest(heard_text='Would you like water?')
+        self.assertFalse(echoes_incoming('Yes.','Yes'))
+        self.assertFalse(echoes_incoming('What kind of water?','Would you like water?'))
 
     def test_fenced_json(self):
         suggester, _ = provider(reply("```json\n" + json.dumps(GOOD) + "\n```"))
@@ -304,7 +330,7 @@ class AppIntegrationTests(unittest.TestCase):
         app.last_suggest = 0
         app.suggester.transport = lambda *args: (self.calls.append(args), reply(SECOND))[1]
         app.suggest(dict(session_id=app.session_id, heard_text="again"))
-        self.assertIn("Yes, tea would be lovely.", self.calls[-1][2]["messages"][1]["content"])
+        self.assertNotIn("Yes, tea would be lovely.", self.calls[-1][2]["messages"][1]["content"]) # Old choices must not anchor the new topic.
         self.assertEqual(app.state()["slots"][0]["text"], "That sounds good to me.")
         with self.assertRaises(SuggestionBusy):
             app.suggest(dict(session_id=app.session_id, heard_text="too soon"))

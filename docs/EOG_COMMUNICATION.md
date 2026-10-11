@@ -396,3 +396,14 @@ select. Legacy confirmation retains its previous early/invalid cancellation rule
 unchanged. Synthetic regression tests establish state behavior, not biological
 accuracy; misses and false confirmations on wearer data remain unmeasured for
 this policy change.
+
+## Reply perspective and current-turn priority (2026-10-11)
+
+Both suggestion modes explicitly distinguish CONTACT speech from USER replies.
+Examples contrast a genuine response with paraphrasing the contact. The latest
+transcript is placed after notes/history in a CURRENT INCOMING TURN block.
+Previously offered suggestions are excluded from model context and still filtered
+locally for duplicates; notes remain style guidance, not a question to answer.
+Exact incoming echoes of three or more words are discarded in both modes. This
+filter does not detect semantic paraphrases. Synthetic prompt/transport regressions
+verify role and turn placement, not model quality on real conversations.

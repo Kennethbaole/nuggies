@@ -110,7 +110,8 @@ class CopyGuardTests(unittest.TestCase):
     def test_notes_rules_and_reminder_come_with_the_notes(self):
         text = context_text(self.CONTACT, [], [], "wanna watch a movie later?", [], notes=SAMPLES)
         self.assertIn("Never reuse a sentence or phrase", text)
-        self.assertTrue(text.endswith(NOTES_REMINDER))
+        self.assertIn(NOTES_REMINDER, text)
+        self.assertGreater(text.index("CURRENT INCOMING TURN"), text.index(NOTES_REMINDER))
         self.assertNotIn(NOTES_REMINDER, context_text(self.CONTACT, [], [], "hi", []))
 
     def parallel(self, first, retry, calls=None):
