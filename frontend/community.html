@@ -3,17 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#101c1c">
+  <meta name="theme-color" content="#f6fafb">
   <title>Nuggies | Community</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="community.css">
+  <link rel="stylesheet" href="theme.css">
+  <script src="theme.js"></script>
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="/" aria-label="Nuggies companion home"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12"/><circle cx="16" cy="4" r="3"/></svg><span>Nuggies</span></a>
     <span class="top-description">A little movement. A world of words.</span>
-    <div class="top-actions"><a class="quiet-button nav-link" href="/">Back to Companion</a></div>
+    <div class="top-actions"><button id="theme-toggle" class="quiet-button" type="button" aria-pressed="false" aria-label="Switch to dark mode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg><span data-theme-label>Dark mode</span></button><a class="quiet-button nav-link" href="/">Back to Companion</a></div>
   </header>
   <main class="community">
     <section class="community-intro">

@@ -36,6 +36,30 @@ def main():
             context.add_init_script("window.__spoken=[]; window.speechSynthesis.speak = utterance => window.__spoken.push(utterance.text);")
             page=context.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
             page.goto(f'http://127.0.0.1:{server.server_port}')
+            # Appearance checks use this isolated server; no wearer state or paid TTS.
+            expect(page.locator('html')).to_have_attribute('data-theme', 'light')
+            page.screenshot(path=str(output/'companion-light.png'), full_page=True)
+            page.click('#theme-toggle')
+            expect(page.locator('html')).to_have_attribute('data-theme', 'dark')
+            page.reload()
+            expect(page.locator('html')).to_have_attribute('data-theme', 'dark')
+            page.screenshot(path=str(output/'companion-dark.png'), full_page=True)
+            community = context.new_page()
+            community.goto(f'http://127.0.0.1:{server.server_port}/community')
+            expect(community.locator('html')).to_have_attribute('data-theme', 'dark')
+            community.click('#theme-toggle')
+            expect(page.locator('html')).to_have_attribute('data-theme', 'light')
+            community.close()
+            for width in (1024, 768, 390, 320):
+                page.set_viewport_size({'width': width, 'height': 900})
+                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), width
+                expect(page.locator('#wheel')).to_be_visible()
+                expect(page.locator('#default-choices')).to_be_visible()
+                page.screenshot(path=str(output/f'companion-{width}.png'), full_page=True)
+            page.set_viewport_size({'width': 1440, 'height': 1000})
+            page.click('#wheel-focus')
+            expect(page.locator('body')).to_have_class('homepage wheel-focus-open')
+            page.click('#wheel-focus')
             expect(page.locator('#wheel-test-toggle')).to_be_enabled()
             page.click('#wheel-test-toggle')
             expect(page.locator('#wheel-test-status')).to_contain_text('Look straight ahead')
@@ -134,6 +158,8 @@ def main():
             page.evaluate("document.querySelector('.signal-details').open=true")
             page.select_option('#guided-protocol','vertical')
             expect(page.locator('#guided-start')).to_be_enabled()
+            expect(page.locator('#guided-protocol')).to_have_value('vertical')
+            expect(page.locator('#guided-start')).to_be_enabled()
             page.click('#guided-start')
             expect(page.locator('#center-label')).to_have_text('GUIDED RECORDING',timeout=5000)
             assert app.guided.mode=='vertical' and app.guided.status=='running' and not app.wheel_test
@@ -151,7 +177,7 @@ def main():
             assert not errors,errors
             browser.close()
         report=dict(ok=True,mode='HTTP/browser UI state simulation; not sensor accuracy',checks=[
-            'opt-in','center progress','ready','retry reason','prominent status','readiness-aware cues','recenter','stale signal',
+            'light and dark themes','saved theme and cross-page sync','responsive wheel at 320–1440 px','wheel full screen','opt-in','center progress','ready','retry reason','prominent status','readiness-aware cues','recenter','stale signal',
             'default choices reset without confirmation or detector reset','default choices mirrored to OLED frame',
             'homepage speed check','opt-in communication','four reachable positions','fixed detected-choice preview','explicit confirmation readiness','speech auto-enabled with communication','peripheral colour cues','reading pause shown','recording protocol startable from eye control','confirmed browser speech once','diagnostic speech disabled','gaze highlighting absent','HUD rendering','diagnostic mode cannot confirm','no JS errors'])
         (output/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report))

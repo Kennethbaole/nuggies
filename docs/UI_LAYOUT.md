@@ -1,55 +1,46 @@
-# Companion readability update
+# Companion interface — Orbital
 
-Updated 2026-10-10. The homepage retains its dark green, sage and peach palette
-and serif headings. Larger text, buttons, spacing and a clearer hierarchy improve
-reading while the wearer is using eye input.
+Updated 2026-10-11 on `feat/wheel-ui-and-left-detection`.
 
-- Main area: communication controls, fixed detected-choice preview, wheel, manual
-  confirmation controls. The wheel center shows the chosen label and confirmation
-  readiness without restoring gaze highlighting.
-- Left: conversation partner, listening/text context, connection.
-- Right: confirmed words in the companion view, lens preview, recent words.
-- Below: grouped signal diagnostics and recording tools, with a larger trace and
-  the existing full-screen workspace. Diagnostic checks remain separate from
-  communication mode.
-- Mobile (760 px and below), arranged for a caregiver tapping phrases: wheel and
-  confirmation preview first, with Glance left/Confirm/Glance right pinned to the
-  bottom of the screen while the wheel is in view. Speaking-with (Listen/Text) and
-  recent words follow. Connection, companion mirror, lens preview and signal tools
-  sit behind a "More tools" button. Keyboard hints are hidden on touchscreens.
-- Full-screen wheel: the corner button beside the wheel heading lays the wheel
-  panel over the whole page with the highlighted preview, wheel and confirm
-  controls. It hides the side panels and the gaze explainer (gaze status stays
-  while communication runs). Press the button again to exit. It works inside the
-  page instead of using the browser Fullscreen API, which iPhone Safari lacks and
-  which would take over Esc (Back).
-- Wheel center text shrinks to fit the circle (down to 13 px) instead of scrolling.
-  Below 360 px the small label above it is dropped first. Only very long spelled
-  drafts still scroll.
-- Browser HUD: pending choice and confirmation readiness replace diagnostic-only
-  speech-off text in communication mode. This is not physical OLED validation.
+The homepage uses white surfaces, teal/cyan accents, system sans-serif type and
+quiet orbital detail. The wheel is the primary workspace; conversation partner,
+Listen/Text and Default choices sit beside it. Shared words, the monochrome lens
+preview and signal tools follow below. Phone layouts put the wheel first and keep
+secondary tools behind More tools. The full-screen wheel and expanded trace remain.
 
-Homepage styling is isolated in frontend/homepage.css; contacts retain their
-existing layout. Behavior remains in the shared application.
+Dark mode is available in the header on both the companion and Community pages.
+The preference stays in this browser and synchronizes between tabs. A new browser
+starts light. Speech remains a separate preference and resets off on refresh.
 
-Verification: navigation/spelling/Back/phone/HUD/speech browser acceptance passed;
-EOG browser simulation passed with pending-choice preview before confirmation.
-Layout checks at widths 1440, 1024, 768, 390 and 320 pixels found no horizontal
-overflow. Expanded trace sizing was checked. Screenshots are private artifacts
-under artifacts/ui-refresh and artifacts/browser-report/eog. These checks do not
-measure biological detection accuracy.
+Appearance is in `frontend/theme.css`; `theme.js` applies the saved mode before
+paint. Existing application, selection and sensor behavior remain in `app.js`.
+No build step, external font, animation service or React dependency is required.
+Choices do not rotate, and eye control still has no item highlighting. The fixed
+preview shows the pending words before confirmation. State cues retain their
+colours (wait amber, choose green, return blue, confirm purple, retry red, selected
+teal, paused grey), with steady outlines instead of a flashing confirmation effect.
+Reduced-motion preferences disable transitions and animations. OLED pixels remain
+monochrome; appearance changes do not validate the physical display.
 
-Mobile pass (2026-10-10): checked in headless Chromium at 390x844 and 320x640.
-There's no horizontal overflow, the full wheel and confirm bar fit on the first
-390x844 screen, and home-page controls are at least 40 px tall. "More tools"
-expands and collapses. The /hud page on a phone no longer renders the companion
-page underneath. Not yet checked on a physical phone.
+## Inspiration
 
-## Peripheral colour cues for eye control (2026-10-10)
+[Animata](https://animata.design/components), [Motion](https://motion.dev/docs/react),
+[Anime.js](https://animejs.com/), [Motion Sites](https://motionsites.ai/),
+[Awwwards' immersion reference](https://www.awwwards.com/inspiration/3d-immersion-inside-kristallnacht),
+[Motion Array's overview](https://motionarray.com/learn/motion-design/stop-motion-animation-websites/)
+and [No Art](https://www.noartmusic.com/) informed the restrained layering,
+typographic hierarchy and circular motif. Implementation uses native HTML/CSS/JS;
+no third-party assets were copied. Naruko's page required client rendering and
+some supplied Awwwards detail pages were unavailable through the research tool;
+these are not claimed as fully reviewed visual references.
 
-While guided eye control is active, `body[data-eog-cue]` colours the viewport frame,
-wheel panel and wheel centre so the state is readable without looking at the text:
-amber = wait / look center, green = choose, blue = detected, return to center,
-purple (pulsing) = double blink to confirm, red = retry, white flash = selected.
-A legend sits under the communication toggle. No slot is highlighted; gaze
-highlighting stays removed. Checked in the simulated browser run only.
+## Verification
+
+268 tests run, 267 pass, one optional skip. The isolated EOG browser check passes:
+light/dark mode, preference after refresh, Community synchronization, widths
+320/390/768/1024/1440 without horizontal overflow, full-screen wheel, default choices,
+ready/retry/return/confirmation UI, HUD and one mocked browser utterance. No paid
+TTS was called. Screenshots were inspected for light/dark and phone layouts under
+ignored `artifacts/browser-report/eog/`. An initial browser run hit a late guided
+start timing failure; the rerun with explicit protocol/enabled assertions passed.
+These checks do not measure sensor accuracy or physical phone/OLED readability.

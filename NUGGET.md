@@ -1,5 +1,9 @@
 # NUGGET — project truth and agent handoff
 
+2026-10-11 frontend branch: `feat/wheel-ui-and-left-detection` adds a wheel-first
+white/cyan interface and browser-persisted dark mode shared with Community.
+Detection rules are unchanged by this UI commit. See [interface](docs/UI_LAYOUT.md).
+
 2026-10-11 UI follow-up: **Default choices** restores Hello, Goodbye, Yes, No and
 Help on Home, clears the displayed transcript and pending confirmation, and
 preserves detector settings/state and confirmed history. In eye control, the first
