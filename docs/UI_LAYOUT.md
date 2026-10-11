@@ -78,3 +78,11 @@ keyboard hint are removed; existing keyboard shortcuts still work on the wheel.
 Eye-control choices are larger (28 px desktop), closer to center (30% radius),
 with separate mobile dimensions to prevent collisions. The initial eight-slot
 manual layout also uses larger labels, with more spacing than the four-slot layout.
+
+## Team portraits (2026-10-11)
+
+The people cards feature the four photos supplied by Kenneth: Kat (image 1),
+AJ / Anthony Terry (image 2), Ken / Kenneth Bao Le (image 3), Bella (image 4).
+Original assets are stored in `frontend/team/`, with consistent 4:5 CSS frames,
+individual focal positions and accessible names. The originals are unaltered;
+CSS controls only their display framing. No generated portraits are used.

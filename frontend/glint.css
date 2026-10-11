@@ -90,3 +90,9 @@ body[data-eog-cue] .wheel::before{background:radial-gradient(circle,color-mix(in
  .homepage .slot,.homepage .slot.utility{font-size:14px;letter-spacing:-.01em;padding-inline:8px}
 }
 @media(max-width:359px){.homepage .slot,.homepage .slot.utility{font-size:13px;padding-inline:6px}}
+
+/* Team portraits use the supplied photos, framed consistently without motion. */
+.homepage .team-photo{display:block;width:100%;height:auto;aspect-ratio:4/5;object-fit:cover;object-position:center;border-radius:8px;margin:0 0 22px;background:var(--surface)}
+.homepage .team-photo-ken{object-position:64% 45%}
+.homepage .team-photo-kat{object-position:58% 45%}
+.homepage .team-photo-bella{object-position:62% 45%}

@@ -84,6 +84,12 @@ def main():
             expect(page.locator('#team-view')).to_be_visible()
             assert page.locator('.team-card').count() == 4
             expect(page.locator('#team-view')).to_contain_text('Bella Le')
+            expect(page.locator('#team-view')).to_contain_text('AJ')
+            assert page.locator('.team-photo').count() == 4
+            for photo in page.locator('.team-photo').all():
+                photo.scroll_into_view_if_needed()
+                expect(photo).to_be_visible()
+                page.wait_for_function('(src) => { const img = [...document.images].find(i => i.getAttribute("src") === src); return img && img.complete && img.naturalWidth > 0; }', arg=photo.get_attribute('src'))
             page.screenshot(path=str(output/'team.png'), full_page=True)
             for width in (390, 320):
                 page.set_viewport_size({'width': width, 'height': 900})
