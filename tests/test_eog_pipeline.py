@@ -87,3 +87,27 @@ class PipelineTests(unittest.TestCase):
         with patch.object(d,'process',return_value=None):p.process(8192,8192,8,communication=False)
         self.assertFalse(p.paused)
 
+    def test_resume_accepts_window_double_blink_or_loose_pulse_pair_but_pause_stays_strict(self):
+        p=self.pipeline();d=p.detector
+        def window_double(index,distance=.04):
+            def blink(*args):
+                d.raw_index=index;d.phase='ready'
+                d.last_result=dict(label='double_blink',reason='blink',onset_sample=index-250,emitted_sample=index,distance=distance,direction_margin=1.7,horizontal_fraction=.03)
+            return patch.object(d,'process',side_effect=blink)
+        with window_double(1000):p.process(8192,8192,0,communication=True)
+        self.assertFalse(p.paused,'a window-only double blink must not pause')
+        with self.pair(d,2000):p.process(8192,8192,4,communication=True)
+        self.assertTrue(p.paused)
+        with window_double(3000,distance=.3):p.process(8192,8192,8,communication=True)
+        self.assertTrue(p.paused,'a poor window match must not resume')
+        with window_double(3600):result=p.process(8192,8192,12,communication=True)
+        self.assertFalse(p.paused);self.assertEqual(result['events'][-1]['type'],'pause')
+        self.assertFalse(any(e['type']=='selection' for e in result['events']))
+        with self.pair(d,5000):p.process(8192,8192,16,communication=True)
+        self.assertTrue(p.paused)
+        def loose_pair(*args):
+            d.raw_index=6000;d.phase='recovery'
+            d.last_blink_result=dict(label='double_blink',reason='blink',source='pulse_stream',pulse_pair_valid=True,waveform_label='up',onset_sample=5800,emitted_sample=6000,distance=.058,direction_margin=1.3,horizontal_fraction=.03)
+        with patch.object(d,'process',side_effect=loose_pair):p.process(8192,8192,20,communication=True)
+        self.assertFalse(p.paused,'a valid pulse pair below the selection margin still resumes')
+
