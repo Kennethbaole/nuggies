@@ -640,6 +640,7 @@ def make_handler(app):
                     return self.reply(200, dict(ok=True, schema_version=1, session_id=app.session_id))
                 return self.reply(404, dict(error="Unknown endpoint"))
             requested = FRONTEND / ("index.html" if path in ("/", "/hud", "/phone") else
+                                    "stage.html" if path == "/stage" else
                                     "community.html" if path in ("/community", "/contacts") else path.lstrip("/"))
             target = requested.resolve()
             if not target.is_relative_to(FRONTEND) or not target.is_file():

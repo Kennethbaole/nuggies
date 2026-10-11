@@ -1,0 +1,92 @@
+/* Glint stage look for the companion and community pages: ink ground, Fraunces voice, mono labels, chrome ring on a soft glow.
+   Colour, type and decoration only. Layout, wheel geometry, slot sizes and the eye-control cue colours stay as theme.css sets them. */
+@font-face{font-family:"Glint Fraunces";src:url("fraunces-600.woff2") format("woff2");font-weight:600;font-style:normal;font-display:swap}
+@font-face{font-family:"Glint Fraunces";src:url("fraunces-700.woff2") format("woff2");font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:"Glint Fraunces";src:url("fraunces-500-italic.woff2") format("woff2");font-weight:500;font-style:italic;font-display:swap}
+
+:root,:root[data-theme=dark]{color-scheme:dark;--bg:#050b09;--panel:#0b1714;--surface:#11231f;--line:#2b3b39;--text:#e5f5ec;--muted:#93b9ad;--accent:#8fdcc2;--green:#8fdcc2;--accent-soft:#14302a;--on-accent:#050b09;--shadow:0 14px 48px #0004;
+  --spring:#d8efae;--glow:#c9efa2;--chrome:#3f9a85;--chip:#15252377;--chip-text:#b5d3c1;--chip-on:#4a6358;--slot:#08140fe0;--glow-on:.9;--haze:rgba(63,154,133,.42);--haze-mid:rgba(13,43,37,.22);--grain:.085;--tint-a:#0f2420;--tint-b:#14261c;--tint-c:#0f2228;
+  --voice:"Glint Fraunces","Iowan Old Style",Charter,Georgia,serif;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+:root[data-theme=light]{color-scheme:light;--bg:#f1f8f1;--panel:#fbfdf9;--surface:#e3f0e6;--line:#c5d9cc;--text:#082a1f;--muted:#48685d;--accent:#1c6b58;--green:#1c6b58;--accent-soft:#d8efdc;--on-accent:#fff;--shadow:0 14px 48px #0828200d;
+  --spring:#1c6b58;--chip:#ffffffb0;--chip-text:#1f4c40;--chip-on:#1c6b58;--slot:#fbfdf9f0;--glow-on:.7;--haze:rgba(143,220,194,.38);--haze-mid:rgba(201,239,162,.14);--grain:.06;--tint-a:#e6f3e4;--tint-b:#edf3d9;--tint-c:#dff0ee}
+:root .homepage,:root[data-theme=dark] .homepage{--muted:#93b9ad;--line:#2b3b39}
+:root[data-theme=light] .homepage{--muted:#48685d;--line:#c5d9cc}
+
+/* Ground: haze rising from the bottom edge and a film grain. The full-screen HUD stays plain black. */
+body,body.homepage{font-family:var(--mono)}
+body:not(.hud-body),body.homepage:not(.hud-body){background:linear-gradient(to top,var(--haze) 0%,var(--haze-mid) 22%,transparent 45%) fixed,var(--bg)}
+body:not(.hud-body)::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:var(--grain);background:url("grain.png") 0 0/110px 110px}
+
+/* Wordmark */
+.brand,.homepage .brand{font-family:var(--voice);font-weight:700;letter-spacing:.035em;text-transform:lowercase;color:var(--spring)}
+.brand svg,.homepage .brand svg{display:none}
+.topbar,.homepage .topbar{background:transparent}
+
+/* Voice: anything a person says or reads as a sentence. */
+.homepage :is(h1,h2,h3),.community :is(h1,h2),.homepage .welcome h1,.page-intro h1,.homepage .communication-toolbar h2,.homepage .context-panel h2,.board-column h2,.team-card h2,.project-note strong,.section-heading h2,dialog h2{font-family:var(--voice);font-weight:600;letter-spacing:-.01em}
+.homepage .welcome h1{font-weight:700;color:var(--spring);text-transform:lowercase;letter-spacing:.02em}
+.welcome em,.page-intro em{font-family:var(--voice);font-style:italic;font-weight:500;color:var(--spring)}
+.homepage .wheel-center p,.homepage .phone-content p,.homepage .contact-row select,.homepage .wheel-conversation .contact-row select,.homepage .history-details li,.homepage #guided-cue,.homepage .source-name,.team-monogram,.community :is(.member-name,.notes-text),.example-notes blockquote{font-family:var(--voice);font-weight:600;letter-spacing:0}
+.homepage .contact-row select option{font-family:var(--mono)}
+.homepage #preview-text,.homepage #heard,.community .notes-text,.example-notes blockquote{font-family:var(--voice);font-style:italic;font-weight:500}
+.homepage .phone-top{font-family:var(--voice);font-weight:700;color:var(--spring);text-transform:lowercase;letter-spacing:.035em}
+.homepage .phone-top .phone-live{font-family:var(--mono);font-weight:500;text-transform:none;letter-spacing:.04em}
+
+/* Labels and running text in mono. */
+.eyebrow,.homepage .eyebrow,.community .eyebrow,.homepage .preview-label,.choice-label{font-family:var(--mono);font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+.homepage .welcome p,.page-intro p,.build-card p,.project-note p,.team-card p,.homepage .wheel-test-controls p,.homepage .input-card p,.homepage .tools-heading p,.community .intro,dialog p{font-size:13.5px;line-height:1.75}
+.homepage .wheel-test-controls #wheel-test-status{font-size:15px}
+.homepage footer,footer{text-transform:uppercase;letter-spacing:.12em}
+
+/* Buttons take the stage's status-chip shape. */
+.quiet-button,.homepage .quiet-button,.homepage .top-actions .quiet-button,.outline-button,.homepage .outline-button,.homepage .listen-btn,.homepage .clear-suggestions,.homepage .wheel-focus,.community .member-card :is(.outline-button,.quiet-button){background:var(--chip);border:1px solid var(--line);border-radius:8px;color:var(--chip-text);font-family:var(--mono);font-size:12.5px;letter-spacing:.04em}
+.quiet-button:hover:not(:disabled),.outline-button:hover:not(:disabled),.homepage .listen-btn:hover:not(:disabled){background:var(--chip);border-color:var(--chip-on);color:var(--text)}
+.quiet-button[aria-pressed=true],.homepage .top-actions .quiet-button[aria-pressed=true],.outline-button[aria-pressed=true],.homepage .outline-button.running,.homepage .listen-btn.running{border-color:var(--accent);color:var(--accent)}
+.homepage .wheel-conversation #default-choices{color:var(--accent)}
+.homepage #eog-communication-toggle{background:var(--accent);border-color:var(--accent);color:var(--on-accent);border-radius:8px;font-family:var(--mono);font-size:13px;font-weight:600;letter-spacing:.04em}
+.homepage #eog-communication-toggle[aria-pressed=true]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+.workspace-nav button{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;border-radius:8px;color:var(--muted)}
+.workspace-nav button[aria-current=page]{background:var(--chip);border-color:var(--chip-on);color:var(--text)}
+.status,.homepage .status{font-family:var(--mono);letter-spacing:.06em}
+.community :is(.add-button,.save-notes),dialog button,.text-field button{border-radius:8px;font-family:var(--mono)}
+.homepage .trial-control select,.community :is(input,textarea),.homepage .text-field,.text-field{border-radius:8px}
+
+/* Surfaces */
+.homepage .preview{border-radius:8px;background:var(--chip);border:1px solid var(--line)}
+.homepage .preview.confirmation-ready{background:var(--accent-soft);border-color:var(--accent)}
+.homepage :is(.input-card,.text-panel,.wheel-test-controls,.signal-details,.hud-card,.phone,.guided-test),.homepage .wheel-conversation,.build-card,.project-note,.community :is(.member-card,.example-notes,.notes-editor,.notes-area,.default-style-card,.try){border-radius:12px}
+:root[data-theme] .homepage :is(.context-card,.board-column:nth-child(2) .build-card,.team-card:nth-child(2)){background:var(--tint-a)}
+:root[data-theme] .homepage :is(.board-column:nth-child(3) .build-card,.team-card:nth-child(3)){background:var(--tint-b)}
+:root[data-theme] .homepage .team-card:nth-child(4){background:var(--tint-c)}
+:root[data-theme] .homepage .wheel-conversation{background:var(--panel)}
+.team-card{border-radius:12px}
+.task-tag,.board-label{font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase}
+.welcome-flower{background:transparent;border:1px solid var(--line);border-radius:50%}
+.homepage.wheel-focus-open .wheel-panel{background:var(--bg)}
+
+/* The wheel: chrome ring on a glow. Geometry is unchanged, so every choice sits where eye control expects it. */
+.homepage .wheel{isolation:isolate}
+.homepage .wheel::before{content:"";position:absolute;z-index:-1;left:50%;top:50%;width:84%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,var(--glow,#c9efa2) 0%,rgba(143,220,194,.6) 34%,rgba(13,43,37,0) 70%);filter:blur(16px);opacity:var(--glow-on);transition:opacity .6s ease,background .2s}
+.homepage .orbit-outer{border:5px solid var(--chrome,#3f9a85);box-shadow:inset 0 2px 1px -1px #eafff3b0,inset 0 -2px 2px -1px #0b2b23,0 -1px 1px #eafff366,0 1px 2px #05130f,0 0 26px #8fdcc226}
+.homepage .orbit-inner{border-color:var(--chrome,#3f9a85);opacity:.22}
+.homepage .orbit-tick{opacity:.18}
+.homepage .wheel-center{background:radial-gradient(circle at 50% 45%,#e6f9cf,#8fdcc2);border:4px solid var(--chrome,#3f9a85);box-shadow:inset 0 2px 1px -1px #eafff3,inset 0 -2px 2px -1px #2a6f60,0 0 40px #c9efa233}
+.homepage .wheel-center p{font-weight:700;color:#082a1f}
+.homepage .wheel-center .eyebrow,.homepage .center-footer{font-family:var(--mono);font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#0f3d2e}
+.homepage .slot,.homepage .slot.utility{font-family:var(--voice);font-weight:600;background:var(--slot);border:1px solid var(--line);border-radius:14px;color:var(--text)}
+.homepage .slot.utility{color:var(--muted)}
+.homepage .slot.selected,.homepage .slot.utility.selected{background:radial-gradient(circle at 50% 40%,#e6f9cf,#8fdcc2);color:#050b09;border-color:#e6f9cf;box-shadow:0 0 0 5px #8fdcc233,0 0 30px #c9efa255}
+/* Eye control: the cue colour owns the centre and the glow, exactly as before; only the text goes back to the theme's. */
+body[data-eog-cue] .wheel::before{background:radial-gradient(circle,color-mix(in srgb,var(--cue) 70%,transparent) 0%,color-mix(in srgb,var(--cue) 32%,transparent) 34%,transparent 70%);opacity:.6}
+.homepage[data-eog-cue] .wheel-center p{color:var(--text)}
+.homepage[data-eog-cue] .wheel-center :is(.eyebrow,.center-footer){color:var(--muted)}
+@media(prefers-reduced-motion:reduce){.homepage .wheel::before{transition:none}}
+/* Fraunces and mono run wider than the system sans the wheel was sized for; give the text back that room where space is tight. */
+.homepage.communication-active .center-footer{text-transform:none;letter-spacing:0;font-weight:500}
+@media(max-width:760px){.homepage .wheel-center .eyebrow,.homepage .center-footer{letter-spacing:.02em}}
+@media(max-width:480px){
+ .homepage .wheel-center .eyebrow{font-size:8px;letter-spacing:0}.homepage .center-footer{font-size:9.5px;text-transform:none;letter-spacing:0}
+ .homepage .slot,.homepage .slot.utility{font-size:14px;letter-spacing:-.01em;padding-inline:8px}
+}
+@media(max-width:359px){.homepage .slot,.homepage .slot.utility{font-size:13px;padding-inline:6px}}

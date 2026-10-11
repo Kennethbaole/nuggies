@@ -148,6 +148,8 @@ class HTTPTests(unittest.TestCase):
 
     def test_static_only_serves_frontend(self):
         self.assertIn(b"<title>Glint</title>", self.request("/").read())
+        self.assertIn(b"<title>glint stage</title>", self.request("/stage").read())
+        self.assertEqual(self.request("/fraunces-600.woff2").headers["Content-Type"], "font/woff2")
         with self.assertRaises(HTTPError) as error:
             self.request("/../config/voice_profile.example.json")
         error.exception.close()

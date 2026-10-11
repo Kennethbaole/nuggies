@@ -38,7 +38,7 @@ def main():
             page=context.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
             page.goto(f'http://127.0.0.1:{server.server_port}')
             # Appearance checks use this isolated server; no wearer state or paid TTS.
-            expect(page.locator('html')).to_have_attribute('data-theme', 'light')
+            expect(page.locator('html')).to_have_attribute('data-theme', 'dark')
             expect(page).to_have_title('Glint')
             assert page.locator('.gesture-controls').count() == 0
             assert page.locator('.wheel-panel #listen').count() == 1
@@ -49,17 +49,17 @@ def main():
             panel_box = page.locator('.wheel-panel').bounding_box()
             assert abs(wheel_box['x'] + wheel_box['width']/2 - 720) < 2
             assert wheel_box['width'] >= 700 and panel_box['width'] >= 1300
-            page.screenshot(path=str(output/'companion-light.png'), full_page=True)
-            page.click('#theme-toggle')
-            expect(page.locator('html')).to_have_attribute('data-theme', 'dark')
-            page.reload()
-            expect(page.locator('html')).to_have_attribute('data-theme', 'dark')
             page.screenshot(path=str(output/'companion-dark.png'), full_page=True)
+            page.click('#theme-toggle')
+            expect(page.locator('html')).to_have_attribute('data-theme', 'light')
+            page.reload()
+            expect(page.locator('html')).to_have_attribute('data-theme', 'light')
+            page.screenshot(path=str(output/'companion-light.png'), full_page=True)
             community = context.new_page()
             community.goto(f'http://127.0.0.1:{server.server_port}/community')
-            expect(community.locator('html')).to_have_attribute('data-theme', 'dark')
+            expect(community.locator('html')).to_have_attribute('data-theme', 'light')
             community.click('#theme-toggle')
-            expect(page.locator('html')).to_have_attribute('data-theme', 'light')
+            expect(page.locator('html')).to_have_attribute('data-theme', 'dark')
             community.close()
             for width in (1024, 768, 390, 320):
                 page.set_viewport_size({'width': width, 'height': 900})

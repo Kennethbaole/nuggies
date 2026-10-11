@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>glint stage</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+/* Layout: one dark stage. Chrome ring centred on a soft green glow, conversation beneath, pill status buttons and mono labels at the edges.
+   Fonts are served from this folder because the companion app only allows same-origin files. */
+@font-face { font-family: "Glint Fraunces"; src: url("fraunces-600.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Glint Fraunces"; src: url("fraunces-700.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Glint Fraunces"; src: url("fraunces-500-italic.woff2") format("woff2"); font-weight: 500; font-style: italic; font-display: swap; }
+:root {
+  --ink: #050b09;      /* ground */
+  --glow: #c9efa2;     /* glow core */
+  --mint: #8fdcc2;     /* chrome highlight */
+  --spring: #d8efae;   /* wordmark, light yellow-green */
+  --fog: #93b9ad;      /* secondary text */
+  --paper: #e5f5ec;    /* primary text */
+  --line: #2b3b39;     /* button outline, from the companion app */
+  --button: #15252377; /* button fill, from the companion app */
+  --button-text: #b5d3c1;
+  --voice: "Glint Fraunces", "Iowan Old Style", Charter, Georgia, serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--ink); color: var(--paper); font-family: var(--mono); margin: 0; overflow-x: hidden; }
+.stage {
+  position: relative; min-height: 100%; box-sizing: border-box;
+  padding-inline: clamp(16px, 4vw, 48px); padding-block: 20px 28px;
+  display: grid; grid-template-rows: auto 1fr auto; gap: 12px; isolation: isolate;
+}
+.haze {
+  position: absolute; inset: 0; z-index: -2; pointer-events: none;
+  background: linear-gradient(to top, rgba(63,154,133,.55) 0%, rgba(13,43,37,.25) 22%, rgba(5,11,9,0) 45%);
+  filter: blur(18px);
+}
+.grain { position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .16; mix-blend-mode: soft-light; background-size: 220px 220px; }
+
+header, footer {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px;
+  font-size: 12px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--fog);
+}
+.wordmark {
+  font-family: var(--voice); font-weight: 700; font-size: 46px; line-height: 1;
+  letter-spacing: .035em; text-transform: none; color: var(--spring); margin: 0;
+}
+.wordmark .g { margin-right: .07em; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 10px; }
+.chip {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 11px 14px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--button); color: var(--button-text);
+  font-size: 12px; letter-spacing: .06em; text-transform: none;
+}
+.chip svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.chip.on { border-color: #4a6358; color: var(--paper); }
+.chip.warn { border-color: #e4ad8f; color: #e4ad8f; }
+
+main { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; align-content: center; gap: 10px; }
+.ringwrap { position: relative; width: min(100%, 980px); display: grid; place-items: center; isolation: isolate; }
+.ringwrap::before {
+  content: ""; position: absolute; z-index: -1; left: 50%; top: 50%;
+  width: min(78vw, 640px); aspect-ratio: 1; max-width: 100%;
+  transform: translate(-50%, -50%); border-radius: 50%;
+  background: radial-gradient(circle, var(--glow) 0%, rgba(143,220,194,.6) 34%, rgba(13,43,37,0) 70%);
+  filter: blur(16px); opacity: var(--glow-on, .95); transition: opacity .6s ease;
+}
+.ring { width: min(100%, 980px); height: auto; overflow: visible; }
+.ring .slot { font-family: var(--voice); font-size: 32px; font-weight: 600; fill: var(--paper); transition: fill .25s, opacity .25s; }
+.ring .slot.off { opacity: .3; }
+.ring .slot.sel { fill: var(--ink); }
+.ring .centre { font-family: var(--voice); font-weight: 700; font-size: 48px; fill: #082a1f; }
+.ring .hint { font-family: var(--mono); font-weight: 600; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; fill: #0f3d2e; }
+#wedge { transition: opacity .3s ease; }
+
+.preview { margin: 0; max-width: 60ch; text-align: center; font-family: var(--voice); font-style: italic; font-weight: 500; font-size: clamp(18px, 2vw, 22px); color: #c4ddd4; min-height: 1.3em; }
+
+.talk { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 48px; width: min(100%, 980px); }
+.talk div { min-width: 0; }
+.label { font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--mint); margin: 0 0 6px; }
+.said, .spoken { font-family: var(--voice); margin: 0; line-height: 1.2; text-wrap: balance; overflow-wrap: anywhere; }
+.said { font-size: clamp(22px, 2.5vw, 30px); font-weight: 500; color: #c4ddd4; font-style: italic; }
+.spoken { font-size: clamp(28px, 3.6vw, 44px); font-weight: 600; color: var(--paper); }
+.spoken.fresh { animation: settle .9s ease; }
+@keyframes settle { from { opacity: 0; transform: translateY(6px); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+.phase { color: var(--paper); }
+.note { max-width: 52ch; text-transform: none; letter-spacing: .02em; }
+
+@media (max-width: 640px) {
+  .talk { grid-template-columns: minmax(0, 1fr); }
+  .ring .slot { font-size: 40px; }
+  .wordmark { font-size: 38px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #wedge, .ring .slot, .ringwrap::before { transition: none; }
+  .spoken.fresh { animation: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="haze"></div>
+  <div class="grain" id="grain"></div>
+
+  <header>
+    <p class="wordmark" aria-label="glint"><span class="g">g</span>lint</p>
+    <div class="chips" aria-live="polite">
+      <span class="chip" id="chip-source"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M5 12a7 7 0 0 1 14 0"/></svg><span>Demo data</span></span>
+      <span class="chip" id="chip-link"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg><span>Signal</span></span>
+      <span class="chip" id="chip-mode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3-5 9-5 9 5 9 5-3 5-9 5-9-5-9-5Z"/><circle cx="12" cy="12" r="2"/></svg><span>Eyes</span></span>
+    </div>
+    <span>10.11.2026</span>
+  </header>
+
+  <main>
+    <div class="ringwrap" id="ringwrap">
+      <svg class="ring" viewBox="0 0 800 520" role="img" aria-labelledby="ring-title">
+        <title id="ring-title">Reply wheel</title>
+        <defs>
+          <filter id="chrome" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="1.6" result="b"/>
+            <feSpecularLighting in="b" surfaceScale="5" specularConstant="1.2" specularExponent="24" lighting-color="#eafff3" result="s">
+              <feDistantLight azimuth="235" elevation="38"/>
+            </feSpecularLighting>
+            <feComposite in="s" in2="SourceAlpha" operator="in" result="s2"/>
+            <feComposite in="SourceGraphic" in2="s2" operator="arithmetic" k1="0" k2="1" k3="0.95" k4="0"/>
+          </filter>
+          <radialGradient id="wedgefill" cx="50%" cy="50%" r="60%">
+            <stop offset="0%" stop-color="#e6f9cf"/>
+            <stop offset="100%" stop-color="#8fdcc2"/>
+          </radialGradient>
+        </defs>
+        <g filter="url(#chrome)">
+          <ellipse cx="400" cy="260" rx="292" ry="200" fill="none" stroke="#3f9a85" stroke-width="6"/>
+          <ellipse cx="400" cy="260" rx="138" ry="92" fill="none" stroke="#3f9a85" stroke-width="5"/>
+        </g>
+        <path id="wedge" fill="url(#wedgefill)" opacity="0"/>
+        <g id="slots"></g>
+        <text class="centre" id="centre" x="400" y="248" text-anchor="middle" dominant-baseline="central"></text>
+        <text class="hint" id="hint" x="400" y="292" text-anchor="middle" dominant-baseline="central"></text>
+      </svg>
+    </div>
+    <p class="preview" id="preview"></p>
+
+    <section class="talk" aria-live="polite">
+      <div>
+        <p class="label">They said</p>
+        <p class="said" id="said">Waiting for someone to speak</p>
+      </div>
+      <div>
+        <p class="label">Spoken, in their own voice</p>
+        <p class="spoken" id="spoken">Nothing spoken yet</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span class="phase" id="phase">Ready</span>
+    <span class="note" id="note">Glance to choose · return to centre · double blink to speak</span>
+  </footer>
+</div>
+<script src="stage.js"></script>
+</body>
+</html>
