@@ -70,14 +70,24 @@ const int MAX_LABEL = 10;
 char labels[N][MAX_LABEL + 1] = {"Food", "Warm", "Cool", "Move", "Back", "Light", "Spell", "More"};
 
 // ---------- Ring geometry ----------
-const int CX = 64, CY = 32;
-// VIEW_PERCENT scales the whole picture about the panel centre (100 = edge to edge on
-// 128x64). Both ellipses, the label band, the centre text and the alert box follow it.
+// The glasses mirror shows only part of the 128x64 panel: live use cut the picture off at
+// about x = 97 (right-hand labels lost their last letters). VIEW_SHIFT_X moves the whole
+// picture sideways (negative = left) and VIEW_PERCENT_X / VIEW_PERCENT_Y scale it about its
+// centre (100 = edge to edge). Retune these three numbers if the mirror is re-seated.
+const int VIEW_SHIFT_X = -16;
+const int VIEW_PERCENT_X = 75;
+const int VIEW_PERCENT_Y = 80;
+const int VIEW_PERCENT = VIEW_PERCENT_X < VIEW_PERCENT_Y ? VIEW_PERCENT_X : VIEW_PERCENT_Y;
+const int CX = 64 + VIEW_SHIFT_X, CY = 32;
+const int ORX = 63 * VIEW_PERCENT_X / 100, ORY = 31 * VIEW_PERCENT_Y / 100;
+// The band between the ellipses keeps room for a six-letter word (26 px in the 4x6 font).
 // backend/hud_sync.py CENTER_LIMITS must match the inner ellipse this produces.
-const int VIEW_PERCENT = 80;
-const int ORX = 63 * VIEW_PERCENT / 100, ORY = 31 * VIEW_PERCENT / 100;
-const int IRX = 30 * VIEW_PERCENT / 100, IRY = 14 * VIEW_PERCENT / 100;
+const int IRX = VIEW_PERCENT_X < 95 ? ORX - 26 : 30, IRY = 14 * VIEW_PERCENT_Y / 100;
 const bool SMALL_VIEW = VIEW_PERCENT < 95;   // use the 4x6 font so text still fits
+// Below about 65 percent the band between the ellipses cannot hold a word, so the rings
+// are dropped for five text rows: top choice, status, left/right choices, status, bottom choice.
+// Diagonal slots are not shown in this layout; eye control only uses the four cardinals.
+const bool COMPACT_VIEW = VIEW_PERCENT < 65;
 const int MRX = (ORX + IRX) / 2, MRY = (ORY + IRY) / 2;
 const float SEG = 2 * PI / N;
 const int BOOT_BTN = 0;
@@ -288,8 +298,8 @@ void drawPulse(int x, int y) {
 void drawStatus() {
   u8g2.setDrawColor(1);
   if (mirrorMode) {                     // the highlighted slot may be hidden or absent
-    u8g2.setFont(u8g2_font_7x13B_tr);
-    drawCentered(statusText, 64, 32);
+    u8g2.setFont(COMPACT_VIEW ? u8g2_font_5x8_tr : u8g2_font_7x13B_tr);
+    drawCentered(statusText, CX, CY);
     return;
   }
   u8g2.setFont(u8g2_font_ncenB14_tr);
@@ -316,6 +326,14 @@ void drawAlert() {
   u8g2.setDrawColor(1);
   // Keep the alert inside the same scaled box as the wheel so no edge is cut off.
   int bx = CX - ORX - 1, by = CY - ORY - 1, bw = 2 * ORX + 3, bh = 2 * ORY + 3;
+  if (COMPACT_VIEW) {
+    u8g2.drawFrame(bx, by, bw, bh);
+    u8g2.setFont(u8g2_font_5x8_tr);
+    drawCentered(centerText[0] + 1, CX, CY - 5);
+    u8g2.setFont(u8g2_font_4x6_tr);
+    drawCentered(centerText[1], CX, CY + 7);
+    return;
+  }
   for (int i = 0; i < 3; i++) u8g2.drawFrame(bx + i, by + i, bw - 2 * i, bh - 2 * i);
   u8g2.setFont(SMALL_VIEW ? u8g2_font_7x13B_tr : u8g2_font_9x15B_tr);
   drawCentered(centerText[0] + 1, CX, CY - (SMALL_VIEW ? 7 : 8));
@@ -323,8 +341,44 @@ void drawAlert() {
   drawCentered(centerText[1], CX, CY + (SMALL_VIEW ? 9 : 14));
 }
 
+// One choice in the compact layout. align: -1 left edge at x, 0 centred on x, 1 right edge at x.
+void drawCompactChoice(int k, int x, int y, int align, int maxChars) {
+  if (slotEmpty(k)) return;
+  char shown[MAX_LABEL + 1];
+  strncpy(shown, labels[k], MAX_LABEL);
+  shown[MAX_LABEL] = '\0';
+  if (maxChars < MAX_LABEL) shown[maxChars] = '\0';
+  int w = u8g2.getStrWidth(shown);
+  int left = align < 0 ? x : align > 0 ? x - w : x - w / 2;
+  bool marked = highlight && k == selected;
+  u8g2.setDrawColor(1);
+  if (marked) u8g2.drawBox(left - 1, y - 3, w + 2, 7);
+  u8g2.setDrawColor(marked ? 0 : 1);
+  u8g2.drawStr(left, y + u8g2.getAscent() / 2, shown);
+  u8g2.setDrawColor(1);
+}
+
+void drawCompact() {
+  u8g2.setFont(u8g2_font_4x6_tr);
+  u8g2.setFontMode(1);
+  int rowH = (2 * ORY) / 5;
+  if (rowH < 6) rowH = 6;
+  drawCompactChoice(0, CX, CY - 2 * rowH, 0, MAX_LABEL);          // up
+  drawCompactChoice(4, CX, CY + 2 * rowH, 0, MAX_LABEL);          // down
+  drawCompactChoice(6, CX - ORX, CY, -1, 7);                      // left
+  drawCompactChoice(2, CX + ORX, CY, 1, 7);                       // right
+  u8g2.setDrawColor(1);
+  if (mirrorMode) {
+    drawCentered(centerText[0], CX, CY - rowH);
+    drawCentered(centerText[1], CX, CY + rowH);
+  } else {
+    drawCentered(labels[selected], CX, CY - rowH);
+  }
+}
+
 void drawRing() {
   u8g2.setDrawColor(1);
+  if (COMPACT_VIEW) { drawCompact(); return; }
   u8g2.drawEllipse(CX, CY, ORX, ORY, U8G2_DRAW_ALL);
   u8g2.drawEllipse(CX, CY, IRX, IRY, U8G2_DRAW_ALL);
   if (highlight) fillWedge(wedge);
