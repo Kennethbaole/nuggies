@@ -253,3 +253,92 @@ keeps it running without a login). Pause during a demo with
 Logs: `journalctl --user -u nuggies-update`. Deploying restarts the app. Open
 pages reconnect by themselves within seconds without asking for the token
 again. In-memory state (the current draft and recent words) starts fresh.
+
+## 7. Eye control on the Jetson (Nano plugged into the Jetson)
+
+Prepared on the laptop 2026-10-11; **not yet run on a Jetson**. The laptop has been the
+only tested eye-control host. Section 5's unit starts `backend.app` with `--serial-port`
+only, which is monitor-only: no gaze choices, no double-blink confirmation, no pause.
+Eye control also needs the private waveform profile and three flags. `scripts/run_jetson.sh`
+adds them when the profile is present and falls back to monitor-only when it is not, so a
+missing file never stops the website.
+
+What must be on the Jetson that Git does not carry:
+
+- `recordings/guided-runtime-selected/candidate-profile.json` (68 KB, private, Git-ignored).
+  It was fitted to one wearer's signals on the morning of 2026-10-10. Copy it from the laptop:
+
+  ```sh
+  ssh <user>@<jetson> 'mkdir -p ~/nuggies/recordings/guided-runtime-selected'
+  scp /private/tmp/nuggies/recordings/guided-runtime-selected/candidate-profile.json \
+      <user>@<jetson>:nuggies/recordings/guided-runtime-selected/
+  ```
+
+- `.env` with `APP_TOKEN` (required for LAN binding) and the speech/model settings.
+
+Change the unit from section 5 to use the launcher, then reload:
+
+```ini
+# ~/.config/systemd/user/nuggies-app.service  ([Service] section)
+WorkingDirectory=%h/nuggies
+ExecStart=%h/nuggies/scripts/run_jetson.sh
+Restart=always
+RestartSec=5
+```
+
+```sh
+systemctl --user daemon-reload && systemctl --user restart nuggies-app
+journalctl --user -u nuggies-app -n 20     # expect "Eye control available: profile ..., Nano on ..."
+```
+
+The launcher prefers the Nano's `/dev/serial/by-id/...` name and falls back to
+`/dev/ttyACM0`; set `NANO_PORT` in the unit (`Environment=NANO_PORT=...`) if neither is
+right. The user needs the `dialout` group (section 2's setup script adds it; log out and in).
+Check before blaming the detector: `ls /dev/serial/by-id/` with the Nano plugged in, and
+that only one process opens it (stop any manual `backend.app`).
+
+The OLED mirror, if the ESP32 is also on the Jetson, is a second unit. The CP2102 bridge
+appears as `/dev/ttyUSB0` or `/dev/serial/by-id/usb-Silicon_Labs_CP2102*`:
+
+```ini
+# ~/.config/systemd/user/nuggies-hud.service
+[Unit]
+Description=Nuggies OLED mirror
+After=nuggies-app.service
+
+[Service]
+WorkingDirectory=%h/nuggies
+ExecStart=%h/nuggies/.venv/bin/python -m backend.hud_sync --url http://127.0.0.1:8765 --port /dev/ttyUSB0
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target
+```
+
+Using it, in order:
+
+1. Open the site from the laptop or phone (`http://<hostname>.local:8765`), enter the token.
+2. Confirm "Input connected", then click **Start gaze + double-blink communication**. That
+   click also enables speech in that browser; audio plays on the device showing the page,
+   not on the Jetson.
+3. After a Nano unplug/replug or an app restart, eye control is off again: repeat step 2.
+
+Differences from the laptop setup to expect:
+
+- No raw recording or decision log by default. `Environment=EOG_LOG=1` writes a private
+  decision log per start; raw CSV recording is not available with automatic reconnect.
+- The guided recording tests and the speed check need a recording, so they stay disabled.
+- `Environment=EOG_DEMO=0` returns to the strict direction thresholds.
+- Section 6's auto-update restarts the app within two minutes of any push to `main`,
+  which turns eye control off mid-session. Pause it for a demo:
+  `touch ~/nuggies/.cache/auto-update.pause`.
+- Phone microphones need a secure page; `http://<hostname>.local` is not one. Use the
+  laptop through an SSH tunnel (`ssh -N -L 8765:127.0.0.1:8765 <user>@<jetson>`, then
+  `http://127.0.0.1:8765`) for Listen, or an HTTPS front such as `tailscale serve`.
+
+Untested on the Jetson and to be checked there, not assumed: Python version against the
+detector (the sources parse as Python 3.10), CPU headroom for the pure-Python detector at
+250 Hz beside ASR and Ollama, serial reconnect on real hardware, and whether the morning
+profile still matches the electrodes. Fall back to the laptop as eye-control host if any
+of these fail; nothing here removes that setup.

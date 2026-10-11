@@ -53,7 +53,7 @@ class FrameTests(unittest.TestCase):
         _, labels, center = fields(frame)
         self.assertEqual(labels[0], "A-M")
         self.assertEqual(labels[6], "")  # Delete is disabled with an empty draft, so hidden
-        self.assertEqual(center, ["Choose letters", "", ""])
+        self.assertEqual(center, ["Choose", "letters", ""])
 
     def test_disabled_slots_keep_their_position(self):
         state = RingState().snapshot()
@@ -76,7 +76,7 @@ class FrameTests(unittest.TestCase):
         state.update(wheel_test=True, wheel_message="Look center")
         selected, _, center = fields(frame_for(state))
         self.assertEqual(selected, -1)
-        self.assertEqual(center[0], "Look center")
+        self.assertEqual(center[:2], ["Look", "center"])  # wraps inside the narrowed inner ellipse
 
     def test_highlight_dropped_when_selected_slot_is_hidden(self):
         state = RingState().snapshot()
@@ -111,7 +111,7 @@ class FrameTests(unittest.TestCase):
     def test_reading_pause_shows_on_the_display(self):
         state = RingState().snapshot()
         state.update(eog_communication=True, wheel_test=True, eog_paused=True, gaze_hover=dict(phase="ready"))
-        self.assertEqual(fields(frame_for(state))[2], ["Paused.", "Double blink", ""])
+        self.assertEqual(fields(frame_for(state))[2], ["Paused.", "Double", "blink"])
 
     def test_blink_alert_needs_communication_mode_and_a_pending_choice(self):
         state = RingState().snapshot()
@@ -123,7 +123,9 @@ class FrameTests(unittest.TestCase):
     def test_wrap_fits_the_inner_ellipse(self):
         self.assertEqual(wrap_center(""), [])
         self.assertEqual(wrap_center("Ready"), ["Ready"])
-        self.assertEqual(wrap_center("Hello. Double blink"), ["Hello. Double", "blink"])
+        self.assertEqual(wrap_center("Hello. Double blink"), ["Hello.", "Double", "blink"])
+        self.assertEqual(wrap_center("Choose a reply"), ["Choose a", "reply"])
+        self.assertEqual(wrap_center("Paused. Double blink"), ["Paused.", "Double", "blink"])
         for text in ("Could I have some water, please?", "Supercalifragilistic word", "I love you.",
                      "Please listen, I want to say something to you right now"):
             lines = wrap_center(text)

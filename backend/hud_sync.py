@@ -39,8 +39,11 @@ HUD_BAUD = 115200
 DEFAULT_URL = "http://127.0.0.1:8765"
 SLOTS = 8
 MAX_LABEL = 10  # Must match MAX_LABEL in firmware/esp32_hud.
-# Characters that fit inside the ring's inner ellipse in the 4x6 font, by line count.
-CENTER_LIMITS = {1: (14,), 2: (13, 13), 3: (10, 14, 10)}
+# Centre text line lengths in the 4x6 font, by line count. They must match the inner
+# ellipse in firmware/esp32_hud. Current sketch: VIEW_PERCENT_X 75 / VIEW_PERCENT_Y 80 gives
+# an inner ellipse of 42 x 22 px with lines 6 px apart. A full-size panel fits
+# {1: (14,), 2: (13, 13), 3: (10, 14, 10)}; the compact layout fits {1: (14,), 2: (14, 14)}.
+CENTER_LIMITS = {1: (10,), 2: (10, 10), 3: (8, 10, 8)}
 HEARTBEAT_S = 1.0  # The sketch shows "No link" when frames stop for 4 s.
 OFFLINE_TEXT = "Website offline"
 MAX_CENTER = 14  # Must match MAX_CENTER in firmware/esp32_hud.
@@ -78,7 +81,7 @@ def wrap_center(text: str) -> list[str]:
     words = ascii_text(text).split()
     if not words:
         return []
-    for count in (1, 2, 3):
+    for count in sorted(CENTER_LIMITS):
         limits = CENTER_LIMITS[count]
         lines, rest = [], list(words)
         for limit in limits:

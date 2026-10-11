@@ -107,10 +107,23 @@ class EOGPipeline:
         if fresh_pair:self._emit('double_blink',decision=dict(pair),slot=None)
         choice=self.choices.get(self.selected,{})
         toggled=False
-        if (self.communication and fresh_pair and self.confirmation.target is None
-                and self.detector.raw_index-self.pause_guard_sample>=500
-                and self.detector.phase in (('ready','recovery') if self.paused else ('ready',))
-                and self.confirmation.pulse_match(pair)):
+        guard_clear=self.detector.raw_index-self.pause_guard_sample>=500
+        trigger=None
+        if self.communication and guard_clear and not self.paused:
+            # Pausing stays strict: a causal pulse pair that also passes the selection match.
+            if (fresh_pair and self.confirmation.target is None and self.detector.phase=='ready'
+                    and self.confirmation.pulse_match(pair)):trigger=pair
+        elif self.communication and guard_clear and self.detector.phase in ('ready','recovery'):
+            # Resuming is lenient: a false resume only re-enables tracking and cannot select.
+            # Live resume attempts were missed by the pulse stream yet labelled double_blink
+            # by the window classifier, or failed only the selection-grade direction margin.
+            if fresh_pair and pair.get('pulse_pair_valid') is True and pair.get('horizontal_fraction',1)<=.2:
+                trigger=pair
+            elif (event and event.get('label')=='double_blink' and event.get('reason')=='blink'
+                    and event.get('distance',1)<=.12 and event.get('horizontal_fraction',1)<=.15):
+                trigger=event
+        if trigger is not None:
+            pair=trigger
             self.paused=not self.paused;toggled=True
             self.pause_guard_sample=self.detector.raw_index
             pair['confirmation_result']='paused' if self.paused else 'resumed'

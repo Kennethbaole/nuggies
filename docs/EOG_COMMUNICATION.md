@@ -346,3 +346,13 @@ is unavailable during centering/retry, so the wearer must be Ready (centred, set
 to pause or resume. A natural double blink can toggle the pause; the grey frame shows it.
 Software-tested only; no live wearer result yet.
 
+
+Resume made lenient (2026-10-10, late): in a live session four deliberate resume
+attempts failed. One valid pulse pair missed only the selection-grade direction
+margin (1.3 < 2); three were labelled double_blink by the window classifier
+(distances .03–.10) with no pulse-stream pair. Resume now accepts either a valid
+pulse pair (horizontal fraction <= .2) or a window double blink (distance <= .12,
+horizontal fraction <= .15) while Ready or in recovery. Pausing is unchanged and
+still needs the strict pulse match. A false resume only re-enables tracking; it
+cannot select. Replaying that recording from the pause, the new rule resumes at the
+second attempt (sample 98269; logged attempt at 98272). Not yet tried live.
