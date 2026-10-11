@@ -14,7 +14,27 @@ from pathlib import Path
 
 from backend.envfile import load_env
 from backend.transcribe import RemoteTranscriber, TranscriptionUnavailable
-from scripts.try_suggest import record
+
+
+
+def record(seconds, sample_rate=16000):
+    """Mono 16-bit WAV bytes from the default microphone. Imported lazily so --health and --wav need no audio stack."""
+    import io
+    import wave
+    try:
+        import sounddevice as sd
+    except (ImportError, OSError) as error:
+        raise SystemExit("Recording needs sounddevice: pip install -r requirements-voice.txt") from error
+    print(f"Recording {seconds}s... speak now.", flush=True)
+    pcm = sd.rec(int(seconds * sample_rate), samplerate=sample_rate, channels=1, dtype="int16")
+    sd.wait()
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        wav.writeframes(pcm.tobytes())
+    return buffer.getvalue()
 
 
 def main():

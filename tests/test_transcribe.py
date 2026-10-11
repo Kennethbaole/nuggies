@@ -233,3 +233,12 @@ class LauncherTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TranscribeCliImportTest(unittest.TestCase):
+    def test_cli_imports_without_audio_dependencies(self):
+        # Regression: the module imported a helper that had been deleted, so even --health crashed.
+        import importlib
+        module = importlib.import_module("scripts.try_transcribe")
+        self.assertTrue(callable(module.record) and callable(module.main))
+
