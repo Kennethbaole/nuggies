@@ -307,3 +307,34 @@ body[data-eog-cue] .wheel-center{border:5px solid var(--cue);background:color-mi
 }
 
 .eog-cue-legend [data-cue=selected]{--dot:#8175ff}
+
+/* Conversation tools replace the manual gesture bar, directly with the wheel. */
+.homepage .wheel-conversation{position:relative;max-width:900px;margin:12px auto 0;padding:16px 20px;display:grid;grid-template-columns:minmax(160px,1fr) repeat(3,minmax(100px,1fr));gap:10px 14px;text-align:left;border:1px solid var(--line);background:var(--panel);box-shadow:0 8px 30px #0002}
+.homepage .wheel-conversation>label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.homepage .wheel-conversation .contact-row{grid-column:1;grid-row:1;margin:0}
+.homepage .wheel-conversation .contact-row select{font-size:20px}
+.homepage .wheel-conversation .avatar{width:32px;height:32px;font-size:11px}
+.homepage .wheel-conversation .contact-dot{display:none}
+.homepage .wheel-conversation .listen-row{display:contents}
+.homepage .wheel-conversation #listen{grid-column:2;grid-row:1}
+.homepage .wheel-conversation #text-toggle{grid-column:3;grid-row:1}
+.homepage .wheel-conversation #default-choices{grid-column:4;grid-row:1;margin:0;color:var(--accent);font-weight:600}
+.homepage .wheel-conversation .context-note{grid-column:1/-1;grid-row:2;border:0;padding:0;margin:0;font-size:12px}
+.homepage .wheel-conversation #text-panel,.homepage .wheel-conversation #suggest-clear{grid-column:1/-1;margin:0}
+.homepage .context-panel{grid-template-columns:1fr}
+.homepage .wheel{--slot-radius:35%}
+.homepage .slot,.homepage .slot.utility{font-size:22px;min-width:112px;max-width:170px;padding:16px 20px}
+.homepage.communication-active .wheel{--slot-radius:30%}
+.homepage.communication-active .slot,.homepage.communication-active .slot.utility{font-size:28px;min-width:132px;max-width:190px;padding:16px 20px}
+@media(max-width:760px){
+ .homepage .wheel-conversation{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:12px;bottom:8px}
+ .homepage .wheel-conversation .contact-row{grid-column:1/-1;grid-row:1}
+ .homepage .wheel-conversation #listen{grid-column:1;grid-row:2}
+ .homepage .wheel-conversation #text-toggle{grid-column:2;grid-row:2}
+ .homepage .wheel-conversation #default-choices{grid-column:3;grid-row:2;font-size:12px;padding:8px}
+ .homepage .wheel-conversation .context-note{grid-row:3}
+ .homepage .slot,.homepage .slot.utility{font-size:16px;min-width:76px;max-width:108px;padding:12px 10px}
+ .homepage.communication-active .wheel{--slot-radius:33%}
+ .homepage.communication-active .wheel-center{width:27%;height:27%}
+ .homepage.communication-active .slot,.homepage.communication-active .slot.utility{font-size:19px;min-width:82px;max-width:110px;padding:12px 8px}
+}

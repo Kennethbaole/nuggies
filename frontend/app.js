@@ -347,15 +347,12 @@ async function poll() {
     $('phone-live').textContent = '○ Disconnected';
     if (lastConnected !== false) feedback(error.message);
     lastConnected = false;
-    $('select').disabled = $('left').disabled = $('right').disabled = true;
   } finally {
-    if (lastConnected) $('select').disabled = $('left').disabled = $('right').disabled = false;
     pollBusy = false;
   }
 }
 
-$('left').onclick = () => command('left'); $('right').onclick = () => command('right');
-$('select').onclick = () => command('select'); $('reset').onclick = () => command('reset');
+$('reset').onclick = () => command('reset');
 $('scenario').onclick = () => command('demo', !state?.demo_running);
 $('contact').onchange = event => command('contact', event.target.value);
 $('trial-label').onchange = event => command('label', event.target.value);

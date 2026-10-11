@@ -27,10 +27,13 @@
       <svg class="welcome-flower" viewBox="0 0 200 200" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.3"><ellipse cx="100" cy="66" rx="22" ry="42"/><ellipse cx="100" cy="66" rx="22" ry="42" transform="rotate(60 100 100)"/><ellipse cx="100" cy="66" rx="22" ry="42" transform="rotate(120 100 100)"/><ellipse cx="100" cy="66" rx="22" ry="42" transform="rotate(180 100 100)"/><ellipse cx="100" cy="66" rx="22" ry="42" transform="rotate(240 100 100)"/><ellipse cx="100" cy="66" rx="22" ry="42" transform="rotate(300 100 100)"/><circle cx="100" cy="100" r="15"/></g></svg>
     </section>
     <aside class="context-panel">
-      <div class="eyebrow">YOUR CONVERSATION</div>
-      <h2>Good company.</h2>
-      <p class="intro">Choose a reply, then confirm when you’re ready.</p>
-      <div class="context-card">
+      <div class="input-card"><div class="eyebrow">CONNECTION</div><div id="source-name" class="source-name">Keyboard demonstration</div><p id="input-detail">No glasses or electrodes needed.</p><button id="scenario" class="outline-button">Run signal scenario</button></div>
+
+    </aside>
+    <section class="wheel-panel" aria-label="Communication wheel">
+      <div class="communication-toolbar"><div><span class="eyebrow">YOUR SPACE TO SPEAK</span><h2>What’s on your mind?</h2></div><button id="eog-communication-toggle" type="button" class="outline-button" aria-pressed="false">Start gaze + double-blink communication</button><p id="eog-communication-status" role="status"></p><ul id="eog-cue-legend" class="eog-cue-legend" hidden><li data-cue="wait">Wait · look center</li><li data-cue="ready">Choose</li><li data-cue="detected">Return to center</li><li data-cue="confirm">Double blink</li><li data-cue="retry">Retry</li><li data-cue="selected">Selected</li><li data-cue="paused">Paused · read freely</li></ul></div>
+      <div class="preview"><span id="preview-label" class="preview-label">HIGHLIGHTED</span><span id="preview-text">Hi, it is good to see you.</span></div>
+      <div class="context-card wheel-conversation">
         <label class="eyebrow" for="contact">SPEAKING WITH</label>
         <div class="contact-row"><div id="avatar" class="avatar" data-tone="0">BE</div><div><select id="contact" aria-label="Conversation contact"></select><div id="relationship" class="muted">Family</div></div><span class="contact-dot"></span></div>
         <div class="context-note"><span id="suggest-source">Local sample phrases</span><br><span id="heard"></span></div>
@@ -46,12 +49,6 @@
         <button id="default-choices" type="button" class="quiet-button clear-suggestions" title="Restore Hello, Goodbye, Yes, No and Help">Default choices</button>
         <button id="suggest-clear" class="quiet-button clear-suggestions" hidden>Use sample phrases</button>
       </div>
-      <div class="input-card"><div class="eyebrow">CONNECTION</div><div id="source-name" class="source-name">Keyboard demonstration</div><p id="input-detail">No glasses or electrodes needed.</p><button id="scenario" class="outline-button">Run signal scenario</button></div>
-
-    </aside>
-    <section class="wheel-panel" aria-label="Communication wheel">
-      <div class="communication-toolbar"><div><span class="eyebrow">YOUR SPACE TO SPEAK</span><h2>What’s on your mind?</h2></div><button id="eog-communication-toggle" type="button" class="outline-button" aria-pressed="false">Start gaze + double-blink communication</button><p id="eog-communication-status" role="status"></p><ul id="eog-cue-legend" class="eog-cue-legend" hidden><li data-cue="wait">Wait · look center</li><li data-cue="ready">Choose</li><li data-cue="detected">Return to center</li><li data-cue="confirm">Double blink</li><li data-cue="retry">Retry</li><li data-cue="selected">Selected</li><li data-cue="paused">Paused · read freely</li></ul></div>
-      <div class="preview"><span id="preview-label" class="preview-label">HIGHLIGHTED</span><span id="preview-text">Hi, it is good to see you.</span></div>
       <div class="wheel-heading"><span class="eyebrow" id="screen-name">CONVERSATION</span><span id="page-info" class="muted">Five phrases, one choice at a time</span><button id="wheel-focus" type="button" class="wheel-focus" aria-pressed="false" aria-label="Show the wheel full screen" title="Full screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="focus-enter" d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><path class="focus-exit" d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg></button></div>
       <div class="wheel" id="wheel">
         <div class="orbit orbit-outer"></div><div class="orbit orbit-inner"></div><div class="orbit-tick"></div>
@@ -59,8 +56,6 @@
         <div id="slots"></div>
       </div>
 
-      <div class="gesture-controls"><button id="left" aria-label="Glance left, previous option">← <span>Glance left</span></button><button id="select" class="select-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3-5 9-5 9 5 9 5-3 5-9 5-9-5-9-5Z"/><circle cx="12" cy="12" r="2"/></svg>Confirm choice</button><button id="right" aria-label="Glance right, next option"><span>Glance right</span> →</button></div>
-      <p class="keyboard-help"><kbd>←</kbd><kbd>→</kbd> navigate · <kbd>Space</kbd> select · <kbd>B</kbd> single blink · <kbd>Esc</kbd> back</p>
       <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
     </section>
     <aside class="mirror-panel">

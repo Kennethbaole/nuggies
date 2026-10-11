@@ -40,6 +40,10 @@ def main():
             # Appearance checks use this isolated server; no wearer state or paid TTS.
             expect(page.locator('html')).to_have_attribute('data-theme', 'light')
             expect(page).to_have_title('Glint')
+            assert page.locator('.gesture-controls').count() == 0
+            assert page.locator('.wheel-panel #listen').count() == 1
+            assert page.locator('.wheel-panel #default-choices').count() == 1
+            assert page.locator('.wheel-conversation').bounding_box()['y'] < page.locator('#wheel').bounding_box()['y']
             expect(page.locator('#project-tagline')).to_be_empty()
             wheel_box = page.locator('#wheel').bounding_box()
             panel_box = page.locator('.wheel-panel').bounding_box()

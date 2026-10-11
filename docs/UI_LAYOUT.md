@@ -66,3 +66,15 @@ The guided recording button stays enabled across state polls while eye control i
 on; starting a recording still stops eye control first. The state API reports
 wheel control as sensor actions, so the UI must distinguish it from legacy sensor
 control when deciding whether recording can start. No detection threshold changed.
+
+## Wheel controls follow-up (2026-10-11)
+
+Listen, Text, Default choices and the contact picker now replace the manual
+Glance/Confirm bar. The compact conversation toolbar sits above the circle,
+with the preview, so it is reachable without scrolling below the wheel and never
+covers an option. The typing form expands
+in place; connection diagnostics remain below. Manual gesture buttons and their
+keyboard hint are removed; existing keyboard shortcuts still work on the wheel.
+Eye-control choices are larger (28 px desktop), closer to center (30% radius),
+with separate mobile dimensions to prevent collisions. The initial eight-slot
+manual layout also uses larger labels, with more spacing than the four-slot layout.
