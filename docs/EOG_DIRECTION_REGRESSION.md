@@ -115,3 +115,30 @@ Private evidence: `signal-comparison-return-guard-final/report.json`,
 recordings/. Synthetic regressions cover rejected outbound→long quiet→opposite,
 returns already inside capture, late classification, blink interference, recovery
 rebounds, explicit reset and input gaps. Exact replay now retains guard state.
+
+## Preserved offline Left experiment (2026-10-11)
+
+`scripts/eog_left_review.py` reproduces saved Left-window classifications with
+the matching private profile and writes its report only beneath `recordings/`.
+A reviewed unlabelled live log had 25 Left candidates: 8 accepted, 7 blink-overlap
+rejections, 9 recovering and 1 remembered excursion. These are policy counts,
+not intended movement hits or accuracy. One rejected horizontal window also
+failed direction separation (1.023 against 1.1); relaxing only its blink margin
+would not accept it. Intent cannot be recovered from these unlabelled windows.
+
+The offline `pulse-horizontal-axis` alternative uses horizontal energy to limit
+competing direction classes. Repetition-holdout replay of reviewed sessions 4–6
+did not improve the result, so it remains an offline experiment, not a live rule.
+
+| Variant | Hits / 20 | Misses | Wrong | Duplicates | False directions / min | Negative-phase confirmations | Median cue-to-emit |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| pulse-return-guard | 16 | 4 | 0 | 0 | 0.655 | 0 | 1.51 s |
+| pulse-horizontal-axis | 16 | 4 | 0 | 0 | 0.655 | 0 | 1.51 s |
+
+Both had three false directions over 275 seconds of negative exposure and one
+selection during a movement cue. These acquisition sessions did not instruct
+confirmation, so intended selection misses and actual false confirmations cannot
+be determined; zero negative-phase confirmations is only a proxy. This is
+reused-data development evidence from the earlier confirmation policy, not
+validation of the newer pending-choice behavior or cross-session accuracy.
+Private report: `recordings/left-axis-comparison/report.json` (excluded from Git).

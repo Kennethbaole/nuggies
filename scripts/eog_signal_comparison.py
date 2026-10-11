@@ -28,7 +28,7 @@ VARIANTS = ('baseline', 'pulse-confirmation', 'extend1.6', 'lp10-notch60', 'lp15
             'median3', 'stable3', 'haar0.1', 'haar0.25', 'haar-multiscale',
             'second-half', 'nearest2', 'dtw4', 'lda', 'crosstalk', 'bounded-scale',
             'pulse-retry0.6', 'pulse-retry1', 'pulse-retry2', 'pulse-retry3',
-            'pulse-recovery1', 'pulse-recovery2', 'pulse-return-guard')
+            'pulse-recovery1', 'pulse-recovery2', 'pulse-return-guard', 'pulse-horizontal-axis')
 
 
 class Biquad:
@@ -161,11 +161,19 @@ class ExperimentProfile(WaveformProfile):
             scores=lda_scores(event_features((x*np.asarray(self.scale)).tolist()),self.lda)
             label=self.lda['labels'][max(range(len(scores)),key=scores.__getitem__)]
         distance=by_label[label];energy=np.square(x).sum(0)
+        horizontal_fraction=float(energy[0]/max(float(sum(energy)),1e-9))
+        blink_margin=min(d for l,d in by_label.items() if l not in DIRECTIONS)/max(distance,1e-9)
+        direction_margin=min(d for l,d in by_label.items() if l in DIRECTIONS and l!=label)/max(distance,1e-9)
+        if self.variant=='pulse-horizontal-axis' and label in ('left','right') and horizontal_fraction>=.8:
+            # Offline hypothesis only. Do not deploy: strong H energy does not
+            # establish intent, and returns/artifacts can also be horizontal.
+            blink_margin=max(blink_margin,1.5)
+            opposite='right' if label=='left' else 'left'
+            direction_margin=by_label[opposite]/max(distance,1e-9)
         return dict(**blink_shape(samples),label=label,distance=distance,
                     other_label_margin=min(d for l,d in by_label.items() if l!=label)/max(distance,1e-9),
-                    blink_margin=min(d for l,d in by_label.items() if l not in DIRECTIONS)/max(distance,1e-9),
-                    direction_margin=min(d for l,d in by_label.items() if l in DIRECTIONS and l!=label)/max(distance,1e-9),
-                    horizontal_fraction=float(energy[0]/max(float(sum(energy)),1e-9)))
+                    blink_margin=blink_margin,direction_margin=direction_margin,
+                    horizontal_fraction=horizontal_fraction)
 
 
 def dtw_distance(left,right,band=4):
@@ -197,7 +205,7 @@ class AdaptiveSegmenter(EventSegmenter):
 
 
 def config_for_variant(variant):
-    settings=dict(pulse_confirmation=variant.startswith('pulse-'),excursion_guard=variant=='pulse-return-guard')
+    settings=dict(pulse_confirmation=variant.startswith('pulse-'),excursion_guard=variant in ('pulse-return-guard','pulse-horizontal-axis'))
     if variant.startswith('pulse-retry'):settings['retry_s']=float(variant[len('pulse-retry'):])
     if variant.startswith('pulse-recovery'):settings['recovery_s']=float(variant[len('pulse-recovery'):])
     return GuidedConfig(**settings)
