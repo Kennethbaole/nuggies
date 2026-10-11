@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 
 from backend.app import Application, make_handler
 from backend.suggestions import (REPLY_KINDS, OllamaSuggestions, SuggestionBusy, SuggestionUnavailable,
-                                 clean_line, clean_suggestions, format_timing, echoes_incoming)
+                                 clean_line, clean_suggestions, format_timing, echoes_incoming, basic_offer_replies)
 
 
 def reply(payload):
@@ -63,7 +63,7 @@ class CleanTests(unittest.TestCase):
                  dict(label="Agree", text="Yes, please."),
                  dict(text="Unbelievably wonderful news!"), dict(text="Congratulations, everyone!")]
         self.assertEqual([item["label"] for item in clean_suggestions(items)],
-                         ["Can you call", "Yes, please", "Unbelievably", "Congratulation"])
+                         ["Can you call", "Yes", "Unbelievably", "Congratulation"])
 
     def test_limits_to_five_and_tolerates_non_lists(self):
         many = [dict(label=str(i), text=f"Reply number {i}.") for i in range(9)]
@@ -72,6 +72,22 @@ class CleanTests(unittest.TestCase):
 
 
 class ProviderTests(unittest.TestCase):
+    def test_simple_offer_has_short_labels_and_complete_replies_in_both_modes(self):
+        for mode in ("single", "parallel"):
+            with self.subTest(mode=mode):
+                suggester, calls = provider(error=URLError("not needed"), mode=mode)
+                result = suggester.suggest(heard_text="Do you want to eat?", notes="Old unrelated news.",
+                                          avoid=["Yes, I would like to eat."])
+                self.assertEqual([x["label"] for x in result.suggestions], ["Yes", "No", "Later"])
+                self.assertEqual(result.suggestions[0]["text"], "Yes, I would like to eat.")
+                self.assertTrue(all("eat" in x["text"] for x in result.suggestions))
+                self.assertEqual((result.provider, calls), ("quick-replies", []))
+                self.assertEqual(result.heard, "Do you want to eat?")
+        for text in ("Do you want to eat or go out?", "Do you not want to eat?",
+                     "Does he want to eat?", "Why do you want to eat?", "Do you want to rest food?"):
+            self.assertEqual(basic_offer_replies(text), [])
+        self.assertEqual(len(basic_offer_replies("Would you like to drink some water now?")), 3)
+
     def test_request_shape_and_result(self):
         suggester, calls = provider(reply(GOOD))
         result = suggester.suggest(contact=dict(name="Alex", relationship="Family"), heard_text="  Do you want   tea? ")
@@ -85,7 +101,7 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(result.provider, "ollama")
         self.assertEqual(result.heard, "Do you want tea?")
         self.assertEqual(len(result.suggestions), 5)
-        self.assertEqual(result.suggestions[0]["label"], "Yes, tea would")  # From the reply, not the model.
+        self.assertEqual(result.suggestions[0]["label"], "Yes")  # From the reply, not the model.
         self.assertNotIn("label", body["messages"][0]["content"])  # The model is not asked to write labels.
 
     def test_current_turn_is_last_and_prior_suggestions_are_not_prompt_topics(self):
@@ -230,6 +246,24 @@ class AppIntegrationTests(unittest.TestCase):
         self.assertEqual(app.state()["contact"], other)
         self.assertEqual(app.state()["suggestions_provider"], "curated-demo")
         self.assertEqual(app.state()["selection_id"], 0)
+
+    def test_offer_wheel_pages_and_full_sentence_confirmation(self):
+        app = self.make_app()
+        app.ring.cardinal_layout = True
+        state = app.suggest(dict(session_id=app.session_id, heard_text="Do you want to eat?"))
+        self.assertEqual([state["slots"][i]["label"] for i in (6, 2, 0, 4)],
+                         ["Yes", "No", "More", "Back"])
+        self.assertEqual(state["selection_id"], 0)
+        app.ring.action("focus", value=6)
+        app.ring.action("select")
+        self.assertEqual(app.ring.confirmed, "Yes, I would like to eat.")
+        app.ring.action("focus", value=0)
+        app.ring.action("select")
+        self.assertEqual(app.ring.slots()[6]["label"], "Later")
+        self.assertFalse(app.ring.slots()[2]["enabled"])
+        app.ring.action("focus", value=6)
+        app.ring.action("select")
+        self.assertEqual(app.ring.confirmed, "Later, please. I would like to eat later.")
 
     def test_default_choices_restore_home_and_cancel_pending_choice_without_selection(self):
         app = self.make_app()

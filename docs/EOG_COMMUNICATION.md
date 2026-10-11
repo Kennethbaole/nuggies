@@ -407,3 +407,30 @@ locally for duplicates; notes remain style guidance, not a question to answer.
 Exact incoming echoes of three or more words are discarded in both modes. This
 filter does not detect semantic paraphrases. Synthetic prompt/transport regressions
 verify role and turn placement, not model quality on real conversations.
+
+## Short answer labels and direct offers (2026-10-11)
+
+Reply text and wheel labels are separate: explicit Yes/No/Later openings use those
+short labels, while confirmation speaks the complete sentence. Labels are derived
+from the reply text, never accepted blindly from a model-supplied label.
+
+Complete simple questions matching `Do you want to` / `Would you like to` followed
+by eat, drink, rest or sleep get three deterministic contextual choices. Optional
+food/water/something objects are allowed for eat/drink, and a trailing now/please
+is allowed. For `Do you want to eat?`:
+
+| Page | Left label → spoken sentence | Right label → spoken sentence |
+| --- | --- | --- |
+| 1 | Yes → Yes, I would like to eat. | No → No, thank you. I do not want to eat right now. |
+| 2 | Later → Later, please. I would like to eat later. | Disabled |
+
+Up remains More and Down remains Back; the existing gaze/return/double-blink
+confirmation rules are unchanged. These direct replies do not call the model and
+are marked `quick-replies` / “Direct reply choices”. Prior offered replies do not
+remove Yes/No/Later from a repeated offer. Compound, negative, third-person and
+open-ended questions retain the model path; this is a bounded English rule, not
+a general intent classifier. Existing model configuration is still required to
+enable the suggestion service. General prompts now prioritize Yes/No/Later for
+offers and avoid unrelated congratulatory/emotional answers to ordinary questions.
+Synthetic tests cover both modes, exclusions, page mapping and full-text selection;
+they do not establish relevance of all model-generated conversation replies.
