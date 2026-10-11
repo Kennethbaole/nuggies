@@ -142,6 +142,31 @@ Then run `systemctl --user enable --now nuggies-asr` and `sudo loginctl enable-l
 - [ ] Record model load time, warm latency for a 5 s clip and memory (`tegrastats`)
   with Ollama loaded at the same time.
 
+### Memory headroom (swap and no desktop)
+
+Qwen ASR and Ollama share the Jetson's 7.4 GB with the GNOME desktop, and the
+image ships with no swap. On 2026-10-10 this reset the Jetson three times:
+once loading ASR on the CPU (`ASR_DEVICE=cpu`, float32) beside Ollama, and
+twice with ASR on `cuda:0` when a Listen request made Ollama reload
+`qwen3:1.7b` (journal: `NvMapMemHandleAlloc failed: error 12`, 430 and 843 MiB
+free). Temperatures stayed normal and no throttling was logged; a freeze can
+look like overheating, and it drops SSH, so the app reports the ASR service as
+unreachable.
+
+```sh
+bash scripts/jetson_memory.sh     # asks for sudo once; safe to re-run
+sudo reboot                       # if it reports the boot target as PENDING
+```
+
+It adds an 8 GB `/swapfile` (on now and via `/etc/fstab`), switches the default
+boot target to text mode (`multi-user.target`), and checks lingering so the
+user services still start without a login. `SWAP_SIZE` and `HEADLESS=0`
+override; the script header lists the undo commands. Swap only moves CPU-side
+memory to disk; GPU allocations stay resident, so it prevents hard resets
+rather than making room for larger models. The script has been dry-run with
+stubbed system commands only; whether ASR on `cuda:0` plus Ollama then survives
+a Listen request has not been measured.
+
 ## 5. Start the app at boot (headless demos)
 
 A user unit starts the companion at power-on with no monitor or login. It
