@@ -86,3 +86,6 @@ AJ / Anthony Terry (image 2), Ken / Kenneth Bao Le (image 3), Bella (image 4).
 Original assets are stored in `frontend/team/`, with consistent 4:5 CSS frames,
 individual focal positions and accessible names. The originals are unaltered;
 CSS controls only their display framing. No generated portraits are used.
+
+Team roles are now Software Engineer for all four members; Ken’s displayed name
+is Kenneth Le (2026-10-11). Photo assignments and other team names are unchanged.

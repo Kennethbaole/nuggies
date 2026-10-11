@@ -83,6 +83,10 @@ def main():
             page.click('[data-workspace="team"]')
             expect(page.locator('#team-view')).to_be_visible()
             assert page.locator('.team-card').count() == 4
+            expect(page.locator('#team-view')).to_contain_text('Kenneth Le')
+            assert 'Bao' not in page.locator('#team-view').inner_text()
+            for card in page.locator('.team-card').all():
+                expect(card.locator('.eyebrow')).to_have_text('SOFTWARE ENGINEER')
             expect(page.locator('#team-view')).to_contain_text('Bella Le')
             expect(page.locator('#team-view')).to_contain_text('AJ')
             assert page.locator('.team-photo').count() == 4
