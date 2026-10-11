@@ -181,6 +181,9 @@ class Application:
                     self.ring.revision += 1
             elif action == "suggestions_clear":
                 self.ring.clear_suggestions()
+            elif action == "default_choices":
+                self.eog_confirmation.clear()
+                self.ring.default_choices()
             elif action == "eog_communication":
                 if type(payload.get("value")) is not bool:
                     raise ValueError("eog_communication value must be boolean")

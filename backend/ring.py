@@ -56,6 +56,16 @@ class RingState:
     def _slot(self, label, action, text="", enabled=True, value=""):
         return dict(label=label, action=action, text=text, enabled=enabled, value=value)
 
+    def default_choices(self):
+        """Restore a predictable Home page without confirming or resetting input."""
+        self.suggested = list(self.config.get("default_choices", self.config["phrases"]))
+        self.suggestions_provider = "preset"
+        self.heard = ""
+        self.screen = "home"
+        self.pages = {"home": 0, "needs": 0}
+        self.selected = 6 if self.cardinal_layout else 0
+        self.revision += 1
+
     def completions(self):
         prefix = self.draft.lower().split(" ")[-1]
         words = [w for w in self.config["words"] if prefix and w.startswith(prefix) and w != prefix]

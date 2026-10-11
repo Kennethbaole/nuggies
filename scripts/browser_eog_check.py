@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from backend.app import Application,make_handler
 from backend.serial_input import ADCSample
+from backend.hud_sync import frame_for
 from playwright.sync_api import sync_playwright,expect
 
 
@@ -76,6 +77,29 @@ def main():
             expect(page.locator('#eog-communication-status')).to_contain_text('Look center / Retry')
             expect(page.locator('#center-text')).to_have_text('Choose a reply',timeout=10000)
             expect(page.locator('body')).to_have_attribute('data-eog-cue','ready')
+            # Restore stable testing choices through the actual button/API, including
+            # cancelling an old pending choice without resetting the live detector.
+            with app.lock:
+                app.ring.set_suggestions([dict(id='mock-reply', label='Old reply', text='Old generated reply.')], 'Mock question')
+                app.ring.action('focus', 'eog-communication', 6)
+                app.eog_confirmation.focus(app.ring, app.wheel_detector.raw_index)
+                filter_before = app.wheel_detector.filter
+                raw_before = app.wheel_detector.raw_index
+            expect(page.locator('#default-choices')).to_be_visible()
+            page.click('#default-choices')
+            expect(page.locator('[data-slot="6"]')).to_have_text('Hello')
+            expect(page.locator('[data-slot="2"]')).to_have_text('Goodbye')
+            expect(page.locator('[data-slot="0"]')).to_have_text('More')
+            expect(page.locator('[data-slot="4"]')).to_have_text('Back')
+            expect(page.locator('#heard')).to_have_text('')
+            with app.lock:
+                assert app.eog_confirmation.target is None
+                assert app.ring.selection_id == 0
+                assert app.wheel_detector.filter is filter_before
+                assert app.wheel_detector.raw_index >= raw_before
+                mirrored = frame_for(app.state()).split('|')
+                assert mirrored[7] == 'Hello' and mirrored[3] == 'Goodbye'
+            assert page.evaluate('window.__spoken.length') == 0
             with app.lock:app.eog_pipeline.paused=True
             expect(page.locator('body')).to_have_attribute('data-eog-cue','paused')
             expect(page.locator('#center-text')).to_have_text('Paused')
@@ -128,6 +152,7 @@ def main():
             browser.close()
         report=dict(ok=True,mode='HTTP/browser UI state simulation; not sensor accuracy',checks=[
             'opt-in','center progress','ready','retry reason','prominent status','readiness-aware cues','recenter','stale signal',
+            'default choices reset without confirmation or detector reset','default choices mirrored to OLED frame',
             'homepage speed check','opt-in communication','four reachable positions','fixed detected-choice preview','explicit confirmation readiness','speech auto-enabled with communication','peripheral colour cues','reading pause shown','recording protocol startable from eye control','confirmed browser speech once','diagnostic speech disabled','gaze highlighting absent','HUD rendering','diagnostic mode cannot confirm','no JS errors'])
         (output/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report))
     finally:

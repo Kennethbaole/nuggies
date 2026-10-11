@@ -7,7 +7,7 @@ let state = null, seenSelection = null, session = null, audioEnabled = false;
 let selectedFlashUntil = 0;
 let token = sessionStorage.getItem('nuggies-token') || '';
 let queue = Promise.resolve(), audio = null, speechBusy = false, pollBusy = false;
-const PROVIDER_LABELS = {ollama: 'On-device AI reply suggestions'};
+const PROVIDER_LABELS = {ollama: 'On-device AI reply suggestions', preset: 'Default choices'};
 const SETUP_HINT = 'Set OLLAMA_MODEL in .env (with Ollama running) and restart to enable reply suggestions.';
 const LISTEN_HINT = 'Set ASR_URL to the Qwen speech-to-text service in .env and restart to enable listening.';
 let requestCounter = 0, recorder = null, recordTimer = null, suggesting = false;
@@ -359,6 +359,9 @@ $('scenario').onclick = () => command('demo', !state?.demo_running);
 $('contact').onchange = event => command('contact', event.target.value);
 $('trial-label').onchange = event => command('label', event.target.value);
 $('listen').onclick = toggleListen;
+$('default-choices').onclick = () => command('default_choices').then(() => {
+  if (state?.suggestions_provider === 'preset') feedback('Default choices restored. Look at a choice, then confirm when ready.');
+});
 $('suggest-clear').onclick = () => command('suggestions_clear');
 $('text-toggle').onclick = () => {
   const open = $('text-panel').hidden;

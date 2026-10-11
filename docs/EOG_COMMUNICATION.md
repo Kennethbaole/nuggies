@@ -23,6 +23,15 @@ choice. Nothing automatically starts on application launch.
 
 The communication wheel exposes only four positions:
 
+The homepage **Default choices** button restores a fixed Home phrase set:
+Hello, Goodbye, Yes, No and Help. In eye-control mode the first page has
+Hello on the left, Goodbye on the right, More above and Back below. More
+advances to Yes/No, then Help. The same canonical state reaches the OLED mirror.
+The button clears the displayed transcript and any pending confirmation, returns
+to page one, and does not confirm or speak anything. It preserves the conversation
+partner, prior confirmed speech/history, and detector settings/state. A generation
+already running cannot overwrite this reset. Listen/Text can generate replies again.
+
 | Gaze | Item |
 | --- | --- |
 | Left | First reply on this page |

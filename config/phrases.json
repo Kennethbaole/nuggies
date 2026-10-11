@@ -22,6 +22,13 @@
     {"id": "repeat", "label": "Repeat", "text": "Could you repeat that more slowly?"},
     {"id": "moment", "label": "Moment", "text": "Give me a moment."}
   ],
+  "default_choices": [
+    {"id": "default-hello", "label": "Hello", "text": "Hello!"},
+    {"id": "default-bye", "label": "Goodbye", "text": "Goodbye!"},
+    {"id": "default-yes", "label": "Yes", "text": "Yes, please."},
+    {"id": "default-no", "label": "No", "text": "No, thank you."},
+    {"id": "default-help", "label": "Help", "text": "I need help, please."}
+  ],
   "needs": [
     {"id": "water", "label": "Water", "text": "I would like some water, please."},
     {"id": "help", "label": "Help", "text": "I need your help, please."},

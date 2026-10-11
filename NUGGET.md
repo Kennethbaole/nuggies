@@ -1,5 +1,15 @@
 # NUGGET — project truth and agent handoff
 
+2026-10-11 UI follow-up: **Default choices** restores Hello, Goodbye, Yes, No and
+Help on Home, clears the displayed transcript and pending confirmation, and
+preserves detector settings/state and confirmed history. In eye control, the first
+page is left=Hello, right=Goodbye, up=More, down=Back. See
+[communication flow](docs/EOG_COMMUNICATION.md). This is a phrase/UI change;
+direction acceptance and blink rules are unchanged.
+Validation: 268 tests run, one optional skip; isolated browser check passes,
+including pending-choice cancellation, unchanged detector instance and OLED frame
+content. Synthetic browser evidence does not establish hardware readability.
+
 Updated 2026-10-10. Current EOG work is on `experiment/eog-continuous-detection`;
 **do not merge to main**. The general architecture audit below began at `b1ceaa0`;
 its historical experiment notes are superseded by the current sections and

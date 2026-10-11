@@ -202,6 +202,39 @@ class AppIntegrationTests(unittest.TestCase):
         self.assertEqual(app.state()["suggestions_provider"], "curated-demo")
         self.assertEqual(app.state()["selection_id"], 0)
 
+    def test_default_choices_restore_home_and_cancel_pending_choice_without_selection(self):
+        app = self.make_app()
+        app.ring.cardinal_layout = True
+        app.suggest(dict(session_id=app.session_id, heard_text="Tea?"))
+        app.ring.action("focus", value=6)
+        app.eog_confirmation.focus(app.ring, 1000)
+        self.assertIsNotNone(app.eog_confirmation.target)
+        app.ring.screen = "needs"
+        app.ring.pages = {"home": 2, "needs": 1}
+        app.ring.confirm("Earlier confirmed sentence.")
+        previous = app.ring.snapshot()
+        state = app.command(dict(action="default_choices", event_id="restore-defaults"))
+        self.assertEqual((state["screen"], state["page"], state["selected"]), ("home", 0, 6))
+        self.assertEqual([state["slots"][i]["label"] for i in (6, 2, 0, 4)],
+                         ["Hello", "Goodbye", "More", "Back"])
+        self.assertEqual([p["label"] for p in app.ring.suggested], ["Hello", "Goodbye", "Yes", "No", "Help"])
+        self.assertEqual(state["heard"], "")
+        self.assertEqual(state["suggestions_provider"], "preset")
+        self.assertIsNone(app.eog_confirmation.target)
+        self.assertEqual((state["selection_id"], state["confirmed"], state["history"]),
+                         (previous["selection_id"], previous["confirmed"], previous["history"]))
+
+    def test_default_choices_invalidate_an_inflight_generation(self):
+        app = self.make_app()
+        def restore_during_generation(*args):
+            app.command(dict(action="default_choices", event_id="restore-inflight"))
+            return reply(GOOD)
+        app.suggester.transport = restore_during_generation
+        with self.assertRaisesRegex(SuggestionUnavailable, "Conversation changed"):
+            app.suggest(dict(session_id=app.session_id, heard_text="Tea?"))
+        self.assertEqual(app.ring.slots()[0]["label"], "Hello")
+        self.assertEqual(app.ring.suggestions_provider, "preset")
+
     def test_clear_contact_change_and_session_check(self):
         app = self.make_app()
         app.suggest(dict(session_id=app.session_id, heard_text="hi"))
