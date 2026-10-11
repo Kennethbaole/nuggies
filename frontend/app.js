@@ -5,6 +5,7 @@ const isHUD = location.pathname === '/hud';
 if (isHUD) { document.body.classList.add('hud-body'); $('hud-only').hidden = false; }
 let state = null, seenSelection = null, session = null, audioEnabled = false;
 let selectedFlashUntil = 0;
+let workspaceView = 'wheel', workspaceSwitchBusy = false;
 let token = sessionStorage.getItem('nuggies-token') || '';
 let queue = Promise.resolve(), audio = null, speechBusy = false, pollBusy = false;
 const PROVIDER_LABELS = {ollama: 'On-device AI reply suggestions', preset: 'Default choices'};
@@ -222,7 +223,7 @@ function render(next) {
   $('guided-protocol').querySelector('option[value="speed"]').disabled = !guidedEOG;
   const diagnosticCheck = ['diagnostic', 'speed'].includes($('guided-protocol').value);
   $('guided-start').disabled = guidedRunning || !state.recording || !state.connected || (diagnosticCheck
-    ? !guidedEOG || !state.wheel_test || gaze?.phase !== 'ready' : state.sensor_actions);
+    ? !guidedEOG || !state.wheel_test || gaze?.phase !== 'ready' : state.sensor_actions && !state.wheel_test);
   $('guided-stop').disabled = !guidedRunning;
   $('guided-why').textContent = guidedRunning ? '' : !state.connected ? 'Start is off: the Nano is not connected.'
     : !state.recording ? 'Start is off: recording has stopped. Restart the server to record again.'
@@ -389,7 +390,7 @@ function setAudio(enabled) {
 $('audio-toggle').onclick = () => setAudio(!audioEnabled);
 $('token-submit').onclick = () => { token = $('token-input').value; sessionStorage.setItem('nuggies-token', token); setTimeout(poll, 0); };
 document.addEventListener('keydown', event => {
-  if (isHUD || event.repeat || $('token-dialog').open || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
+  if (isHUD || workspaceView !== 'wheel' || event.repeat || $('token-dialog').open || /INPUT|TEXTAREA|SELECT|BUTTON|A|SUMMARY/.test(event.target.tagName)) return;
   if (event.key === 'Escape' && document.querySelector('.signal-details').classList.contains('signal-expanded')) return;
   const actions = {ArrowLeft: 'left', a: 'left', ArrowRight: 'right', d: 'right', ' ': 'select', Enter: 'select', b: 'blink', Escape: 'back'};
   const action = actions[event.key] || actions[event.key.toLowerCase()];
@@ -453,3 +454,39 @@ $('eog-communication-toggle').onclick = () => {
 $('wheel-test-toggle').onclick = () => command('wheel_test', !state?.wheel_test);
 $('eog-recenter').onclick = () => command('eog_recenter');
 $('wheel-test-stop').onclick = () => command('wheel_test', false);
+
+// Project and team views share the app shell, but keyboard/gaze commands belong
+// to the visible wheel. Stop eye control before hiding it; returning is explicit.
+async function openWorkspace(view) {
+  if (isHUD || workspaceSwitchBusy || !['wheel', 'project', 'team'].includes(view)) return;
+  workspaceSwitchBusy = true;
+  try {
+    if (view !== 'wheel' && state?.wheel_test) {
+      await command(state.eog_communication ? 'eog_communication' : 'wheel_test', false);
+      if (state?.wheel_test) return; // Keep the wheel visible if stopping failed.
+    }
+    const show = () => {
+      workspaceView = view;
+      $('companion').hidden = view !== 'wheel';
+      $('project-view').hidden = view !== 'project';
+      $('team-view').hidden = view !== 'team';
+      for (const button of document.querySelectorAll('[data-workspace]')) {
+        if (button.dataset.workspace === view) button.setAttribute('aria-current', 'page');
+        else button.removeAttribute('aria-current');
+      }
+      if (view === 'wheel') fitCenterText();
+      else $(view + '-title').focus({preventScroll: true});
+    };
+    if (document.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const transition = document.startViewTransition(show);
+      transition.finished.catch(() => {});
+      await transition.updateCallbackDone.catch(() => {});
+    } else {
+      show();
+    }
+    window.scrollTo({top: 0, behavior: 'instant'});
+  } finally { workspaceSwitchBusy = false; }
+}
+for (const button of document.querySelectorAll('[data-workspace]')) {
+  button.addEventListener('click', () => openWorkspace(button.dataset.workspace));
+}

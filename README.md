@@ -1,4 +1,6 @@
-# Nuggies
+# Glint
+
+Project name: Glint. The source repository remains `Kennethbaole/nuggies`.
 
 An eye-movement communication prototype using two BioAmp EXG Pills, an Arduino
 Nano R4 and a Python host, with phrase selection and speech output.

@@ -1,10 +1,10 @@
-/* Orbital: quiet surfaces and generous type, with a stationary communication wheel. */
-:root{color-scheme:light;--bg:#f6fafb;--panel:#fff;--surface:#edf5f7;--line:#dce7eb;--text:#18313d;--muted:#57717e;--accent:#007f94;--green:#007f94;--accent-soft:#e0f5f8;--on-accent:#fff;--shadow:0 14px 48px #18313d08}
-:root[data-theme=dark]{color-scheme:dark;--bg:#0c171e;--panel:#13232d;--surface:#1b303b;--line:#2b4351;--text:#e9f5f8;--muted:#a0b8c4;--accent:#5bd8e9;--green:#5bd8e9;--accent-soft:#163943;--on-accent:#082b35;--shadow:0 14px 48px #0002}
+/* Glint: warm paper, botanical forms and a stationary communication wheel. */
+:root{color-scheme:light;--bg:#f9f8fc;--panel:#fff;--surface:#eeedf7;--line:#dfddec;--text:#272845;--muted:#62637d;--accent:#4d4abb;--green:#4d4abb;--accent-soft:#eae7fa;--on-accent:#fff;--shadow:0 14px 48px #18313d08}
+:root[data-theme=dark]{color-scheme:dark;--bg:#13162e;--panel:#1c203b;--surface:#292e4e;--line:#3e4465;--text:#f4f1fc;--muted:#b9bedb;--accent:#b8b3ff;--green:#b8b3ff;--accent-soft:#303354;--on-accent:#202340;--shadow:0 14px 48px #0002}
 body,.homepage{background:var(--bg);color:var(--text);font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 /* Remove the legacy homepage palette so both themes share root tokens. */
-.homepage{--muted:#57717e;--line:#dce7eb}
-:root[data-theme=dark] .homepage{--muted:#a0b8c4;--line:#2b4351}
+.homepage{--muted:#62637d;--line:#dfddec}
+:root[data-theme=dark] .homepage{--muted:#b9bedb;--line:#3e4465}
 [hidden]{display:none!important}
 button,a,input,select,summary{ -webkit-tap-highlight-color:transparent }
 button:hover:not(:disabled){filter:none}
@@ -157,3 +157,153 @@ body[data-eog-cue=confirm]::after,body[data-eog-cue=confirm] .wheel-center{anima
 .community .chip[aria-pressed=true]{color:var(--on-accent)}
 .community :is(.member-name,.notes-text){font-family:inherit}
 .community :is(.intro,.privacy-note,.example-hint,.notes-meta,.drop-hint,.card-status,.choice-label){font-size:13px}
+
+/* Editorial shell: expressive at the edges, calm where choices are made. */
+.topbar,.homepage .topbar{background:var(--bg);border:0;max-width:1440px;margin:auto;padding-top:24px;padding-bottom:24px}
+.brand,.homepage .brand{font-family:Georgia,"Times New Roman",serif;font-size:35px;font-weight:400;letter-spacing:-1.8px}
+.brand svg{transform:rotate(-15deg)}
+.workspace-nav{display:flex;gap:6px;margin-left:22px}
+.workspace-nav button{background:transparent;border-radius:24px;min-height:44px;padding:10px 17px;color:var(--muted);font-size:14px;border:1px solid transparent}
+.workspace-nav button[aria-current=page]{background:var(--accent-soft);border-color:var(--line);color:var(--text)}
+.top-actions,.homepage .top-actions{gap:8px}
+.homepage .top-actions .quiet-button{background:transparent;border-radius:24px}
+.homepage .workspace{padding-top:4px;row-gap:30px}
+.homepage .welcome{grid-column:1/-1;grid-row:1;display:flex;align-items:center;justify-content:space-between;position:relative;padding:24px 0 28px;border-bottom:1px solid var(--line);min-width:0}
+.homepage .welcome h1,.page-intro h1{font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:clamp(44px,5.1vw,76px);letter-spacing:-3px;line-height:1.02;margin:18px 0 20px}
+.welcome em,.page-intro em{color:var(--accent);font-weight:400}
+.homepage .welcome p,.page-intro p{font-size:16px;line-height:1.7;color:var(--muted);margin:0}
+.welcome-flower{width:200px;height:200px;flex:none;color:var(--accent);margin:0 15% 20px 24px;transform:rotate(12deg);background:var(--accent-soft);border-radius:48% 52% 65% 35% / 45% 55% 45% 55%;padding:10px}
+.welcome-note{font-family:Georgia,serif;font-style:italic;font-size:16px;color:var(--muted);position:absolute;right:12%;bottom:28px;transform:rotate(-4deg)}
+.homepage .wheel-panel{grid-row:2;background:transparent;border-color:transparent;box-shadow:none;padding:18px 28px 20px}
+.homepage .context-panel{grid-row:2;padding-top:24px}
+.homepage .context-panel h2{font-family:Georgia,serif;font-size:31px;font-weight:400;letter-spacing:-.9px;margin:8px 0 12px}
+.homepage .communication-toolbar h2{font-family:Georgia,serif;font-size:32px;font-weight:400;letter-spacing:-1px}
+.homepage .context-card{background:color-mix(in srgb,#ddd4ec 22%,var(--panel));border:0;box-shadow:none;border-radius:22px}
+.homepage .input-card{background:transparent;box-shadow:none;border:0;border-top:1px solid var(--line);border-radius:0;padding:20px 0}
+.homepage .preview{background:var(--accent-soft);border:0;border-radius:18px 18px 18px 4px}
+.homepage .wheel-center{background:var(--panel);box-shadow:0 10px 40px color-mix(in srgb,var(--accent) 7%,transparent)}
+.homepage .wheel-center p{font-family:Georgia,serif;font-weight:400;letter-spacing:-.7px}
+.homepage .orbit-outer{box-shadow:0 0 0 22px var(--accent-soft)}
+.homepage .slot,.homepage .slot.utility{border-radius:30px;background:var(--panel);box-shadow:none;font-weight:500}
+.homepage .slot.selected,.homepage .slot.utility.selected{background:var(--accent);color:var(--on-accent);box-shadow:0 0 0 5px var(--accent-soft)}
+.homepage #eog-communication-toggle,.homepage .gesture-controls button{border-radius:28px}
+.homepage .mirror-panel{padding-top:30px}
+.homepage .phone,.homepage .hud-card,.homepage .signal-details,.homepage .wheel-test-controls{box-shadow:none}
+.avatar,[data-tone="0"]{--tone-a:#dad6fa;--tone-b:#b4b2ec}
+.project-view{max-width:1440px;margin:auto;padding:28px 36px 56px;color:var(--text)}
+.page-intro{max-width:780px;margin-bottom:40px}
+.project-note{display:flex;align-items:center;gap:24px;padding:24px 28px;background:var(--accent-soft);border-radius:24px;margin-bottom:36px;max-width:820px}
+.project-note strong{font-family:Georgia,serif;font-size:26px;font-weight:400}
+.project-note p{font-size:15px;line-height:1.7;margin:6px 0 0;color:var(--muted)}
+.note-flower{font-size:64px;line-height:1;flex:none;color:var(--accent)}
+.build-board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px}
+.board-column{min-width:0}
+.board-label{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:14px;color:var(--muted);font-size:12px}
+.board-dot{width:9px;height:9px;background:var(--accent);border-radius:50%}
+.board-column h2{font-family:Georgia,serif;font-weight:400;font-size:29px;letter-spacing:-.8px;margin:24px 0}
+.build-card{padding:25px;border:1px solid var(--line);border-radius:18px;margin-bottom:18px;background:var(--panel)}
+.board-column:nth-child(2) .build-card{background:color-mix(in srgb,#ddd4ec 25%,var(--panel))}
+.board-column:nth-child(3) .build-card{background:color-mix(in srgb,#edd8b6 25%,var(--panel))}
+.task-tag{font-size:11px;letter-spacing:.04em;color:var(--muted);border:1px solid var(--line);border-radius:30px;padding:5px 10px;display:inline-block}
+.build-card h3{font-size:20px;font-weight:500;letter-spacing:-.5px;line-height:1.3;margin:18px 0 10px}
+.build-card p{font-size:15px;line-height:1.75;color:var(--muted);margin:0}
+.board-footnote{font-size:13px;line-height:1.7;color:var(--muted);margin:30px 0 0}
+.team-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
+.team-card{padding:32px;border:1px solid var(--line);border-radius:100px 100px 20px 20px;background:var(--accent-soft);text-align:center;min-width:0}
+.team-card:nth-child(2){background:color-mix(in srgb,#ddd4ec 40%,var(--panel))}.team-card:nth-child(3){background:color-mix(in srgb,#edd8b6 40%,var(--panel))}
+.team-monogram{display:grid;place-items:center;margin:10px auto 32px;width:104px;height:104px;border:1px solid var(--accent);border-radius:50%;font-family:Georgia,serif;font-size:36px;font-style:italic;color:var(--accent)}
+.team-card h2{font-family:Georgia,serif;font-weight:400;font-size:30px;line-height:1.2;letter-spacing:-1px;margin:14px 0}
+.team-card p{font-size:14px;line-height:1.7;color:var(--muted);max-width:25ch;margin:auto}
+.people-link{display:inline-block;margin-top:20px;color:var(--accent);font-size:14px;line-height:1.7}
+.homepage.hud-body :is(.welcome,.workspace-nav,.project-view){display:none}
+@media(max-width:1200px){.topbar,.homepage .topbar{gap:12px}.workspace-nav{margin-left:0}.workspace-nav button{padding:10px 12px}.top-actions #theme-toggle [data-theme-label]{display:none}.welcome-flower{margin-right:8%}.welcome-note{right:5%}}
+@media(max-width:900px){.topbar,.homepage .topbar{flex-wrap:wrap}.workspace-nav{order:3;width:100%;justify-content:center;border-top:1px solid var(--line);padding-top:12px}.top-actions,.homepage .top-actions{width:auto;margin-left:auto}.homepage .welcome-flower{width:150px;height:150px;margin-right:4%}.welcome-note{display:none}.homepage .welcome h1{font-size:57px}.build-board{gap:16px}.build-card{padding:20px}.team-grid{gap:16px}.team-card{padding:24px 14px}.team-card h2{font-size:25px}}
+@media(max-width:760px){
+ .homepage .welcome{order:-1;min-height:0;padding:22px 8px 28px;width:100%}
+ .homepage .welcome h1{font-size:50px;letter-spacing:-2px;margin-top:14px}
+ .homepage .welcome p{font-size:14px;max-width:29ch}.homepage .welcome p br{display:none}
+ .homepage .welcome .eyebrow{font-size:8px}
+ .homepage .welcome-flower{width:110px;height:110px;margin:0 4px 30px 10px}
+ .homepage .wheel-panel{padding:14px 10px 16px;border-radius:20px}
+ .homepage .communication-toolbar h2{font-size:28px}
+ .project-view{padding:24px 20px 40px}.page-intro h1{font-size:52px;letter-spacing:-2px}.page-intro p br{display:none}
+ .build-board{grid-template-columns:1fr}.board-column h2{margin:20px 0}.project-note{padding:20px;gap:16px}.note-flower{font-size:44px}
+ .team-grid{grid-template-columns:1fr}.team-card{border-radius:24px;padding:28px}.team-monogram{margin:0 auto 24px}
+}
+@media(max-width:420px){
+ .topbar,.homepage .topbar{padding:18px 16px 12px}.brand,.homepage .brand{font-size:32px}
+ .top-actions,.homepage .top-actions{gap:5px}.homepage #theme-toggle{margin-left:0}
+ .homepage .top-actions #connection{display:none}.homepage .top-actions #audio-toggle{font-size:11px;padding:9px}
+ .homepage .top-actions a{font-size:11px;padding:9px}.homepage #theme-toggle{min-width:38px;padding:9px}
+ .workspace-nav button{flex:1;font-size:13px;padding:9px 12px}.homepage .welcome{align-items:flex-start;padding-top:16px}
+ .homepage .welcome h1{font-size:43px}.homepage .welcome-flower{width:76px;height:76px;margin-top:38px;padding:4px}
+ .homepage .welcome p{font-size:13px}.homepage .welcome .eyebrow{font-size:7px;letter-spacing:.12em}
+ .homepage .communication-toolbar h2{font-size:26px}.homepage .wheel-center p{font-size:19px}
+ .page-intro h1{font-size:44px}.page-intro p{font-size:15px}
+}
+/* Once eye control starts, give the interaction the full attention of the page. */
+.homepage.communication-active .welcome{display:none}
+.project-view h1[tabindex="-1"]:focus{outline:none}
+@media(max-width:760px){.homepage .context-panel>h2{display:none}}
+
+/* Rheostat-inspired ink, gentle reveals and chapter transitions. */
+body.homepage{background:radial-gradient(ellipse at 82% 12%,color-mix(in srgb,var(--accent-soft) 50%,transparent),transparent 38%),var(--bg)}
+:root[data-theme=dark] .homepage :is(.context-card,.board-column:nth-child(2) .build-card,.team-card:nth-child(2)){background:#2b2c4a}
+:root[data-theme=dark] .homepage :is(.board-column:nth-child(3) .build-card,.team-card:nth-child(3)){background:#333047}
+.team-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.team-card{padding:28px 18px}.team-card h2{font-size:27px}
+.team-card:nth-child(4){background:color-mix(in srgb,#cddff0 40%,var(--panel))}
+:root[data-theme=dark] .homepage .team-card:nth-child(4){background:#25364c}
+#companion,#project-view,#team-view{view-transition-name:workspace}
+::view-transition-old(workspace){animation:chapter-out .2s ease both}
+::view-transition-new(workspace){animation:chapter-in .5s cubic-bezier(.22,1,.36,1) both}
+@keyframes chapter-out{to{opacity:0;transform:translateY(-10px)}}
+@keyframes chapter-in{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@keyframes welcome-in{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+@keyframes ink-in{from{stroke-dashoffset:500}to{stroke-dashoffset:0}}
+@media(prefers-reduced-motion:no-preference){
+ .welcome>div{animation:welcome-in .9s cubic-bezier(.22,1,.36,1) both}
+ .welcome-flower ellipse,.welcome-flower circle{stroke-dasharray:500;animation:ink-in 1.8s cubic-bezier(.22,1,.36,1) both}
+ .build-card,.team-card{transition:transform .4s cubic-bezier(.22,1,.36,1),box-shadow .4s}
+ .build-card:hover,.team-card:hover{transform:translateY(-4px);box-shadow:0 18px 35px color-mix(in srgb,var(--accent) 8%,transparent)}
+ .team-monogram{transition:transform .6s cubic-bezier(.22,1,.36,1)}
+ .team-card:hover .team-monogram{transform:rotate(-8deg)}
+ .workspace-nav button{transition:background .25s,color .25s,border-color .25s}
+}
+@media(max-width:1100px){.team-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.team-grid{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){::view-transition-old(workspace),::view-transition-new(workspace){animation:none!important}}
+
+/* One centered workspace: conversation controls follow the full-width wheel. */
+.homepage .workspace{grid-template-columns:minmax(0,1fr)}
+.homepage .welcome{padding:8px 20px;min-height:110px}
+.homepage .welcome h1{font-size:clamp(40px,5vw,64px);margin:12px 0}
+.homepage .welcome-flower{width:90px;height:90px;margin:0 16px}
+.homepage .wheel-panel{grid-column:1/-1;grid-row:2;width:100%;box-sizing:border-box;text-align:center}
+.homepage .communication-toolbar{max-width:900px;margin-inline:auto;justify-items:center}
+.homepage #eog-communication-toggle{justify-self:center}
+.homepage .preview{max-width:860px;margin-inline:auto}
+.homepage .wheel{width:min(100%,720px)}
+.homepage .context-panel{grid-column:1/-1;grid-row:3;display:grid;grid-template-columns:1fr 1fr;gap:16px 28px;padding:0}
+.homepage .context-panel>.eyebrow,.homepage .context-panel>h2,.homepage .context-panel>.intro{grid-column:1/-1;margin:0}
+.homepage .input-card{margin-top:0;padding:22px;border:1px solid var(--line);border-radius:22px}
+.homepage.communication-active .wheel-panel{grid-row:1}
+.homepage.communication-active .context-panel{grid-row:2}
+/* Strong, stationary readiness cues remain visible in the wearer's periphery. */
+body[data-eog-cue=selected]{--cue:#8175ff}
+body[data-eog-cue]::after{box-shadow:inset 0 0 0 12px var(--cue),inset 0 0 65px color-mix(in srgb,var(--cue) 30%,transparent)}
+body[data-eog-cue] .wheel-panel{border:3px solid var(--cue)}
+body[data-eog-cue] .wheel-center{border:5px solid var(--cue);background:color-mix(in srgb,var(--cue) 32%,var(--panel));box-shadow:0 0 42px color-mix(in srgb,var(--cue) 24%,transparent)}
+.homepage[data-eog-cue] #eog-communication-status{width:100%;box-sizing:border-box;padding:16px 22px;border-radius:16px;background:var(--cue);color:#111827;font-size:18px;font-weight:650;line-height:1.5}
+.homepage[data-eog-cue=selected] #eog-communication-status{color:#fff}
+@media(max-width:760px){
+ .homepage .context-panel{display:contents}
+ .homepage .wheel{width:100%;max-width:540px}
+ .homepage .welcome{min-height:90px;padding:8px 12px}
+ .homepage .welcome h1{font-size:42px;margin:8px 0}
+ .homepage .welcome-flower{width:70px;height:70px;margin:0}
+ .homepage[data-eog-cue] #eog-communication-status{font-size:16px;padding:12px}
+ body[data-eog-cue]::after{box-shadow:inset 0 0 0 7px var(--cue)}
+}
+
+.eog-cue-legend [data-cue=selected]{--dot:#8175ff}

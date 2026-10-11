@@ -147,7 +147,7 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(error.exception.code, 400)
 
     def test_static_only_serves_frontend(self):
-        self.assertIn(b"Nuggies", self.request("/").read())
+        self.assertIn(b"<title>Glint</title>", self.request("/").read())
         with self.assertRaises(HTTPError) as error:
             self.request("/../config/voice_profile.example.json")
         error.exception.close()

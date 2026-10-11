@@ -1,5 +1,11 @@
 # NUGGET — project truth and agent handoff
 
+2026-10-11 branding: the project is **Glint**, with the homepage tagline left blank.
+The GitHub repository remains `Kennethbaole/nuggies`. The centered full-width wheel
+uses stronger readiness colors; project/team tabs include Bella Le. Blue/violet
+light and dark themes borrow motion cues from Rheostat. Detector rules are unchanged.
+See [interface](docs/UI_LAYOUT.md).
+
 2026-10-11 suggestions: speech/text replies supersede defaults even if the wheel
 moves during generation. New replies open Home and cancel pending confirmation;
 contact/context changes still reject stale requests. See

@@ -1,5 +1,10 @@
 # Current status and next work
 
+2026-10-11 interface update on `feat/wheel-ui-and-left-detection`: project renamed
+**Glint**, homepage tagline intentionally blank, full-width centered wheel with
+stronger stage cues, and project/team tabs (including Bella Le). Detector rules
+are unchanged by these frontend edits. See [interface](UI_LAYOUT.md).
+
 Updated 2026-10-10 on `experiment/eog-continuous-detection`. Do not merge to main.
 The detailed continuation record is [CLAUDE_HANDOFF](CLAUDE_HANDOFF.md).
 

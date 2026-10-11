@@ -39,6 +39,12 @@ def main():
             page.goto(f'http://127.0.0.1:{server.server_port}')
             # Appearance checks use this isolated server; no wearer state or paid TTS.
             expect(page.locator('html')).to_have_attribute('data-theme', 'light')
+            expect(page).to_have_title('Glint')
+            expect(page.locator('#project-tagline')).to_be_empty()
+            wheel_box = page.locator('#wheel').bounding_box()
+            panel_box = page.locator('.wheel-panel').bounding_box()
+            assert abs(wheel_box['x'] + wheel_box['width']/2 - 720) < 2
+            assert wheel_box['width'] >= 700 and panel_box['width'] >= 1300
             page.screenshot(path=str(output/'companion-light.png'), full_page=True)
             page.click('#theme-toggle')
             expect(page.locator('html')).to_have_attribute('data-theme', 'dark')
@@ -53,10 +59,36 @@ def main():
             community.close()
             for width in (1024, 768, 390, 320):
                 page.set_viewport_size({'width': width, 'height': 900})
+                page.wait_for_timeout(200)  # Allow responsive compositor tiles to settle.
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), width
                 expect(page.locator('#wheel')).to_be_visible()
                 expect(page.locator('#default-choices')).to_be_visible()
-                page.screenshot(path=str(output/f'companion-{width}.png'), full_page=True)
+                page.screenshot(path=str(output/f'companion-{width}.png'), full_page=width>420)
+                if width<=420:
+                    page.locator('#wheel').scroll_into_view_if_needed()
+                    page.screenshot(path=str(output/f'wheel-{width}.png'))
+                    page.evaluate('scrollTo(0, 0)')
+            page.set_viewport_size({'width': 1440, 'height': 1000})
+            page.click('[data-workspace="project"]')
+            expect(page.locator('#project-view')).to_be_visible()
+            expect(page.locator('#companion')).to_be_hidden()
+            selection_before = app.ring.selection_id
+            page.keyboard.press('Space')
+            assert app.ring.selection_id == selection_before
+            page.screenshot(path=str(output/'project-board.png'), full_page=True)
+            page.click('[data-workspace="team"]')
+            expect(page.locator('#team-view')).to_be_visible()
+            assert page.locator('.team-card').count() == 4
+            expect(page.locator('#team-view')).to_contain_text('Bella Le')
+            page.screenshot(path=str(output/'team.png'), full_page=True)
+            for width in (390, 320):
+                page.set_viewport_size({'width': width, 'height': 900})
+                page.wait_for_timeout(200)  # Allow responsive compositor tiles to settle.
+                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), width
+                page.click('[data-workspace="project"]')
+                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), width
+                page.click('[data-workspace="team"]')
+            page.click('[data-workspace="wheel"]')
             page.set_viewport_size({'width': 1440, 'height': 1000})
             page.click('#wheel-focus')
             expect(page.locator('body')).to_have_class('homepage wheel-focus-open')
@@ -157,6 +189,8 @@ def main():
             expect(page.locator('#preview-label')).to_have_text('DETECTED CHOICE · NOT YET SELECTED')
             expect(page.locator('#center-footer')).to_have_text('Ready to confirm · double blink')
             expect(page.locator('body')).to_have_attribute('data-eog-cue','confirm')
+            assert page.locator('#eog-communication-status').evaluate('(el) => getComputedStyle(el).backgroundColor') == 'rgb(216, 107, 255)'
+            assert page.locator('.wheel-center').evaluate('(el) => getComputedStyle(el).borderTopWidth') == '5px'
             assert page.locator('#preview-text').inner_text()==app.ring.slots()[6]['text']
             assert page.locator('.preview').bounding_box()['y'] < page.locator('#wheel').bounding_box()['y']
             page.screenshot(path=str(output/'detected-choice.png'),full_page=True)
@@ -176,6 +210,7 @@ def main():
             page.select_option('#guided-protocol','vertical')
             expect(page.locator('#guided-start')).to_be_enabled()
             expect(page.locator('#guided-protocol')).to_have_value('vertical')
+            page.wait_for_timeout(600)  # Cross multiple state polls: button must stay enabled.
             expect(page.locator('#guided-start')).to_be_enabled()
             page.click('#guided-start')
             expect(page.locator('#center-label')).to_have_text('GUIDED RECORDING',timeout=5000)
@@ -191,10 +226,21 @@ def main():
             expect(page.locator('#wheel-test-status')).to_have_text('Eye wheel control off')
             expect(page.locator('#audio-toggle')).to_be_enabled()
             assert app.ring.selection_id==1
+            stop.clear()
+            feeder=threading.Thread(target=neutral,daemon=True);feeder.start()
+            expect(page.locator('#eog-communication-toggle')).to_be_enabled()
+            page.click('#eog-communication-toggle')
+            expect(page.locator('#eog-communication-toggle')).to_have_attribute('aria-pressed','true')
+            page.click('[data-workspace="project"]')
+            expect(page.locator('#project-view')).to_be_visible()
+            assert not app.eog_communication and not app.wheel_test
+            page.click('[data-workspace="wheel"]')
+            expect(page.locator('#companion')).to_be_visible()
+            expect(page.locator('#eog-communication-toggle')).to_have_attribute('aria-pressed','false')
             assert not errors,errors
             browser.close()
         report=dict(ok=True,mode='HTTP/browser UI state simulation; not sensor accuracy',checks=[
-            'light and dark themes','saved theme and cross-page sync','responsive wheel at 320–1440 px','wheel full screen','opt-in','center progress','ready','retry reason','prominent status','readiness-aware cues','recenter','stale signal',
+            'project and team tabs','keyboard does not select from hidden wheel','leaving wheel stops active eye control','light and dark themes','saved theme and cross-page sync','responsive wheel at 320–1440 px','wheel full screen','opt-in','center progress','ready','retry reason','prominent status','readiness-aware cues','recenter','stale signal',
             'default choices reset without confirmation or detector reset','default choices mirrored to OLED frame','speech/text suggestions replace defaults without speaking',
             'homepage speed check','opt-in communication','four reachable positions','fixed detected-choice preview','explicit confirmation readiness','speech auto-enabled with communication','peripheral colour cues','reading pause shown','recording protocol startable from eye control','confirmed browser speech once','diagnostic speech disabled','gaze highlighting absent','HUD rendering','diagnostic mode cannot confirm','no JS errors'])
         (output/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report))

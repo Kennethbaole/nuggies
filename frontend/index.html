@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#f6fafb">
-  <title>Nuggies</title>
+  <meta name="theme-color" content="#f9f8fc">
+  <title>Glint</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="homepage.css">
@@ -13,14 +13,22 @@
 </head>
 <body class="homepage">
   <header class="topbar">
-    <a class="brand" href="/" aria-label="Nuggies companion home"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12"/><circle cx="16" cy="4" r="3"/></svg><span>Nuggies</span></a>
-    <span class="top-description">A little movement. A world of words.</span>
+    <a class="brand" href="/" aria-label="Glint companion home"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12"/><circle cx="16" cy="4" r="3"/></svg><span>Glint</span></a>
+    <nav class="workspace-nav" aria-label="Project workspace">
+      <button type="button" data-workspace="wheel" aria-current="page">The wheel</button>
+      <button type="button" data-workspace="project">The project</button>
+      <button type="button" data-workspace="team">Our people</button>
+    </nav>
     <div class="top-actions"><button id="theme-toggle" class="quiet-button" type="button" aria-pressed="false" aria-label="Switch to dark mode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg><span data-theme-label>Dark mode</span></button><span id="connection" class="status">Connecting</span><a class="quiet-button" href="/community" style="text-decoration:none">Community</a><button id="audio-toggle" class="quiet-button" aria-pressed="false">Enable speech</button></div>
   </header>
   <main id="companion" class="workspace">
+    <section class="welcome" aria-labelledby="welcome-title">
+      <div><h1 id="welcome-title">Glint</h1><p id="project-tagline"></p></div>
+      <svg class="welcome-flower" viewBox="0 0 200 200" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.3"><ellipse cx="100" cy="66" rx="22" ry="42"/><ellipse cx="100" cy="66" rx="22" ry="42" transform="rotate(60 100 100)"/><ellipse cx="100" cy="66" rx="22" ry="42" transform="rotate(120 100 100)"/><ellipse cx="100" cy="66" rx="22" ry="42" transform="rotate(180 100 100)"/><ellipse cx="100" cy="66" rx="22" ry="42" transform="rotate(240 100 100)"/><ellipse cx="100" cy="66" rx="22" ry="42" transform="rotate(300 100 100)"/><circle cx="100" cy="100" r="15"/></g></svg>
+    </section>
     <aside class="context-panel">
       <div class="eyebrow">YOUR CONVERSATION</div>
-      <h1>Let’s talk.</h1>
+      <h2>Good company.</h2>
       <p class="intro">Choose a reply, then confirm when you’re ready.</p>
       <div class="context-card">
         <label class="eyebrow" for="contact">SPEAKING WITH</label>
@@ -42,7 +50,7 @@
 
     </aside>
     <section class="wheel-panel" aria-label="Communication wheel">
-      <div class="communication-toolbar"><div><span class="eyebrow">A LITTLE MOVEMENT. A WORLD OF WORDS.</span><h2>Your words. Your way.</h2></div><button id="eog-communication-toggle" type="button" class="outline-button" aria-pressed="false">Start gaze + double-blink communication</button><p id="eog-communication-status" role="status"></p><ul id="eog-cue-legend" class="eog-cue-legend" hidden><li data-cue="wait">Wait · look center</li><li data-cue="ready">Choose</li><li data-cue="detected">Return to center</li><li data-cue="confirm">Double blink</li><li data-cue="retry">Retry</li><li data-cue="selected">Selected</li><li data-cue="paused">Paused · read freely</li></ul></div>
+      <div class="communication-toolbar"><div><span class="eyebrow">YOUR SPACE TO SPEAK</span><h2>What’s on your mind?</h2></div><button id="eog-communication-toggle" type="button" class="outline-button" aria-pressed="false">Start gaze + double-blink communication</button><p id="eog-communication-status" role="status"></p><ul id="eog-cue-legend" class="eog-cue-legend" hidden><li data-cue="wait">Wait · look center</li><li data-cue="ready">Choose</li><li data-cue="detected">Return to center</li><li data-cue="confirm">Double blink</li><li data-cue="retry">Retry</li><li data-cue="selected">Selected</li><li data-cue="paused">Paused · read freely</li></ul></div>
       <div class="preview"><span id="preview-label" class="preview-label">HIGHLIGHTED</span><span id="preview-text">Hi, it is good to see you.</span></div>
       <div class="wheel-heading"><span class="eyebrow" id="screen-name">CONVERSATION</span><span id="page-info" class="muted">Five phrases, one choice at a time</span><button id="wheel-focus" type="button" class="wheel-focus" aria-pressed="false" aria-label="Show the wheel full screen" title="Full screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="focus-enter" d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><path class="focus-exit" d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg></button></div>
       <div class="wheel" id="wheel">
@@ -57,16 +65,36 @@
     </section>
     <aside class="mirror-panel">
       <div class="mirror-heading"><span class="eyebrow">COMPANION VIEW</span><span class="muted">Same words. Shared.</span></div>
-      <div class="phone"><div class="phone-notch"></div><div class="phone-top"><span>Nuggies</span><span class="phone-live" id="phone-live">● Connecting</span></div><div class="phone-content"><span class="phone-kicker">I WOULD LIKE TO SAY</span><p id="phone-text">Your words,<br>at your pace.</p><span id="phone-contact" class="phone-contact">With Bella</span></div><div class="phone-bottom"><span class="tiny-orbit">◌</span><span>One intentional choice</span></div><div class="phone-home"></div></div>
+      <div class="phone"><div class="phone-notch"></div><div class="phone-top"><span>Glint</span><span class="phone-live" id="phone-live">● Connecting</span></div><div class="phone-content"><span class="phone-kicker">I WOULD LIKE TO SAY</span><p id="phone-text">Your words,<br>at your pace.</p><span id="phone-contact" class="phone-contact">With Bella</span></div><div class="phone-bottom"><span class="tiny-orbit">◌</span><span>One intentional choice</span></div><div class="phone-home"></div></div>
       <div class="hud-card"><div><span class="eyebrow">LENS PREVIEW</span><a href="/hud" target="_blank" rel="noopener">Open HUD ↗</a></div><canvas id="hud-preview" width="512" height="256" aria-label="Monochrome HUD preview"></canvas><div class="hud-tools"><button id="download-hud">Save 128 × 64 frame</button><span>Optics pending</span></div></div>
       <details class="history-details"><summary>Recent words <span id="history-count">0</span></summary><ol id="history"></ol></details>
     </aside>
     <button id="mobile-tools-toggle" class="outline-button mobile-tools-toggle" type="button" aria-expanded="false">More tools</button>
     <section id="signal-tools" class="tools-panel" aria-label="Signal tools"><div class="tools-heading"><div><span class="eyebrow">WORKSPACE</span><h2>Signals & testing</h2></div><p>Connection details, live traces, and guided checks.</p></div>      <section class="wheel-test-controls"><div class="eyebrow">NAVIGATION & DETECTION</div><h3>Eye-signal checks</h3><button id="speed-test-start" type="button" class="outline-button" hidden>Start recorded wheel speed check</button><p id="speed-test-results" role="status"></p><button id="wheel-test-toggle" type="button" class="outline-button" aria-pressed="false">Start experimental eye wheel test</button><p>Check direction detection without selecting or speaking. Look one direction, then return to center.</p><p id="wheel-test-status" role="status"></p><p id="gaze-readings"></p><div id="eog-guidance" hidden><progress id="eog-progress" max="1" value="0" aria-label="Clean resting signal progress"></progress><p id="eog-event" role="status"></p><p id="eog-quality"></p><button id="eog-recenter" type="button" class="outline-button">Recenter · look straight ahead</button><p id="eog-mode-help">In navigation checks, blinks are observed without selection or speech.</p></div></section><details class="signal-details"><summary>Signal workspace <span>↗</span></summary><button id="expand-signal" type="button" class="outline-button" aria-pressed="false">Expand signal workspace</button><canvas id="trace" width="1600" height="600" aria-label="Horizontal and vertical raw ADC trace"></canvas><div class="trace-legend"><span>● Horizontal</span><span>● Vertical</span></div><div id="signal-info" class="muted"></div><label class="trial-control">Trial label<select id="trial-label"><option value="unlabeled">Unlabeled</option><option value="neutral">Neutral</option><option value="left">Left</option><option value="right">Right</option><option value="up">Up</option><option value="down">Down</option><option value="blink">Blink</option><option value="double_blink">Double blink</option><option value="held_gaze">Held gaze</option></select></label><div class="muted">Set before each trial. Labels accompany live app recordings.</div><button id="wheel-test-stop" type="button" class="outline-button" disabled>Stop eye wheel test</button><div class="recording-controls"><span id="recording-status" role="status">Not recording</span> <button id="record-stop" type="button" class="outline-button" disabled>Stop recording · keep monitor open</button></div><section class="guided-test"><h2>Guided eye-signal test</h2><p id="guided-cue" role="status">Start when ready. Follow the cues without changing labels manually.</p><div id="guided-progress"></div><label class="trial-control">Test<select id="guided-protocol"><option value="speed">Wheel speed check · 12 directions</option><option value="diagnostic">Live detector check · about 2m 40s</option><option value="horizontal">Left/right and single blinks · 2m 55s</option><option value="vertical">Up/down, single and double blinks · 3m 45s</option><option value="double_blink">Double blinks only · 1m 15s</option></select></label><button id="guided-start" type="button" class="outline-button">Start guided test</button> <button id="guided-stop" type="button" class="outline-button" disabled>Stop test</button><p id="guided-why" role="status" class="guided-why"></p><p class="muted">The live detector check includes two attempts per direction, single blink and double blink. It waits for Ready before the next attempt. Other tests collect five trials per movement type. Keep this page visible and follow the center returns. Stopping the test leaves recording running.</p></section><div id="input-error" role="status"></div></details></section>
   </main>
+  <main id="project-view" class="project-view" hidden aria-labelledby="project-title">
+    <header class="page-intro"><span class="eyebrow">THE BIG PICTURE</span><h1 id="project-title" tabindex="-1">A small gesture.<br><em>A shared ambition.</em></h1><p>We’re building a way to join the conversation through eye movements.<br>Here’s where the pieces come together.</p></header>
+    <div class="project-note"><span class="note-flower" aria-hidden="true">✳</span><div><strong>Made for connection.</strong><p>Eye signals become a choice. A deliberate double blink turns that choice into spoken words.</p></div></div>
+    <section class="build-board" aria-label="Project progress">
+      <section class="board-column"><div class="board-label"><span>01 / In place</span><span class="board-dot"></span></div><h2>The foundations.</h2><article class="build-card"><span class="task-tag">Eye signals</span><h3>Two channels, one intention.</h3><p>Horizontal and vertical signals feed the wheel through the Arduino Nano.</p></article><article class="build-card"><span class="task-tag">Conversation</span><h3>Words worth choosing.</h3><p>Preset replies, speech-to-text and model-generated suggestions share the wheel. Suggestions replace defaults.</p></article></section>
+      <section class="board-column"><div class="board-label"><span>02 / Getting better</span><span class="board-dot"></span></div><h2>The fine details.</h2><article class="build-card"><span class="task-tag">Eye control</span><h3>A more dependable glance.</h3><p>Left and return-to-center handling are under review. Double blinks confirm a pending choice.</p></article><article class="build-card"><span class="task-tag">Shared view</span><h3>On screen. On the glasses.</h3><p>The webpage shares its choices with the OLED display. The team reports live updates; wearable readability still needs a check.</p></article></section>
+      <section class="board-column"><div class="board-label"><span>03 / Up next</span><span class="board-dot"></span></div><h2>Out into the world.</h2><article class="build-card"><span class="task-tag">Wearable</span><h3>Bring the pieces together.</h3><p>Finish the soldered assembly, secure the wiring and check the glasses as one complete system.</p></article><article class="build-card"><span class="task-tag">Full conversation</span><h3>Listen. Choose. Be heard.</h3><p>Verify microphone, Jetson transcription, suggested replies and confirmed speech together.</p></article></section>
+    </section><p class="board-footnote">Project snapshot · October 11, 2026. Updated with the build; task changes are maintained by the team.</p>
+  </main>
+  <main id="team-view" class="project-view" hidden aria-labelledby="team-title">
+    <header class="page-intro"><span class="eyebrow">OUR PEOPLE</span><h1 id="team-title" tabindex="-1">A few minds.<br><em>One conversation.</em></h1><p>The people bringing Glint to life.</p></header>
+    <section class="team-grid" aria-label="Project contributors">
+      <article class="team-card"><span class="team-monogram">KL</span><span class="eyebrow">CONTRIBUTOR</span><h2>Kenneth Bao Le</h2><p>Glint contributor</p></article>
+      <article class="team-card"><span class="team-monogram">KD</span><span class="eyebrow">CONTRIBUTOR</span><h2>Kat Dayaon</h2><p>Glint contributor</p></article>
+      <article class="team-card"><span class="team-monogram">BL</span><span class="eyebrow">CONTRIBUTOR</span><h2>Bella Le</h2><p>Glint contributor</p></article>
+      <article class="team-card"><span class="team-monogram">AT</span><span class="eyebrow">CONTRIBUTOR</span><h2>Anthony Terry</h2><p>Glint contributor</p></article>
+    </section><p class="board-footnote">Bios and roles can be added as the team confirms them.</p>
+    <a class="people-link" href="/community">Looking for your conversation partners? Visit Community ↗</a>
+  </main>
   <main id="hud-only" hidden><canvas id="hud-full" width="512" height="256" aria-label="Read-only lens display"></canvas><p id="hud-status">Connecting to the shared wheel…</p><div class="hud-settings"><label><input type="checkbox" id="mirror-x"> Mirror horizontally</label><label><input type="checkbox" id="mirror-y"> Mirror vertically</label><label>Scale <input id="hud-scale" type="range" min="25" max="100" value="80"></label><a href="/">Companion</a></div></main>
   <dialog id="token-dialog"><form method="dialog"><h2>Join the session</h2><p>Enter the session token from the person hosting this demo.</p><input id="token-input" type="password" autocomplete="off" aria-label="Session token"><button id="token-submit" value="join">Join</button></form></dialog>
-  <footer id="footer"><span>NUGGIES / COMMUNICATION PROTOTYPE</span><span>Experimental EOG communication · Confirm before speaking</span><button id="reset">Reset session view</button></footer>
+  <footer id="footer"><span>GLINT / COMMUNICATION PROTOTYPE</span><span>Experimental EOG communication · Confirm before speaking</span><button id="reset">Reset session view</button></footer>
   <script type="module" src="app.js"></script>
+  <script type="module" src="motion.js"></script>
 </body>
 </html>
