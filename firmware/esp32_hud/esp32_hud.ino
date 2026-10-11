@@ -71,10 +71,13 @@ char labels[N][MAX_LABEL + 1] = {"Food", "Warm", "Cool", "Move", "Back", "Light"
 
 // ---------- Ring geometry ----------
 const int CX = 64, CY = 32;
-// RING_PERCENT shrinks the outer ring from the full 128x64 panel (100 = edge to edge).
-// The inner ellipse stays fixed: hud_sync wraps the centre text to fit it.
-const int RING_PERCENT = 85;
-const int ORX = 63 * RING_PERCENT / 100, ORY = 31 * RING_PERCENT / 100, IRX = 30, IRY = 14;
+// VIEW_PERCENT scales the whole picture about the panel centre (100 = edge to edge on
+// 128x64). Both ellipses, the label band, the centre text and the alert box follow it.
+// backend/hud_sync.py CENTER_LIMITS must match the inner ellipse this produces.
+const int VIEW_PERCENT = 80;
+const int ORX = 63 * VIEW_PERCENT / 100, ORY = 31 * VIEW_PERCENT / 100;
+const int IRX = 30 * VIEW_PERCENT / 100, IRY = 14 * VIEW_PERCENT / 100;
+const bool SMALL_VIEW = VIEW_PERCENT < 95;   // use the 4x6 font so text still fits
 const int MRX = (ORX + IRX) / 2, MRY = (ORY + IRY) / 2;
 const float SEG = 2 * PI / N;
 const int BOOT_BTN = 0;
@@ -303,7 +306,7 @@ void drawCenterText() {
   int row = 0;
   for (int i = 0; i < CENTER_LINES; i++) {
     if (centerText[i][0] == '\0') continue;
-    drawCentered(centerText[i], CX, CY + lround((row - (count - 1) / 2.0f) * 7));
+    drawCentered(centerText[i], CX, CY + lround((row - (count - 1) / 2.0f) * (SMALL_VIEW ? 6 : 7)));
     row++;
   }
 }
@@ -311,11 +314,13 @@ void drawCenterText() {
 // Full-screen cue from the website, e.g. the moment a double blink will be accepted.
 void drawAlert() {
   u8g2.setDrawColor(1);
-  for (int i = 0; i < 3; i++) u8g2.drawFrame(i, i, 128 - 2 * i, 64 - 2 * i);
-  u8g2.setFont(u8g2_font_9x15B_tr);
-  drawCentered(centerText[0] + 1, CX, 24);
-  u8g2.setFont(u8g2_font_7x13_tr);
-  drawCentered(centerText[1], CX, 46);
+  // Keep the alert inside the same scaled box as the wheel so no edge is cut off.
+  int bx = CX - ORX - 1, by = CY - ORY - 1, bw = 2 * ORX + 3, bh = 2 * ORY + 3;
+  for (int i = 0; i < 3; i++) u8g2.drawFrame(bx + i, by + i, bw - 2 * i, bh - 2 * i);
+  u8g2.setFont(SMALL_VIEW ? u8g2_font_7x13B_tr : u8g2_font_9x15B_tr);
+  drawCentered(centerText[0] + 1, CX, CY - (SMALL_VIEW ? 7 : 8));
+  u8g2.setFont(SMALL_VIEW ? u8g2_font_6x10_tr : u8g2_font_7x13_tr);
+  drawCentered(centerText[1], CX, CY + (SMALL_VIEW ? 9 : 14));
 }
 
 void drawRing() {
@@ -324,13 +329,21 @@ void drawRing() {
   u8g2.drawEllipse(CX, CY, IRX, IRY, U8G2_DRAW_ALL);
   if (highlight) fillWedge(wedge);
 
-  u8g2.setFont(u8g2_font_5x8_tr);
+  u8g2.setFont(SMALL_VIEW ? u8g2_font_4x6_tr : u8g2_font_5x8_tr);
   u8g2.setFontMode(1);
+  const int charW = SMALL_VIEW ? 4 : 5;
   for (int k = 0; k < N; k++) {
     if (slotEmpty(k)) continue;
     float a = slotAngle(k);
     u8g2.setDrawColor(highlight && k == selected ? 0 : 1);
-    drawCentered(labels[k], lround(CX + (MRX - 2) * cos(a)), lround(CY + (MRY - 1) * sin(a)));
+    // Left/right labels only have the band between the two ellipses; shorten rather than overrun it.
+    int room = fabs(cos(a)) > 0.9 ? (ORX - IRX - 2) / charW : MAX_LABEL;
+    char shown[MAX_LABEL + 1];
+    strncpy(shown, labels[k], MAX_LABEL);
+    shown[MAX_LABEL] = '\0';
+    if (room < MAX_LABEL) shown[room < 1 ? 1 : room] = '\0';
+    int lx = lround(CX + (fabs(cos(a)) > 0.9 ? MRX : MRX - 2) * cos(a));
+    drawCentered(shown, lx, lround(CY + (MRY - 1) * sin(a)));
   }
 
   u8g2.setDrawColor(1);
@@ -338,7 +351,7 @@ void drawRing() {
     drawCenterText();
   } else {
     drawPulse(CX, CY - 6);
-    u8g2.setFont(u8g2_font_7x13B_tr);
+    u8g2.setFont(SMALL_VIEW ? u8g2_font_5x8_tr : u8g2_font_7x13B_tr);
     drawCentered(labels[selected], CX, CY + 5);
   }
 

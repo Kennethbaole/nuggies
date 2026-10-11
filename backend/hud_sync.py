@@ -40,7 +40,9 @@ DEFAULT_URL = "http://127.0.0.1:8765"
 SLOTS = 8
 MAX_LABEL = 10  # Must match MAX_LABEL in firmware/esp32_hud.
 # Characters that fit inside the ring's inner ellipse in the 4x6 font, by line count.
-CENTER_LIMITS = {1: (14,), 2: (13, 13), 3: (10, 14, 10)}
+# Sized for VIEW_PERCENT = 80 in firmware/esp32_hud (inner ellipse 48 x 22 px, lines 6 px apart);
+# at 100 percent the sketch has room for {1: (14,), 2: (13, 13), 3: (10, 14, 10)}.
+CENTER_LIMITS = {1: (11,), 2: (11, 11), 3: (9, 11, 9)}
 HEARTBEAT_S = 1.0  # The sketch shows "No link" when frames stop for 4 s.
 OFFLINE_TEXT = "Website offline"
 MAX_CENTER = 14  # Must match MAX_CENTER in firmware/esp32_hud.
