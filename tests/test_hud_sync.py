@@ -19,6 +19,9 @@ class FakeConnection:
     def flush(self):
         pass
 
+    def close(self):
+        pass
+
 
 class ListTarget:
     def __init__(self):
@@ -144,6 +147,66 @@ class TransportTests(unittest.TestCase):
         connection = FakeConnection()
         SerialTarget(connection).send("W:0|a")
         self.assertEqual(connection.written, b"W:0|a\n")
+
+    def test_serial_target_survives_an_unplugged_cable(self):
+        class Unplugged(FakeConnection):
+            def write(self, data):
+                raise OSError("Device not configured")
+
+        replacement, attempts = FakeConnection(), []
+
+        def reopen():
+            attempts.append(1)
+            if len(attempts) < 2:
+                raise OSError("port not there yet")
+            return replacement
+
+        target = SerialTarget(Unplugged(), reopen)
+        target.send("W:a")  # write fails: connection dropped, no exception
+        self.assertIsNone(target.connection)
+        target.send("W:a")  # port still missing
+        self.assertIsNone(target.connection)
+        target.send("W:a")  # reopened; board is rebooting, nothing written yet
+        self.assertIs(target.connection, replacement)
+        target.send("W:b")
+        self.assertEqual(replacement.written, b"W:b\n")
+
+    def test_serial_target_without_reopen_still_raises(self):
+        class Unplugged(FakeConnection):
+            def write(self, data):
+                raise OSError("gone")
+
+        with self.assertRaises(OSError):
+            SerialTarget(Unplugged()).send("W:a")
+
+    def test_reply_cut_off_midway_shows_offline_instead_of_crashing(self):
+        import socket
+
+        server = socket.create_server(("127.0.0.1", 0))
+        self.addCleanup(server.close)
+
+        def serve():
+            while True:
+                try:
+                    client, _ = server.accept()
+                except OSError:
+                    return
+                client.recv(4096)
+                client.sendall(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 5000\r\n\r\n{\"slots\":")
+                client.close()
+
+        threading.Thread(target=serve, daemon=True).start()
+        target, stop = ListTarget(), threading.Event()
+        worker = threading.Thread(target=run, args=(f"http://127.0.0.1:{server.getsockname()[1]}", "", [target], 0.02, stop), daemon=True)
+        worker.start()
+        deadline = time.monotonic() + 3
+        while not target.frames and time.monotonic() < deadline:
+            time.sleep(0.02)
+        time.sleep(0.1)
+        self.assertTrue(worker.is_alive())
+        stop.set()
+        worker.join(2)
+        self.assertEqual(target.frames[0], offline_frame())
 
     def test_mirror_sends_changes_and_heartbeats_only(self):
         target = ListTarget()

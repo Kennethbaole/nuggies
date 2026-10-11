@@ -30,6 +30,7 @@ import json
 import os
 import threading
 import time
+from http.client import HTTPException
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
@@ -126,14 +127,34 @@ def fetch_state(url: str, token: str = "", timeout: float = 2.0) -> dict:
 
 
 class SerialTarget:
-    """ESP32 on a USB port."""
+    """ESP32 on a USB port. With reopen, an unplugged cable is retried instead of ending the mirror."""
 
-    def __init__(self, connection):
+    def __init__(self, connection, reopen=None):
         self.connection = connection
+        self.reopen = reopen
 
     def send(self, frame: str) -> None:
-        self.connection.write((frame + "\n").encode("ascii", errors="replace"))
-        self.connection.flush()
+        try:
+            if self.connection is None:
+                self.connection = self.reopen()
+                print("Display reconnected", flush=True)
+                return  # Opening the port reboots the board; the next heartbeat carries the picture.
+            self.connection.write((frame + "\n").encode("ascii", errors="replace"))
+            self.connection.flush()
+        except OSError as error:
+            if self.reopen is None:
+                raise
+            if self.connection is not None:
+                print(f"Display unplugged ({error}); retrying", flush=True)
+                try:
+                    self.connection.close()
+                except OSError:
+                    pass
+                self.connection = None
+
+    def close(self) -> None:
+        if self.connection is not None:
+            self.connection.close()
 
 
 class PrintTarget:
@@ -171,7 +192,7 @@ def run(url: str, token: str, targets, interval: float, stop: threading.Event) -
         try:
             frame = frame_for(fetch_state(url, token))
             reachable = True
-        except (URLError, OSError, ValueError, KeyError, TypeError):
+        except (URLError, HTTPException, OSError, ValueError, KeyError, TypeError):  # incl. a reply cut off midway
             frame, reachable = offline_frame(), False
         if reachable != online:
             print(f"Website {'reachable' if reachable else 'unreachable'} at {url}", flush=True)
@@ -192,19 +213,22 @@ def main() -> None:
         parser.error("choose at least one of --port or --print")
 
     targets = []
-    connection = None
+    display = None
     try:
         if args.port:
             try:
                 import serial
             except ImportError:
                 raise SystemExit("Needs pyserial: .venv/bin/python -m pip install -r requirements.txt")
+            def open_port():
+                return serial.Serial(args.port, HUD_BAUD, timeout=0.2, exclusive=True)
+
             try:
-                connection = serial.Serial(args.port, HUD_BAUD, timeout=0.2, exclusive=True)
+                display = SerialTarget(open_port(), open_port)  # A wrong port fails here, at start.
             except serial.SerialException as error:
                 raise SystemExit(f"Serial error: {error}. Close the Arduino Serial Monitor and check the port.") from error
             time.sleep(2.0)  # Opening the port resets many ESP32 boards; wait for it to boot.
-            targets.append(SerialTarget(connection))
+            targets.append(display)
         if args.show:
             targets.append(PrintTarget())
         run(args.url, os.environ.get("APP_TOKEN", ""), targets, args.interval, threading.Event())
@@ -213,8 +237,8 @@ def main() -> None:
     except OSError as error:
         raise SystemExit(f"Display link failed: {error}") from error
     finally:
-        if connection is not None:
-            connection.close()
+        if display is not None:
+            display.close()
 
 
 if __name__ == "__main__":
