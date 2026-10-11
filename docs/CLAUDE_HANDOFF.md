@@ -1,4 +1,24 @@
-# EOG development handoff — 2026-10-10
+# EOG development handoff — 2026-10-11
+
+## Current branch and interface follow-up
+
+Work is now on `feat/wheel-ui-and-left-detection`; do not merge to main.
+The project name is Glint; the GitHub repo remains Kennethbaole/nuggies.
+`1643651` adds the full-width centered wheel, stronger readiness cues, blank
+homepage tagline, blue/violet themes, motion and team/project tabs including Bella.
+`de01b53` preserves pending choices during retry and later returns, disarming
+until recovery settles without extending the ten-second expiry. `e1c64bc`
+replaces manual gesture controls with Listen/Text/Default choices at the wheel
+and makes options larger and closer. Pulse-mode early confirmation now keeps
+the pending choice for a fresh retry; the early pair still cannot select.
+
+The local wrapper was safely restarted from this branch after e1c64bc; Nano was
+disconnected, recording and eye control were off. No new wearer test was requested.
+Any subsequent backend change needs another safe restart to become live. Existing
+offline Left-analysis files remain uncommitted; no direction threshold was changed.
+The sections below are historical unless superseded here. OLED fit work remains
+outstanding; frontend appearance does not establish physical display readability.
+
 
 ## Open integration questions
 

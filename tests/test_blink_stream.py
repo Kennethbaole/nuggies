@@ -82,6 +82,16 @@ class PulseConfirmationSafetyTests(unittest.TestCase):
         self.assertFalse(self.gate.update(self.ring,self.detector,self.event(900)))
         self.assertEqual(self.ring.selection_id,0)
 
+    def test_early_pulse_pair_keeps_choice_for_a_fresh_retry(self):
+        self.arm();original=self.gate.target
+        event=self.event(900)
+        self.assertFalse(self.gate.update(self.ring,self.detector,event))
+        self.assertEqual(event['confirmation_result'],'early_blink')
+        self.assertEqual(self.gate.target,original)
+        self.assertEqual(self.ring.selection_id,0)
+        self.assertTrue(self.gate.update(self.ring,self.detector,self.event(1100)))
+        self.assertEqual(self.ring.selection_id,1)
+
     def test_pair_during_return_cannot_select(self):
         self.gate.focus(self.ring,1000);self.detector.phase='recovery'
         self.assertFalse(self.gate.update(self.ring,self.detector,self.event()))

@@ -138,9 +138,11 @@ class EOGConfirmation:
         if (event.get('onset_sample', -1) < self.ready_sample
                 or not (self.pulse_match(event) if self.pulse_mode else self.blink_match(event))):
             event['confirmation_result']='early_blink' if event.get('onset_sample',-1)<self.ready_sample else 'uncertain_blink_match'
-            if self.pulse_mode and event['confirmation_result']=='uncertain_blink_match':
+            if self.pulse_mode:
                 self.retry_pending = True
-                self.message = 'Blink unclear. Keep looking center and double blink again.'
+                self.message = ('Blink started too soon. Keep looking center and double blink again.'
+                                if event['confirmation_result']=='early_blink'
+                                else 'Blink unclear. Keep looking center and double blink again.')
             else:
                 self.clear()
                 self.message = 'Uncertain double blink. Look at the choice again.'

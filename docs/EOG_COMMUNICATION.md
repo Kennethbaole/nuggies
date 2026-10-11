@@ -390,8 +390,9 @@ A return event after arming or a detector retry keeps the pending reply and its
 original ten-second expiry. Confirmation temporarily disarms; after recovery
 settles, the wearer can double blink without choosing that reply again. New
 accepted gaze still replaces the choice. Signal loss, explicit recenter, changed
-content, early/invalid confirmation under the existing policy, and expiry retain
-their cancellation rules. Blink matching thresholds and direction detection are
+content and expiry retain their cancellation rules. In pulse mode, an early
+double blink also keeps the choice for a fresh retry; that early pair cannot
+select. Legacy confirmation retains its previous early/invalid cancellation rule. Blink matching thresholds and direction detection are
 unchanged. Synthetic regression tests establish state behavior, not biological
 accuracy; misses and false confirmations on wearer data remain unmeasured for
 this policy change.
